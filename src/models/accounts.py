@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime, date, timezone, timedelta
 from typing import Optional, List
 
-from sqlalchemy import Integer, Enum, String, Boolean, DateTime, func, ForeignKey, Date, Text, UniqueConstraint
+from sqlalchemy import Integer, Enum, String, Boolean, DateTime, func, ForeignKey, Date, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import Base
@@ -46,7 +46,7 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    group_id: Mapped[int] = mapped_column(ForeignKey("user_groups.id", ondelete="CASCADE"), nullable=False)
+    group_id: Mapped[int] = mapped_column(ForeignKey("user_groups.id", ondelete="RESTRICT"), nullable=False)
     group: Mapped["UserGroup"] = relationship("UserGroup", back_populates="users")
 
     profile: Mapped[Optional["UserProfile"]] = relationship(
@@ -95,7 +95,6 @@ class UserProfile(Base):
 
     user: Mapped[User] = relationship("User", back_populates="profile")
 
-    __table_args__ = (UniqueConstraint("user_id"),)
 
     def __repr__(self):
         return (
@@ -112,7 +111,7 @@ class ActivationToken(Base):
         String(64),
         unique=True,
         nullable=False,
-        default=secrets.token_urlsafe(32)
+        default=lambda: secrets.token_urlsafe(32)
     )
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -122,7 +121,6 @@ class ActivationToken(Base):
 
     user: Mapped[User] = relationship("User", back_populates="activation_token")
 
-    __table_args__ = (UniqueConstraint("user_id"),)
 
     def __repr__(self):
         return f"<ActivationToken(id={self.id}, token={self.token}, expires_at={self.expires_at})>"
@@ -136,7 +134,7 @@ class PasswordResetToken(Base):
         String(64),
         unique=True,
         nullable=False,
-        default=secrets.token_urlsafe(32)
+        default=lambda: secrets.token_urlsafe(32)
     )
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -145,7 +143,6 @@ class PasswordResetToken(Base):
     )
     user: Mapped[User] = relationship("User", back_populates="password_reset_token")
 
-    __table_args__ = (UniqueConstraint("user_id"),)
 
     def __repr__(self):
         return f"<PasswordResetToken(id={self.id}, token={self.token}, expires_at={self.expires_at})>"
@@ -155,12 +152,12 @@ class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     token: Mapped[str] = mapped_column(
         String(512),
         unique=True,
         nullable=False,
-        default=secrets.token_urlsafe(32)
+        default=lambda: secrets.token_urlsafe(32)
     )
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
