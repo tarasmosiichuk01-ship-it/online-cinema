@@ -74,7 +74,7 @@ class User(Base):
     )
 
     def __repr__(self):
-        return f"<UserModel(id={self.id}, email={self.email}, is_active={self.is_active})>"
+        return f"<User(id={self.id}, email={self.email}, is_active={self.is_active})>"
 
 
 class UserProfile(Base):
@@ -99,7 +99,7 @@ class UserProfile(Base):
 
     def __repr__(self):
         return (
-            f"<UserProfileModel(id={self.id}, first_name={self.first_name}, last_name={self.last_name}, "
+            f"<UserProfile(id={self.id}, first_name={self.first_name}, last_name={self.last_name}, "
             f"gender={self.gender}, date_of_birth={self.date_of_birth})>"
         )
 
@@ -125,4 +125,27 @@ class ActivationToken(Base):
     __table_args__ = (UniqueConstraint("user_id"),)
 
     def __repr__(self):
-        return f"<ActivationTokenModel(id={self.id}, token={self.token}, expires_at={self.expires_at})>"
+        return f"<ActivationToken(id={self.id}, token={self.token}, expires_at={self.expires_at})>"
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    token: Mapped[str] = mapped_column(
+        String(64),
+        unique=True,
+        nullable=False,
+        default=secrets.token_urlsafe(32)
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc) + timedelta(days=1)
+    )
+    user: Mapped[User] = relationship("UserModel", back_populates="password_reset_token")
+
+    __table_args__ = (UniqueConstraint("user_id"),)
+
+    def __repr__(self):
+        return f"<PasswordResetToken(id={self.id}, token={self.token}, expires_at={self.expires_at})>"
