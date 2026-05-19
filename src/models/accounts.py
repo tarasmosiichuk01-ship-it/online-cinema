@@ -119,3 +119,10 @@ class ActivationToken(Base):
         nullable=False,
         default=lambda: datetime.now(timezone.utc) + timedelta(days=1)
     )
+
+    user: Mapped[User] = relationship("UserModel", back_populates="activation_token")
+
+    __table_args__ = (UniqueConstraint("user_id"),)
+
+    def __repr__(self):
+        return f"<ActivationTokenModel(id={self.id}, token={self.token}, expires_at={self.expires_at})>"
