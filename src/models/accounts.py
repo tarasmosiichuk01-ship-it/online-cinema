@@ -120,7 +120,7 @@ class ActivationToken(Base):
         default=lambda: datetime.now(timezone.utc) + timedelta(days=1)
     )
 
-    user: Mapped[User] = relationship("UserModel", back_populates="activation_token")
+    user: Mapped[User] = relationship("User", back_populates="activation_token")
 
     __table_args__ = (UniqueConstraint("user_id"),)
 
@@ -143,9 +143,32 @@ class PasswordResetToken(Base):
         nullable=False,
         default=lambda: datetime.now(timezone.utc) + timedelta(days=1)
     )
-    user: Mapped[User] = relationship("UserModel", back_populates="password_reset_token")
+    user: Mapped[User] = relationship("User", back_populates="password_reset_token")
 
     __table_args__ = (UniqueConstraint("user_id"),)
 
     def __repr__(self):
         return f"<PasswordResetToken(id={self.id}, token={self.token}, expires_at={self.expires_at})>"
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    token: Mapped[str] = mapped_column(
+        String(512),
+        unique=True,
+        nullable=False,
+        default=secrets.token_urlsafe(32)
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc) + timedelta(days=1)
+    )
+
+    user: Mapped[User] = relationship("User", back_populates="refresh_tokens")
+
+    def __repr__(self):
+        return f"<RefreshToken(id={self.id}, token={self.token}, expires_at={self.expires_at})>"
