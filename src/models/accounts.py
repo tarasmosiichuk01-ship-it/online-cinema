@@ -1,5 +1,6 @@
 import enum
-from datetime import datetime, date
+import secrets
+from datetime import datetime, date, timezone, timedelta
 from typing import Optional, List
 
 from sqlalchemy import Integer, Enum, String, Boolean, DateTime, func, ForeignKey, Date, Text, UniqueConstraint
@@ -102,3 +103,19 @@ class UserProfile(Base):
             f"gender={self.gender}, date_of_birth={self.date_of_birth})>"
         )
 
+class ActivationToken(Base):
+    __tablename__ = "activation_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    token: Mapped[str] = mapped_column(
+        String(64),
+        unique=True,
+        nullable=False,
+        default=secrets.token_urlsafe(32)
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc) + timedelta(days=1)
+    )
