@@ -4,9 +4,11 @@ from datetime import datetime, date, timezone, timedelta
 from typing import Optional, List
 
 from sqlalchemy import Integer, Enum, String, Boolean, DateTime, func, ForeignKey, Date, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
+import validators
 from models.base import Base
+from security.passwords import hash_password, verify_password
 
 
 class UserGroupEnum(str, enum.Enum):
@@ -75,6 +77,32 @@ class User(Base):
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, is_active={self.is_active})>"
+
+    def has_group(self, group_name: UserGroupEnum) -> bool:
+        return self.group.name == group_name
+
+    @classmethod
+    def create(cls, email: str, raw_password: str, group_id: int | Mapped[int]) -> "User":
+
+        user = cls(email=email, group_id=group_id)
+        user.password = raw_password
+        return user
+
+    @property
+    def password(self) -> None:
+        raise AttributeError("Password is write-only. Use the setter to set the password.")
+
+    @password.setter
+    def password(self, raw_password: str) -> None:
+        validators.validate_password_strength(raw_password)
+        self._hashed_password = hash_password(raw_password)
+
+    def verify_password(self, raw_password: str) -> bool:
+        return verify_password(raw_password, self._hashed_password)
+
+    @validates("email")
+    def validate_email(self, key, value):
+        return validators.validate_email(value.lower())
 
 
 class UserProfile(Base):
