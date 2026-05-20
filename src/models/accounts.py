@@ -6,7 +6,7 @@ from typing import Optional, List
 from sqlalchemy import Integer, Enum, String, Boolean, DateTime, func, ForeignKey, Date, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.models.base import Base
+from models.base import Base
 
 
 class UserGroupEnum(str, enum.Enum):
