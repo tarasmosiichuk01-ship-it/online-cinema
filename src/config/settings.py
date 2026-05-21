@@ -19,7 +19,10 @@ class BaseAppSettings(BaseSettings):
 
     JWT_SIGNING_ALGORITHM: str
 
-    model_config = SettingsConfigDict(env_file=str(BASE_DIR / ".env"))
+    model_config = SettingsConfigDict(
+        env_file=str(BASE_DIR / ".env"),
+        extra="ignore"
+    )
 
 
 class Settings(BaseAppSettings):
@@ -44,6 +47,5 @@ class Settings(BaseAppSettings):
             f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@"
             f"{self.POSTGRES_HOST}:{self.POSTGRES_DB_PORT}/{self.POSTGRES_DB}"
         )
-
 
 settings = Settings()
