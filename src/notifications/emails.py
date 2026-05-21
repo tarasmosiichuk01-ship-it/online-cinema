@@ -60,3 +60,10 @@ class EmailSender(EmailSenderInterface):
         subject = "Account Activation"
         await self._send_email(email, subject, html_content)
 
+    async def send_activation_complete_email(self, email: str, login_link: str) -> None:
+
+        template = self._env.get_template(self._activation_complete_email_template_name)
+        html_content = template.render(email=email, login_link=login_link)
+        subject = "Account Activated Successfully"
+        await self._send_email(email, subject, html_content)
+
