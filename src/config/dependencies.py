@@ -3,6 +3,8 @@ from fastapi import Depends
 from config.settings import settings, BaseAppSettings, Settings
 from notifications.emails import EmailSender
 from notifications.interfaces import EmailSenderInterface
+from security.interfaces import JWTAuthManagerInterface
+from security.token_manager import JWTAuthManager
 
 
 def get_settings() -> BaseAppSettings:
