@@ -9,9 +9,11 @@ from sqlalchemy.orm import joinedload
 from config.dependencies import get_accounts_email_notificator, get_jwt_auth_manager, get_settings
 from config.settings import BaseAppSettings
 from database import get_postgresql_db
+from exceptions.security import BaseSecurityError
 from notifications.interfaces import EmailSenderInterface
 from schemas.accounts import UserRegistrationRequestSchema, UserRegistrationResponseSchema, MessageResponseSchema, \
-    ResetActivationSchema, UserLoginResponseSchema, UserLoginRequestSchema, UserLogoutRequestSchema
+    ResetActivationSchema, UserLoginResponseSchema, UserLoginRequestSchema, UserLogoutRequestSchema, \
+    TokenRefreshResponseSchema, TokenRefreshRequestSchema
 from models.accounts import User, UserGroup, UserGroupEnum, ActivationToken, RefreshToken
 from security.interfaces import JWTAuthManagerInterface
 
@@ -255,3 +257,44 @@ async def logout_user(
         )
 
     return MessageResponseSchema(message="Successfully logged out.")
+
+@router.post(
+    "/refresh/",
+    response_model=TokenRefreshResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def update_access_token(
+    token_data: TokenRefreshRequestSchema,
+    db: AsyncSession = Depends(get_postgresql_db),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+):
+    try:
+        decoded_token = jwt_manager.decode_refresh_token(token_data.refresh_token)
+        user_id = decoded_token.get("user_id")
+    except BaseSecurityError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error)
+        )
+
+    query = select(RefreshToken).filter_by(token=token_data.refresh_token)
+    result = await db.execute(query)
+    refresh_token_record = result.scalars().first()
+    if not refresh_token_record:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token not found.",
+        )
+
+    query = select(User).filter_by(id=user_id)
+    result = await db.execute(query)
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
+
+    new_access_token = jwt_manager.create_access_token({"user_id": user_id})
+
+    return TokenRefreshResponseSchema(access_token=new_access_token)
