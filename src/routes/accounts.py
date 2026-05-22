@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status, Depends
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -9,9 +9,9 @@ from sqlalchemy.orm import joinedload
 from config.dependencies import get_accounts_email_notificator
 from database import get_postgresql_db
 from notifications.interfaces import EmailSenderInterface
-from schemas.accounts import UserRegistrationRequestSchema, UserRegistrationResponseSchema, MessageResponseSchema
+from schemas.accounts import UserRegistrationRequestSchema, UserRegistrationResponseSchema, MessageResponseSchema, \
+    ResetActivationSchema
 from models.accounts import User, UserGroup, UserGroupEnum, ActivationToken
-
 
 router = APIRouter()
 
@@ -129,4 +129,47 @@ async def activate_token(
     )
 
     return MessageResponseSchema(message="User account activated successfully.")
+
+
+@router.post(
+    "/reset-activation/",
+    response_model=MessageResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def reset_activation_token(
+    user_data: ResetActivationSchema,
+    db: AsyncSession = Depends(get_postgresql_db),
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator)
+):
+    query = select(User).where(User.email == user_data.email)
+    result = await db.execute(query)
+    user = result.scalars().first()
+
+    if not user or user.is_active:
+        return MessageResponseSchema(
+            message="If you are registered, you will receive an email with instructions."
+        )
+
+    try:
+        await db.execute(delete(ActivationToken).where(ActivationToken.user_id == user.id))
+
+        new_activation_token = ActivationToken(user_id=user.id)
+        db.add(new_activation_token)
+        await db.commit()
+        await db.refresh(new_activation_token)
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred. Please try again later."
+        )
+
+    activation_link = f"http://127.0.0.1:8000/api/v1/auth/activate/{new_activation_token.token}"
+
+    await email_sender.send_activation_email(
+        user.email,
+        activation_link
+    )
+
+    return MessageResponseSchema(message="If you are registered and not yet activated, you will receive an email.")
 
