@@ -6,16 +6,17 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from config.dependencies import get_accounts_email_notificator, get_jwt_auth_manager, get_settings
+from config.dependencies import get_accounts_email_notificator, get_jwt_auth_manager, get_settings, get_current_user
 from config.settings import BaseAppSettings
 from database import get_postgresql_db
 from exceptions.security import BaseSecurityError
 from notifications.interfaces import EmailSenderInterface
 from schemas.accounts import UserRegistrationRequestSchema, UserRegistrationResponseSchema, MessageResponseSchema, \
     ResetActivationSchema, UserLoginResponseSchema, UserLoginRequestSchema, UserLogoutRequestSchema, \
-    TokenRefreshResponseSchema, TokenRefreshRequestSchema
+    TokenRefreshResponseSchema, TokenRefreshRequestSchema, ChangePasswordRequestSchema
 from models.accounts import User, UserGroup, UserGroupEnum, ActivationToken, RefreshToken
 from security.interfaces import JWTAuthManagerInterface
+from security.passwords import verify_password, hash_password
 
 router = APIRouter()
 
@@ -298,3 +299,35 @@ async def update_access_token(
     new_access_token = jwt_manager.create_access_token({"user_id": user_id})
 
     return TokenRefreshResponseSchema(access_token=new_access_token)
+
+
+@router.post("/change-password/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
+async def change_password(
+    user_data: ChangePasswordRequestSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_postgresql_db),
+
+):
+    if user_data.new_password != user_data.confirm_password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New passwords do not match")
+
+    if not current_user.verify_password(user_data.old_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect current password")
+
+    if user_data.old_password == user_data.new_password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password must be different from old password")
+    try:
+        current_user.password = user_data.new_password
+
+        for token in current_user.refresh_tokens:
+            await db.delete(token)
+        await db.commit()
+
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An error occurred while changing password.")
+
+    return MessageResponseSchema(message="Successfully changed password.")
+
+
+
