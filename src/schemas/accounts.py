@@ -35,3 +35,7 @@ class UserRegistrationResponseSchema(BaseModel):
 
 class MessageResponseSchema(BaseModel):
     message: str
+
+
+class PasswordResetSchema(BaseModel):
+    email: EmailStr
