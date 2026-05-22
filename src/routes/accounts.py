@@ -11,7 +11,7 @@ from config.settings import BaseAppSettings
 from database import get_postgresql_db
 from notifications.interfaces import EmailSenderInterface
 from schemas.accounts import UserRegistrationRequestSchema, UserRegistrationResponseSchema, MessageResponseSchema, \
-    ResetActivationSchema, UserLoginResponseSchema, UserLoginRequestSchema
+    ResetActivationSchema, UserLoginResponseSchema, UserLoginRequestSchema, UserLogoutRequestSchema
 from models.accounts import User, UserGroup, UserGroupEnum, ActivationToken, RefreshToken
 from security.interfaces import JWTAuthManagerInterface
 
@@ -227,3 +227,31 @@ async def login_user(
         refresh_token=jwt_refresh_token,
     )
 
+
+@router.post("/logout/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
+async def logout_user(
+    logout_data: UserLogoutRequestSchema,
+    db: AsyncSession = Depends(get_postgresql_db),
+):
+    query = select(RefreshToken).where(RefreshToken.token == logout_data.refresh_token)
+    result = await db.execute(query)
+    token = result.scalars().first()
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid refresh token.",
+        )
+
+    try:
+        await db.delete(token)
+        await db.commit()
+
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while processing the request.",
+        )
+
+    return MessageResponseSchema(message="Successfully logged out.")
