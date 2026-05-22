@@ -10,6 +10,8 @@ class BaseAppSettings(BaseSettings):
     ACTIVATION_EMAIL_TEMPLATE_NAME: str = "activation_request.html"
     ACTIVATION_COMPLETE_EMAIL_TEMPLATE_NAME: str = "activation_complete.html"
 
+    LOGIN_TIME_DAYS: int = 7
+
     EMAIL_HOST: str
     EMAIL_PORT: int
     EMAIL_HOST_USER: str
