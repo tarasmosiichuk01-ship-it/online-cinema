@@ -12,3 +12,7 @@ class JWTAuthManagerInterface(ABC):
     @abstractmethod
     def create_refresh_token(self, data: dict, expires_delta: Optional[timedelta] = None) -> str:
         pass
+
+    @abstractmethod
+    def decode_refresh_token(self, token: str) -> dict:
+        pass
