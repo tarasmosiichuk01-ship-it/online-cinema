@@ -1,20 +1,21 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from jose import jwt
+from jose import jwt, ExpiredSignatureError, JWTError
 
-
+from exceptions.security import TokenExpiredError, InvalidTokenError
 from security.interfaces import JWTAuthManagerInterface
 
 
 class JWTAuthManager(JWTAuthManagerInterface):
 
-
     _ACCESS_KEY_TIMEDELTA_MINUTES = 60
     _REFRESH_KEY_TIMEDELTA_MINUTES = 60 * 24 * 7
 
     def __init__(self, secret_key_access: str, secret_key_refresh: str, algorithm: str):
-
+        """
+        Initialize the manager with secret keys and algorithm for token operations.
+        """
         self._secret_key_access = secret_key_access
         self._secret_key_refresh = secret_key_refresh
         self._algorithm = algorithm
@@ -46,3 +47,13 @@ class JWTAuthManager(JWTAuthManagerInterface):
             self._secret_key_refresh,
             expires_delta or timedelta(minutes=self._REFRESH_KEY_TIMEDELTA_MINUTES))
 
+    def decode_refresh_token(self, token: str) -> dict:
+        """
+        Decode and validate a refresh token, returning the token's data.
+        """
+        try:
+            return jwt.decode(token, self._secret_key_refresh, algorithms=[self._algorithm])
+        except ExpiredSignatureError:
+            raise TokenExpiredError
+        except JWTError:
+            raise InvalidTokenError
