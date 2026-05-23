@@ -31,11 +31,11 @@ async def get_current_user(
     try:
         payload = jwt.decode(
             token,
-            settings.SECRET_KEY,
-            algorithms=[settings.ALGORITHM],
+            settings.SECRET_KEY_ACCESS,
+            algorithms=[settings.JWT_SIGNING_ALGORITHM],
         )
 
-        user_id = payload.get("sub")
+        user_id = payload.get("user_id")
 
         if user_id is None:
             raise credentials_exception
