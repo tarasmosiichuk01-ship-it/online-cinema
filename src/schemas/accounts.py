@@ -83,3 +83,13 @@ class ChangePasswordRequestSchema(BaseModel):
 
 class ForgotPasswordRequestSchema(BaseModel):
     email: EmailStr
+
+
+class ResetPasswordRequestSchema(BaseModel):
+    new_password: str
+    confirm_password: str
+
+    @field_validator("new_password", "confirm_password")
+    @classmethod
+    def validate_password(cls, value):
+        return accounts.validate_password_strength(value)
