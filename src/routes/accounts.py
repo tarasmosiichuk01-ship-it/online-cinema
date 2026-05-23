@@ -16,7 +16,7 @@ from schemas.accounts import UserRegistrationRequestSchema, UserRegistrationResp
     TokenRefreshResponseSchema, TokenRefreshRequestSchema, ChangePasswordRequestSchema
 from models.accounts import User, UserGroup, UserGroupEnum, ActivationToken, RefreshToken
 from security.interfaces import JWTAuthManagerInterface
-from security.passwords import verify_password, hash_password
+
 
 router = APIRouter()
 
@@ -319,9 +319,9 @@ async def change_password(
     try:
         current_user.password = user_data.new_password
 
-        for token in current_user.refresh_tokens:
-            await db.delete(token)
-        await db.commit()
+        await db.execute(
+            delete(RefreshToken).where(RefreshToken.user_id == current_user.id)
+        )
 
     except SQLAlchemyError:
         await db.rollback()
