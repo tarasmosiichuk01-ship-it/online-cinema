@@ -13,7 +13,8 @@ from exceptions.security import BaseSecurityError
 from notifications.interfaces import EmailSenderInterface
 from schemas.accounts import UserRegistrationRequestSchema, UserRegistrationResponseSchema, MessageResponseSchema, \
     ResetActivationSchema, UserLoginResponseSchema, UserLoginRequestSchema, UserLogoutRequestSchema, \
-    TokenRefreshResponseSchema, TokenRefreshRequestSchema, ChangePasswordRequestSchema, ForgotPasswordRequestSchema
+    TokenRefreshResponseSchema, TokenRefreshRequestSchema, ChangePasswordRequestSchema, ForgotPasswordRequestSchema, \
+    ResetPasswordRequestSchema
 from models.accounts import User, UserGroup, UserGroupEnum, ActivationToken, RefreshToken, PasswordResetToken
 from security.interfaces import JWTAuthManagerInterface
 
@@ -72,7 +73,7 @@ async def register_user(
             detail="An error occurred during user creation."
         )
 
-    activation_link = f"http://127.0.0.1:8000/api/v1/auth/activate/{activation_token.token}"
+    activation_link = f"http://127.0.0.1:8000/api/v1/activate/{activation_token.token}/"
 
     await email_sender.send_activation_email(
         new_user.email,
@@ -81,7 +82,7 @@ async def register_user(
 
     return UserRegistrationResponseSchema.model_validate(new_user)
 
-@router.get("/activate/{token}", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
+@router.get("/activate/{token}/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
 async def activate_token(
     token: str,
     db: AsyncSession = Depends(get_postgresql_db),
@@ -169,7 +170,7 @@ async def reset_activation_token(
             detail="An error occurred. Please try again later."
         )
 
-    activation_link = f"http://127.0.0.1:8000/api/v1/auth/activate/{new_activation_token.token}"
+    activation_link = f"http://127.0.0.1:8000/api/v1/activate/{new_activation_token.token}/"
 
     await email_sender.send_activation_email(
         user.email,
@@ -322,6 +323,7 @@ async def change_password(
         await db.execute(
             delete(RefreshToken).where(RefreshToken.user_id == current_user.id)
         )
+        await db.commit()
 
     except SQLAlchemyError:
         await db.rollback()
@@ -329,7 +331,11 @@ async def change_password(
 
     return MessageResponseSchema(message="Successfully changed password.")
 
-@router.post("/forgot-password/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
+@router.post(
+    "/forgot-password/",
+    response_model=MessageResponseSchema,
+    status_code=status.HTTP_200_OK
+)
 async def forgot_password(
     user_data: ForgotPasswordRequestSchema,
     db: AsyncSession = Depends(get_postgresql_db),
@@ -359,9 +365,62 @@ async def forgot_password(
             detail="An error occurred. Please try again later."
         )
 
-    reset_link = f"http://127.0.0.1:8000/api/v1/auth/reset-password/{new_reset_token.token}"
+    reset_link = f"http://127.0.0.1:8000/api/v1/reset-password/{new_reset_token.token}/"
 
     await email_sender.send_password_reset_email(email=user_data.email, reset_link=reset_link)
 
-    return MessageResponseSchema(message="If you wish to reset your password, you will receive an email.")
+    return MessageResponseSchema(
+        message="If you wish to reset your password, you will receive an email."
+    )
 
+@router.post(
+    "/reset-password/{token}/",
+    response_model=MessageResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def reset_password(
+    token: str,
+    user_data: ResetPasswordRequestSchema,
+    db: AsyncSession = Depends(get_postgresql_db),
+):
+    query = (
+        select(PasswordResetToken)
+        .options(joinedload(PasswordResetToken.user))
+        .where(PasswordResetToken.token == token)
+    )
+    result = await db.execute(query)
+    token_record = result.scalars().first()
+
+    if not token_record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired password reset token."
+        )
+
+    expires_at = token_record.expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < datetime.now(tz=timezone.utc):
+        await db.delete(token_record)
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired password reset token."
+        )
+
+    if user_data.new_password != user_data.confirm_password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match")
+
+    user = token_record.user
+
+    try:
+        user.password = user_data.new_password
+        await db.delete(token_record)
+        await db.commit()
+
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while resetting the password."
+        )
+
+    return MessageResponseSchema(message="Password reset successfully.")
