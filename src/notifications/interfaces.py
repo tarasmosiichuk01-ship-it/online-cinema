@@ -12,5 +12,5 @@ class EmailSenderInterface(ABC):
         pass
 
     @abstractmethod
-    async def send_password_reset_email(self, email: str, reset_link:str) -> None:
+    async def send_reset_password_email(self, email: str, reset_link:str) -> None:
         pass
