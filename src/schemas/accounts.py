@@ -79,3 +79,7 @@ class ChangePasswordRequestSchema(BaseModel):
     @classmethod
     def validate_password(cls, value):
         return accounts.validate_password_strength(value)
+
+
+class ForgotPasswordRequestSchema(BaseModel):
+    email: EmailStr
