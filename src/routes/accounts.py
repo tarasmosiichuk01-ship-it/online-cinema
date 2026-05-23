@@ -13,8 +13,8 @@ from exceptions.security import BaseSecurityError
 from notifications.interfaces import EmailSenderInterface
 from schemas.accounts import UserRegistrationRequestSchema, UserRegistrationResponseSchema, MessageResponseSchema, \
     ResetActivationSchema, UserLoginResponseSchema, UserLoginRequestSchema, UserLogoutRequestSchema, \
-    TokenRefreshResponseSchema, TokenRefreshRequestSchema, ChangePasswordRequestSchema
-from models.accounts import User, UserGroup, UserGroupEnum, ActivationToken, RefreshToken
+    TokenRefreshResponseSchema, TokenRefreshRequestSchema, ChangePasswordRequestSchema, ForgotPasswordRequestSchema
+from models.accounts import User, UserGroup, UserGroupEnum, ActivationToken, RefreshToken, PasswordResetToken
 from security.interfaces import JWTAuthManagerInterface
 
 
@@ -329,5 +329,39 @@ async def change_password(
 
     return MessageResponseSchema(message="Successfully changed password.")
 
+@router.post("/forgot-password/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
+async def forgot_password(
+    user_data: ForgotPasswordRequestSchema,
+    db: AsyncSession = Depends(get_postgresql_db),
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+):
+    query = select(User).where(User.email == user_data.email)
+    result = await db.execute(query)
+    user = result.scalars().first()
 
+    if not user or not user.is_active:
+        return MessageResponseSchema(
+            message="If you wish to reset your password, you will receive an email."
+        )
+
+    try:
+        await db.execute(delete(PasswordResetToken).where(PasswordResetToken.user_id == user.id))
+
+        new_reset_token = PasswordResetToken(user_id=user.id)
+        db.add(new_reset_token)
+        await db.commit()
+        await db.refresh(new_reset_token)
+
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred. Please try again later."
+        )
+
+    reset_link = f"http://127.0.0.1:8000/api/v1/auth/reset-password/{new_reset_token.token}"
+
+    await email_sender.send_password_reset_email(email=user_data.email, reset_link=reset_link)
+
+    return MessageResponseSchema(message="If you wish to reset your password, you will receive an email.")
 
