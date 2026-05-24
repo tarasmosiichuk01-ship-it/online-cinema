@@ -76,7 +76,7 @@ services:
     volumes:
       - ./src:/app/src
     command: >
-      celery -A src.celery_app beat --loglevel=info
+      celery -A src.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
     environment:
       - PYTHONPATH=/app/src
     depends_on:
