@@ -44,6 +44,9 @@ class Settings(BaseAppSettings):
     MINIO_PORT: int
     MINIO_STORAGE: str
 
+    CELERY_BROKER_URL: str
+    CELERY_RESULT_BACKEND: str
+
     @property
     def postgres_database_url(self) -> str:
         return (
