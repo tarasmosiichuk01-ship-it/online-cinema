@@ -154,6 +154,32 @@ class Movie(Base):
         return f"<Movie(name='{self.name}', release_year='{self.year}')>"
 
 
+class MovieComment(Base):
+    __tablename__ = "movies_comments"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    user: Mapped["User"] = relationship("User", back_populates="movie_comments")
+
+    movie_id: Mapped[int] = mapped_column(ForeignKey("movies.id"), nullable=False)
+    movie: Mapped["Movie"] = relationship("Movie", back_populates="movie_comments")
+
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    parent_id: Mapped[int] = mapped_column(ForeignKey("movies_comments.id"), nullable=True)
+
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "movie_id", name="unique_movie_comment_constraint"),
+    )
+
 class MovieReaction(Base):
     __tablename__ = "movies_likes"
 
@@ -169,5 +195,17 @@ class MovieReaction(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "movie_id", name="unique_movie_reaction_constraint"),
+    )
+
+
+class MovieRating(Base):
+    pass
+
+
+class MovieFavourite(Base):
+    pass
 
 
