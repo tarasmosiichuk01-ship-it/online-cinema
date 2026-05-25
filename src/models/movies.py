@@ -28,3 +28,15 @@ class Star(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+
+
+MoviesStars = Table(
+    "movies_stars",
+    Base.metadata,
+    Column(
+        "movie_id",
+        ForeignKey("movies.id", ondelete="CASCADE"), primary_key=True, nullable=False),
+    Column(
+        "star_id",
+        ForeignKey("stars.id", ondelete="CASCADE"), primary_key=True, nullable=False),
+)
