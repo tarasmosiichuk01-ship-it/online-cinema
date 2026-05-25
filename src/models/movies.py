@@ -13,6 +13,9 @@ class Genre(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
 
+    def __repr__(self):
+        return f"<Genre(name='{self.name}')>"
+
 
 MoviesGenres = Table(
     "movies_genres",
@@ -32,6 +35,9 @@ class Star(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
 
+    def __repr__(self):
+        return f"<Star(name='{self.name}')>"
+
 
 MoviesStars = Table(
     "movies_stars",
@@ -50,6 +56,9 @@ class Director(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+
+    def __repr__(self):
+        return f"<Director(name='{self.name}')>"
 
 
 MoviesDirectors = Table(
@@ -71,6 +80,9 @@ class Certification(Base):
     name: Mapped[str] = mapped_column(String(63), unique=True, nullable=False)
 
     movies: Mapped[list["Movie"]] = relationship("Movie", back_populates="certification")
+
+    def __repr__(self):
+        return f"<Certification(name='{self.name}')>"
 
 
 class Movie(Base):
@@ -108,4 +120,7 @@ class Movie(Base):
         secondary=MoviesStars,
         back_populates="movies"
     )
+
+    def __repr__(self):
+        return f"<Movie(name='{self.name}', release_year='{self.year}')>"
 
