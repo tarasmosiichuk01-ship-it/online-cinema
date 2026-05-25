@@ -6,9 +6,9 @@ from typing import Optional, List
 from sqlalchemy import Integer, Enum, String, Boolean, DateTime, func, ForeignKey, Date, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
-from validators import accounts as validators
-from models.base import Base
-from security.passwords import hash_password, verify_password
+from src.validators import accounts as validators
+from src.models.base import Base
+from src.security.passwords import hash_password, verify_password
 
 
 class UserGroupEnum(str, enum.Enum):

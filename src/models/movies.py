@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import String, Table, Column, ForeignKey, Integer, Float, Text, DECIMAL, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from models.base import Base
+from src.models.base import Base
 
 movies_genres = Table(
     "movies_genres",
