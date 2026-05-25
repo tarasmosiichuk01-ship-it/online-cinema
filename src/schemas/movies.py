@@ -12,8 +12,12 @@ class GenreBaseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class GenreListItemSchema(GenreBaseSchema):
-    pass
+class GenreListItemSchema(BaseModel):
+    id: int
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 
 class GenreCreateShema(GenreBaseSchema):
@@ -24,8 +28,11 @@ class GenreUpdateShema(GenreBaseSchema):
     pass
 
 
-class GenreResponseSchema(GenreBaseSchema):
-    id: int
+class GenreListResponseSchema(BaseModel):
+    genres = List[GenreListItemSchema]
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 
 class StarSchema(BaseModel):
