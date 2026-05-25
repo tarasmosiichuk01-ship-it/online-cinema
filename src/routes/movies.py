@@ -1,14 +1,18 @@
 import math
+from _pyrepl.commands import refresh
 
 from fastapi import APIRouter, status, Query, Depends, HTTPException
 from sqlalchemy import select, func
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from config.dependencies import get_moderator_user
 from database import get_postgresql_db
+from models.accounts import User, UserGroupEnum
 from models.movies import Movie, Genre
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
-    GenreListResponseSchema, GenreListItemSchema
+    GenreListResponseSchema, GenreDetailSchema, GenreCreateShema
 
 router = APIRouter()
 
@@ -76,6 +80,36 @@ async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_postgres
     return MovieDetailSchema.model_validate(movie)
 
 
+@router.post("/genres", response_model=GenreDetailSchema, status_code=status.HTTP_201_CREATED)
+async def create_genre(
+    genre_data: GenreCreateShema,
+    current_user: User = Depends(get_moderator_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    if not current_user.has_group(UserGroupEnum.MODERATOR):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
+
+    query = select(Genre).where(Genre.name == genre_data.name)
+    result = await db.execute(query)
+    existing_genre = result.scalars().first()
+    if existing_genre:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Genre with that name already exists")
+
+    new_genre = Genre(name=genre_data.name)
+
+    try:
+        db.add(new_genre)
+        await db.commit()
+        await refresh(new_genre)
+
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Genre with the name '{genre_data.name}' already exists"
+        )
+
+
 @router.get("/genres", response_model=GenreListResponseSchema)
 async def get_genre_list(db: AsyncSession = Depends(get_postgresql_db)) -> GenreListResponseSchema:
 
@@ -86,6 +120,6 @@ async def get_genre_list(db: AsyncSession = Depends(get_postgresql_db)) -> Genre
     if not genres:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No genres found.")
 
-    genre_list = [GenreListItemSchema.model_validate(genre) for genre in genres]
+    genre_list = [GenreDetailSchema.model_validate(genre) for genre in genres]
 
     return GenreListResponseSchema(genres=genre_list)
