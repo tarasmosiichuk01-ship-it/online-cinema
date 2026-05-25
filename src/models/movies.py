@@ -47,3 +47,15 @@ class Director(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+
+
+MoviesDirectors = Table(
+    "movies_directors",
+    Base.metadata,
+    Column(
+        "movie_id",
+        ForeignKey("movies.id", ondelete="CASCADE"), primary_key=True, nullable=False),
+    Column(
+        "director_id",
+        ForeignKey("directors.id", ondelete="CASCADE"), primary_key=True, nullable=False),
+)
