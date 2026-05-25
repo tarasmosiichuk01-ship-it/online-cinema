@@ -5,10 +5,11 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from config.settings import settings, BaseAppSettings, Settings
 from database import get_postgresql_db
-from models.accounts import User
+from models.accounts import User, UserGroupEnum
 from notifications.emails import EmailSender
 from notifications.interfaces import EmailSenderInterface
 from security.interfaces import JWTAuthManagerInterface
@@ -43,7 +44,7 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    query = select(User).where(User.id == int(user_id))
+    query = select(User).options(joinedload(User.group)).where(User.id == int(user_id))
     result = await db.execute(query)
     user = result.scalars().first()
 
@@ -57,6 +58,24 @@ async def get_current_user(
         )
 
     return user
+
+async def get_moderator_user(current_user: User = Depends(get_current_user)) -> User:
+    if not current_user.has_group(UserGroupEnum.MODERATOR) and not current_user.has_group(UserGroupEnum.ADMIN):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden. Moderator or Admin role required."
+        )
+
+    return current_user
+
+async def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    if not current_user.has_group(UserGroupEnum.ADMIN):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden. Admin role required."
+        )
+
+    return current_user
 
 
 def get_settings() -> BaseAppSettings:
