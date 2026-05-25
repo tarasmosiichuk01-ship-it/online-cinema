@@ -1,5 +1,5 @@
 from sqlalchemy import String, Table, Column, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import Base
 
@@ -59,3 +59,12 @@ MoviesDirectors = Table(
         "director_id",
         ForeignKey("directors.id", ondelete="CASCADE"), primary_key=True, nullable=False),
 )
+
+
+class Certification(Base):
+    __tablename__ = "certifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(63), unique=True, nullable=False)
+
+    movies: Mapped[list["Movie"]] = relationship("Movie", back_populates="certification")
