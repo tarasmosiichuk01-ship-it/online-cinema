@@ -21,3 +21,10 @@ MoviesGenres = Table(
         "genre_id",
         ForeignKey("genres.id", ondelete="CASCADE"), primary_key=True, nullable=False),
 )
+
+
+class Star(Base):
+    __tablename__ = "stars"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
