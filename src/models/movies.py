@@ -40,3 +40,10 @@ MoviesStars = Table(
         "star_id",
         ForeignKey("stars.id", ondelete="CASCADE"), primary_key=True, nullable=False),
 )
+
+
+class Director(Base):
+    __tablename__ = "directors"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
