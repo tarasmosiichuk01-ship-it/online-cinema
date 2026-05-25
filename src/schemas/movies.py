@@ -3,35 +3,34 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class GenreSchema(BaseModel):
-    id: int
     name: str
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
 
 class StarSchema(BaseModel):
     id: int
     name: str
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DirectorSchema(BaseModel):
     id: int
     name: str
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CertificationSchema(BaseModel):
     id: int
     name: str
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MovieBaseSchema(BaseModel):
@@ -45,7 +44,7 @@ class MovieBaseSchema(BaseModel):
     description: str
     price: decimal.Decimal = Field(..., ge=0)
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
     @field_validator("year")
     @classmethod
@@ -64,7 +63,7 @@ class MovieDetailSchema(MovieBaseSchema):
     stars: List[StarSchema]
     directors: List[DirectorSchema]
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MovieListItemSchema(BaseModel):
@@ -75,7 +74,7 @@ class MovieListItemSchema(BaseModel):
     meta_score: float
     description: str
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MovieListResponseSchema(BaseModel):
@@ -85,7 +84,7 @@ class MovieListResponseSchema(BaseModel):
     total_pages: int
     total_items: int
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MovieCreateSchema(BaseModel):
@@ -104,7 +103,7 @@ class MovieCreateSchema(BaseModel):
     stars: List[str]
     directors: List[str]
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
     @field_validator("certification", mode="before")
     @classmethod
@@ -128,4 +127,4 @@ class MovieUpdateSchema(BaseModel):
     description: Optional[str] = None
     price: Optional[decimal.Decimal] = Field(None, ge=0)
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
