@@ -6,10 +6,26 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
-class GenreSchema(BaseModel):
+class GenreBaseSchema(BaseModel):
     name: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class GenreListItemSchema(GenreBaseSchema):
+    pass
+
+
+class GenreCreateShema(GenreBaseSchema):
+    pass
+
+
+class GenreUpdateShema(GenreBaseSchema):
+    pass
+
+
+class GenreResponseSchema(GenreBaseSchema):
+    id: int
 
 
 class StarSchema(BaseModel):
@@ -59,7 +75,7 @@ class MovieDetailSchema(MovieBaseSchema):
     id: int
     uuid: UUID
     certification: CertificationSchema
-    genres: List[GenreSchema]
+    genres: List[GenreListItemSchema]
     stars: List[StarSchema]
     directors: List[DirectorSchema]
 
