@@ -12,12 +12,11 @@ class GenreBaseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class GenreListItemSchema(BaseModel):
+class GenreDetailSchema(BaseModel):
     id: int
     name: str
 
     model_config = ConfigDict(from_attributes=True)
-
 
 
 class GenreCreateShema(GenreBaseSchema):
@@ -25,11 +24,11 @@ class GenreCreateShema(GenreBaseSchema):
 
 
 class GenreUpdateShema(GenreBaseSchema):
-    pass
+    name: Optional[str] = None
 
 
 class GenreListResponseSchema(BaseModel):
-    genres = List[GenreListItemSchema]
+    genres: List[GenreDetailSchema]
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -73,7 +72,7 @@ class MovieBaseSchema(BaseModel):
     @classmethod
     def validate_year(cls, value):
         current_year = datetime.now().year
-        if value.year > current_year + 1:
+        if value > current_year + 1:
             raise ValueError(f"The year in 'year' cannot be greater than {current_year + 1}.")
         return value
 
@@ -82,7 +81,7 @@ class MovieDetailSchema(MovieBaseSchema):
     id: int
     uuid: UUID
     certification: CertificationSchema
-    genres: List[GenreListItemSchema]
+    genres: List[GenreDetailSchema]
     stars: List[StarSchema]
     directors: List[DirectorSchema]
 
