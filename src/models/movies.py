@@ -1,11 +1,21 @@
 import decimal
+import enum
+from datetime import datetime
 from typing import Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import String, Table, Column, ForeignKey, Integer, Float, Text, DECIMAL, UniqueConstraint
+from sqlalchemy import String, Table, Column, ForeignKey, Integer, Float, Text, DECIMAL, UniqueConstraint, Enum, \
+    DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
+from src.models.accounts import User
+
+
+class ReactionTypeEnum(str, enum.Enum):
+    LIKE = "like"
+    DISLIKE = "dislike"
+
 
 movies_genres = Table(
     "movies_genres",
@@ -142,3 +152,22 @@ class Movie(Base):
 
     def __repr__(self):
         return f"<Movie(name='{self.name}', release_year='{self.year}')>"
+
+
+class MovieReaction(Base):
+    __tablename__ = "movies_likes"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    user: Mapped["User"] = relationship("User", back_populates="movie_reactions")
+
+    movie_id: Mapped[int] = mapped_column(ForeignKey("movies.id"), nullable=False)
+    movie: Mapped["Movie"] = relationship("Movie", back_populates="movie_reactions")
+
+    reaction_type: Mapped["ReactionTypeEnum"] = mapped_column(Enum(ReactionTypeEnum), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
