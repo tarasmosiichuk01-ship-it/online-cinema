@@ -86,3 +86,32 @@ class MovieListResponseSchema(BaseModel):
     total_items: int
 
     model_config = {"from_attributes": True}
+
+
+class MovieCreateSchema(BaseModel):
+    name: str = Field(..., max_length=100)
+    year: int
+    time: int = Field(..., ge=0)
+    imdb: float = Field(..., ge=0)
+    votes: int = Field(..., ge=0)
+    meta_score: float = Field(..., ge=0, le=10)
+    gross: float = Field(..., ge=0)
+    description: str
+    price: decimal.Decimal = Field(..., ge=0)
+
+    certification: str
+    genres: List[str]
+    stars: List[str]
+    directors: List[str]
+
+    model_config = {"from_attributes": True}
+
+    @field_validator("certification", mode="before")
+    @classmethod
+    def normalize_certification(cls, value: str) -> str:
+        return value.upper()
+
+    @field_validator("genres", "stars", "directors", mode="before")
+    @classmethod
+    def normalize_list_fields(cls, value: List[str]) -> List[str]:
+        return [item.title() for item in value]
