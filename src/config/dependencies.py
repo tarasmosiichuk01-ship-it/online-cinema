@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from config.settings import settings, BaseAppSettings, Settings
+from config.settings import settings, Settings
 from database import get_postgresql_db
 from models.accounts import User, UserGroupEnum
 from notifications.emails import EmailSender
@@ -78,7 +78,7 @@ async def get_admin_user(current_user: User = Depends(get_current_user)) -> User
     return current_user
 
 
-def get_settings() -> BaseAppSettings:
+def get_settings() -> Settings:
     return Settings()
 
 
@@ -96,7 +96,7 @@ def get_accounts_email_notificator() -> EmailSenderInterface:
     )
 
 
-def get_jwt_auth_manager(settings: BaseAppSettings = Depends(get_settings)) -> JWTAuthManagerInterface:
+def get_jwt_auth_manager(settings: Settings = Depends(get_settings)) -> JWTAuthManagerInterface:
 
     return JWTAuthManager(
         secret_key_access=settings.SECRET_KEY_ACCESS,
