@@ -16,7 +16,13 @@ from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDe
 
 router = APIRouter()
 
+# Moderators endpoint
+@router.post("/movies")
+async def create_movie():
+    pass
 
+
+# Public endpoint
 @router.get(
     "/movies",
     response_model=MovieListResponseSchema
@@ -52,6 +58,7 @@ async def get_movie_list(
     )
 
 
+# Public endpoint
 @router.get(
     "/movies/{movie_id}",
     response_model=MovieDetailSchema,
@@ -80,6 +87,68 @@ async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_postgres
     return MovieDetailSchema.model_validate(movie)
 
 
+# Moderators endpoint
+@router.put("/movies/{movie_id}")
+async def update_movie():
+    pass
+
+
+# Moderators endpoint
+@router.delete("/movies/{movie_id}")
+async def delete_movie():
+    pass
+
+
+# Authorization endpoint
+@router.post("/movies/{movie_id}/comments")
+async def create_movie_comments():
+    pass
+
+
+# Authorization endpoint
+@router.get("/movies/{movie_id}/comments")
+async def get_movie_comments():
+    pass
+
+
+
+# Authorization endpoint
+@router.post("/movies/{movie_id}/like")
+async def like_movie():
+    pass
+
+
+# Authorization endpoint
+@router.post("/movies/{movie_id}/dislike")
+async def dislike_movie():
+    pass
+
+
+# Authorization endpoint
+@router.post("/movies/{movie_id}/rate")
+async def rate_movie():
+    pass
+
+
+# Authorization endpoint
+@router.post("/movies/favorites")
+async def add_movie_favorites():
+    pass
+
+
+# Authorization endpoint
+@router.get("/movies/favorites")
+async def get_movie_favorites():
+    pass
+
+
+# Authorization endpoint
+@router.delete("/movies/favorites/{movie_id}")
+async def delete_movie_favorites():
+    pass
+
+
+# Authorization endpoint
 @router.post("/genres", response_model=GenreDetailSchema, status_code=status.HTTP_201_CREATED)
 async def create_genre(
     genre_data: GenreCreateShema,
@@ -109,7 +178,10 @@ async def create_genre(
             detail=f"Genre with the name '{genre_data.name}' already exists"
         )
 
+    return GenreDetailSchema.model_validate(new_genre)
 
+
+# Public endpoint
 @router.get("/genres", response_model=GenreListResponseSchema)
 async def get_genre_list(db: AsyncSession = Depends(get_postgresql_db)) -> GenreListResponseSchema:
 
