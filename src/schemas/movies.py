@@ -41,11 +41,14 @@ class GenreWithMoviesCountSchema(BaseModel):
     movies_count: int
 
 
-class StarSchema(BaseModel):
-    id: int
+class StarBaseSchema(BaseModel):
     name: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class StarCreateSchema(StarBaseSchema):
+    pass
 
 
 class DirectorSchema(BaseModel):
