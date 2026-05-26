@@ -112,7 +112,7 @@ class MovieDetailSchema(MovieBaseSchema):
     certification: CertificationSchema
     genres: List[GenreDetailSchema]
     stars: List[StarBaseSchema]
-    directors: List[DirectorSchema]
+    directors: List[DirectorBaseSchema]
 
     model_config = ConfigDict(from_attributes=True)
 
