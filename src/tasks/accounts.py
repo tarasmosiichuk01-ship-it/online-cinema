@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from celery_app import celery
 from config.settings import settings
 from models.accounts import ActivationToken, PasswordResetToken
+from models import accounts, movies  # noqa: F401
 
 engine = create_engine(settings.postgres_sync_database_url, echo=False)
 SyncSessionLocal = sessionmaker(engine, autocommit=False, autoflush=False)
