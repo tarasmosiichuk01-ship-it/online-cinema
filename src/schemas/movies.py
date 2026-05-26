@@ -59,11 +59,22 @@ class StarResponseSchema(BaseModel):
     id: int
 
 
-class DirectorSchema(BaseModel):
-    id: int
+class DirectorBaseSchema(BaseModel):
     name: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DirectorCreateSchema(DirectorBaseSchema):
+    pass
+
+
+class DirectorUpdateSchema(DirectorBaseSchema):
+    name: Optional[str] = None
+
+
+class DirectorResponseSchema(DirectorBaseSchema):
+    id: int
 
 
 class CertificationSchema(BaseModel):
