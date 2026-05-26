@@ -174,6 +174,11 @@ class MovieRatingSchema(BaseModel):
     rating: int = Field(..., ge=1, le=10)
 
 
+class MovieRatingResponseSchema(BaseModel):
+    id: int
+    rating: int
+    movie_id: int
+
 class MovieFavouriteResponseSchema(BaseModel):
     id: int
     movie: MovieListItemSchema
