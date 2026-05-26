@@ -9,16 +9,70 @@ from sqlalchemy.orm import joinedload
 from config.dependencies import get_moderator_user
 from database import get_postgresql_db
 from models.accounts import User, UserGroupEnum
-from models.movies import Movie, Genre
+from models.movies import Movie, Genre, Certification, Star, Director
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
-    GenreListResponseSchema, GenreDetailSchema, GenreCreateShema
+    GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema
+from utils.utils import get_or_create
 
 router = APIRouter()
 
 # Moderators endpoint
-@router.post("/movies")
-async def create_movie():
-    pass
+@router.post(
+    "/movies",
+    response_model=MovieDetailSchema,
+    status_code=status.HTTP_201_CREATED
+)
+async def create_movie(
+    movie_data: MovieCreateSchema,
+    current_user: User = Depends(get_moderator_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    if not current_user.has_group(UserGroupEnum.MODERATOR):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
+
+    existing_query = select(Movie).where(
+        (Movie.name == movie_data.name),
+        (Movie.year == movie_data.year),
+    )
+    existing_result = await db.execute(existing_query)
+    existing_movie = existing_result.scalars().first()
+
+    if existing_movie:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"A movie with the name '{movie_data.name}' and release year "
+                f"'{movie_data.year}' already exists."
+            )
+        )
+
+    try:
+        new_movie = Movie(
+            name=movie_data.name,
+            year=movie_data.year,
+            time=movie_data.time,
+            imdb=movie_data.imdb,
+            votes=movie_data.votes,
+            meta_score=movie_data.meta_score,
+            gross=movie_data.gross,
+            description=movie_data.description,
+            price=movie_data.price,
+            certification=await get_or_create(db=db, model=Certification, name=movie_data.certification),
+            genres=[await get_or_create(db=db, model=Genre, name=genre) for genre in movie_data.genres],
+            stars=[await get_or_create(db=db, model=Star, name=star) for star in movie_data.stars],
+            directors=[await get_or_create(db=db, model=Director, name=director) for director in movie_data.directors]
+        )
+
+        db.add(new_movie)
+        await db.commit()
+        await db.refresh(new_movie, ["genres", "stars", "directors"])
+
+        return MovieDetailSchema.model_validate(new_movie)
+
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
+
 
 
 # Public endpoint
@@ -29,7 +83,7 @@ async def create_movie():
 async def get_movie_list(
     page: int = Query(1, ge=1, description="Page number (1-based index)"),
     per_page: int = Query(10, ge=1, le=20, description="Number of items per page"),
-    db: AsyncSession = Depends(get_postgresql_db),
+    db: AsyncSession = Depends(get_postgresql_db)
 ) -> MovieListResponseSchema:
 
     total_items = (await db.execute(select(func.count()).select_from(Movie))).scalar()
@@ -168,7 +222,7 @@ async def create_genre(
     try:
         db.add(new_genre)
         await db.commit()
-        await refresh(new_genre)
+        #await refresh(new_genre)
 
     except IntegrityError:
         await db.rollback()
