@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
+from models.movies import ReactionTypeEnum
+
 
 class GenreBaseSchema(BaseModel):
     name: str
@@ -150,3 +152,33 @@ class MovieUpdateSchema(BaseModel):
     price: Optional[decimal.Decimal] = Field(None, ge=0)
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class MovieCommentBaseSchema(BaseModel):
+    text: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MovieCommentCreateSchema(MovieCommentBaseSchema):
+    parent_id: Optional[int] = None
+
+
+class MovieCommentUpdateSchema(MovieCommentBaseSchema):
+    pass
+
+
+class MovieCommentResponseSchema(BaseModel):
+    id: int
+    author: str
+    text: str
+    created_at: datetime
+    replies: str
+
+
+class MovieReactionCreateSchema(BaseModel):
+    reaction_type: ReactionTypeEnum
+
+
+class MovieRatingSchema(BaseModel):
+    rating: int = Field(..., ge=1, le=10)
