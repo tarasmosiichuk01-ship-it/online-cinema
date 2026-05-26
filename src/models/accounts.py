@@ -75,6 +75,22 @@ class User(Base):
         cascade="all, delete-orphan"
     )
 
+    movie_comments: Mapped[list["MovieComment"]] = relationship(
+        "MovieComment", back_populates="user"
+    )
+
+    movie_reactions: Mapped[list["MovieReaction"]] = relationship(
+        "MovieReaction", back_populates="user"
+    )
+
+    movie_ratings: Mapped[list["MovieRating"]] = relationship(
+        "MovieRating", back_populates="user"
+    )
+
+    movie_favourites: Mapped[list["MovieFavourite"]] = relationship(
+        "MovieFavourite", back_populates="user"
+    )
+
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, is_active={self.is_active})>"
 
