@@ -28,7 +28,7 @@ async def create_movie(
     db: AsyncSession = Depends(get_postgresql_db)
 ):
     if not current_user.has_group(UserGroupEnum.MODERATOR):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
 
     existing_query = select(Movie).where(
         (Movie.name == movie_data.name),
@@ -39,7 +39,7 @@ async def create_movie(
 
     if existing_movie:
         raise HTTPException(
-            status_code=409,
+            status_code=status.HTTP_409_CONFLICT,
             detail=(
                 f"A movie with the name '{movie_data.name}' and release year "
                 f"'{movie_data.year}' already exists."
