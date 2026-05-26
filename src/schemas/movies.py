@@ -63,8 +63,8 @@ class MovieBaseSchema(BaseModel):
     time: int = Field(..., ge=0)
     imdb: float = Field(..., ge=0)
     votes: int = Field(..., ge=0)
-    meta_score: float = Field(..., ge=0, le=10)
-    gross: float = Field(..., ge=0)
+    meta_score: Optional[float] = Field(None, ge=0, le=100)
+    gross: Optional[float] = Field(None, ge=0)
     description: str
     price: decimal.Decimal = Field(..., ge=0)
 
@@ -111,17 +111,7 @@ class MovieListResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class MovieCreateSchema(BaseModel):
-    name: str = Field(..., max_length=100)
-    year: int
-    time: int = Field(..., ge=0)
-    imdb: float = Field(..., ge=0)
-    votes: int = Field(..., ge=0)
-    meta_score: float = Field(..., ge=0, le=10)
-    gross: float = Field(..., ge=0)
-    description: str
-    price: decimal.Decimal = Field(..., ge=0)
-
+class MovieCreateSchema(MovieBaseSchema):
     certification: str
     genres: List[str]
     stars: List[str]
@@ -173,7 +163,7 @@ class MovieCommentResponseSchema(BaseModel):
     author: str
     text: str
     created_at: datetime
-    replies: str
+    replies: List["MovieCommentResponseSchema"] = []
 
 
 class MovieReactionCreateSchema(BaseModel):
