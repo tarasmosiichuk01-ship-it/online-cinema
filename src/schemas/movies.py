@@ -35,6 +35,11 @@ class GenreListResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class GenreWithMoviesCountSchema(BaseModel):
+    id: int
+    name: str
+    movies_count: int
+
 
 class StarSchema(BaseModel):
     id: int
