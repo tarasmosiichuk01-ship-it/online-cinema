@@ -170,6 +170,12 @@ class MovieReactionCreateSchema(BaseModel):
     reaction_type: ReactionTypeEnum
 
 
+class MovieReactionResponseSchema(BaseModel):
+    id: int
+    reaction_type: ReactionTypeEnum
+    movie_id: int
+
+
 class MovieRatingSchema(BaseModel):
     rating: int = Field(..., ge=1, le=10)
 
