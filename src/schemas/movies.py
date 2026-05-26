@@ -51,6 +51,14 @@ class StarCreateSchema(StarBaseSchema):
     pass
 
 
+class StarUpdateSchema(StarBaseSchema):
+    name: Optional[str] = None
+
+
+class StarResponseSchema(BaseModel):
+    id: int
+
+
 class DirectorSchema(BaseModel):
     id: int
     name: str
@@ -92,7 +100,7 @@ class MovieDetailSchema(MovieBaseSchema):
     uuid: UUID
     certification: CertificationSchema
     genres: List[GenreDetailSchema]
-    stars: List[StarSchema]
+    stars: List[StarBaseSchema]
     directors: List[DirectorSchema]
 
     model_config = ConfigDict(from_attributes=True)
