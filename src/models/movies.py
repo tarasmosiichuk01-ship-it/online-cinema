@@ -202,7 +202,25 @@ class MovieReaction(Base):
 
 
 class MovieRating(Base):
-    pass
+    __tablename__ = "movies_ratings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    user: Mapped["User"] = relationship("User", back_populates="movie_reactions")
+
+    movie_id: Mapped[int] = mapped_column(ForeignKey("movies.id"), nullable=False)
+    movie: Mapped["Movie"] = relationship("Movie", back_populates="movie_reactions")
+
+    rating: Mapped[int] = mapped_column(min=1, max=10)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "movie_id", name="unique_movie_rating_constraint"),
+    )
 
 
 class MovieFavourite(Base):
