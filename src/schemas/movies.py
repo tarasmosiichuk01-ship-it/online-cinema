@@ -172,3 +172,9 @@ class MovieReactionCreateSchema(BaseModel):
 
 class MovieRatingSchema(BaseModel):
     rating: int = Field(..., ge=1, le=10)
+
+
+class MovieFavouriteResponseSchema(BaseModel):
+    id: int
+    movie: MovieListItemSchema
+    created_at: datetime
