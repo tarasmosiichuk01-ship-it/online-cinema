@@ -5,11 +5,10 @@ from typing import Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import String, Table, Column, ForeignKey, Integer, Float, Text, DECIMAL, UniqueConstraint, Enum, \
-    DateTime, func
+    DateTime, func, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
-from src.models.accounts import User
 
 
 class ReactionTypeEnum(str, enum.Enum):
@@ -146,6 +145,22 @@ class Movie(Base):
         back_populates="movies"
     )
 
+    movie_comments: Mapped[list["MovieComment"]] = relationship(
+        "MovieComment", back_populates="movie"
+    )
+
+    movie_reactions: Mapped[list["MovieReaction"]] = relationship(
+        "MovieReaction", back_populates="movie"
+    )
+
+    movie_ratings: Mapped[list["MovieRating"]] = relationship(
+        "MovieRating", back_populates="movie"
+    )
+
+    movie_favourites: Mapped[list["MovieFavourite"]] = relationship(
+        "MovieFavourite", back_populates="movie"
+    )
+
     __table_args__ = (
         UniqueConstraint("name", "year", "time", name="unique_movie_constraint"),
     )
@@ -173,12 +188,8 @@ class MovieComment(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    parent_id: Mapped[int] = mapped_column(ForeignKey("movies_comments.id"), nullable=True)
+    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("movies_comments.id"), nullable=True)
 
-
-    __table_args__ = (
-        UniqueConstraint("user_id", "movie_id", name="unique_movie_comment_constraint"),
-    )
 
 class MovieReaction(Base):
     __tablename__ = "movies_likes"
@@ -212,7 +223,7 @@ class MovieRating(Base):
     movie_id: Mapped[int] = mapped_column(ForeignKey("movies.id"), nullable=False)
     movie: Mapped["Movie"] = relationship("Movie", back_populates="movie_ratings")
 
-    rating: Mapped[int] = mapped_column(min=1, max=10)
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
@@ -220,6 +231,7 @@ class MovieRating(Base):
 
     __table_args__ = (
         UniqueConstraint("user_id", "movie_id", name="unique_movie_rating_constraint"),
+        CheckConstraint("rating >= 1 AND rating <= 10", name="check_rating_range"),
     )
 
 
