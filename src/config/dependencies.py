@@ -79,7 +79,7 @@ async def get_admin_user(current_user: User = Depends(get_current_user)) -> User
 
 
 def get_settings() -> Settings:
-    return Settings()
+    return settings
 
 
 def get_accounts_email_notificator() -> EmailSenderInterface:
