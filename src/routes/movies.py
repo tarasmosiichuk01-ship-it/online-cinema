@@ -13,7 +13,7 @@ from models.movies import Movie, Genre, Certification, Star, Director, MovieComm
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
     GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema, MovieUpdateSchema, \
     MovieCommentCreateSchema, MovieCommentResponseSchema, GenreUpdateShema, StarCreateSchema, StarResponseSchema, \
-    StarListResponseSchema
+    StarListResponseSchema, StarUpdateSchema
 from utils.utils import get_or_create
 
 router = APIRouter()
@@ -437,8 +437,36 @@ async def get_star_list(db: AsyncSession = Depends(get_postgresql_db)) -> StarLi
 
 # Moderator endpoint
 @router.patch("/stars/{star_id}")
-async def update_star():
-    pass
+async def update_star(
+    star_id: int,
+    star_data: StarUpdateSchema,
+    current_user: User = Depends(get_moderator_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    if not current_user.has_group(UserGroupEnum.MODERATOR):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
+
+    query = select(Star).where(Star.id == star_id)
+    result = await db.execute(query)
+    star = result.scalars().first()
+
+    if not star:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Star with the given ID was not found."
+        )
+
+    for field, value in star_data.model_dump(exclude_unset=True).items():
+        setattr(star, field, value)
+
+    try:
+        await db.commit()
+        await db.refresh(star)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
+
+    return {"detail": "Star updated successfully."}
 
 
 # Moderator endpoint
