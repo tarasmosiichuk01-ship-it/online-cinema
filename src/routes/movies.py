@@ -362,8 +362,28 @@ async def update_genre(
 
 # Moderator endpoint
 @router.delete("/genres/{genre_id}")
-async def delete_genre():
-    pass
+async def delete_genre(
+    genre_id: int,
+    current_user: User = Depends(get_moderator_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    if not current_user.has_group(UserGroupEnum.MODERATOR):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
+
+    query = select(Genre).where(Genre.id == genre_id)
+    result = await db.execute(query)
+    genre = result.scalars().first()
+
+    if not genre:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Genre with the given ID was not found."
+        )
+
+    await db.delete(genre)
+    await db.commit()
+
+    return {"detail": "Genre deleted successfully."}
 
 
 # Moderator endpoint
