@@ -12,7 +12,8 @@ from models.accounts import User, UserGroupEnum
 from models.movies import Movie, Genre, Certification, Star, Director, MovieComment
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
     GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema, MovieUpdateSchema, \
-    MovieCommentCreateSchema, MovieCommentResponseSchema, GenreUpdateShema, StarCreateSchema, StarResponseSchema
+    MovieCommentCreateSchema, MovieCommentResponseSchema, GenreUpdateShema, StarCreateSchema, StarResponseSchema, \
+    StarListResponseSchema
 from utils.utils import get_or_create
 
 router = APIRouter()
@@ -420,9 +421,18 @@ async def create_star(
 
 
 # Public endpoint
-@router.get("/stars")
-async def get_star_list():
-    pass
+@router.get("/stars", response_model=StarListResponseSchema)
+async def get_star_list(db: AsyncSession = Depends(get_postgresql_db)) -> StarListResponseSchema:
+    query = select(Star).order_by(Star.id.desc())
+    result = await db.execute(query)
+    stars = result.scalars().all()
+
+    if not stars:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No stars found.")
+
+    star_list = [StarResponseSchema.model_validate(star) for star in stars]
+
+    return StarListResponseSchema(stars=star_list)
 
 
 # Moderator endpoint
