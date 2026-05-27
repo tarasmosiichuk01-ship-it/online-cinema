@@ -4,7 +4,7 @@ from fastapi import APIRouter, status, Query, Depends, HTTPException
 from sqlalchemy import select, func
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from config.dependencies import get_moderator_user, get_current_user
 from database import get_postgresql_db
@@ -36,6 +36,7 @@ async def create_movie(
     existing_query = select(Movie).where(
         (Movie.name == movie_data.name),
         (Movie.year == movie_data.year),
+        (Movie.time == movie_data.time)
     )
     existing_result = await db.execute(existing_query)
     existing_movie = existing_result.scalars().first()
@@ -125,9 +126,9 @@ async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_postgres
         select(Movie)
         .options(
             joinedload(Movie.certification),
-            joinedload(Movie.genres),
-            joinedload(Movie.stars),
-            joinedload(Movie.directors),
+            selectinload(Movie.genres),
+            selectinload(Movie.stars),
+            selectinload(Movie.directors),
         )
         .where(Movie.id == movie_id)
     )
@@ -205,42 +206,66 @@ async def delete_movie(
 
 
 # Authorization endpoint
-#@router.post("/movies/{movie_id}/comments", response_model=MovieCommentResponseSchema, status_code=status.HTTP_201_CREATED)
-#async def create_movie_comments(
-#    movie_id: int,
-#    comment_data: MovieCommentCreateSchema,
-#    current_user: User = Depends(get_current_user),
-#    db: AsyncSession = Depends(get_postgresql_db)
-#):
-#    if not current_user.has_group(UserGroupEnum.USER):
-#        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
-#
-#    query = select(Movie).where(Movie.id == movie_id)
-#    result = await db.execute(query)
-#    movie = result.scalars().first()
-#
-#    if not movie:
-#        raise HTTPException(
-#            status_code=status.HTTP_404_NOT_FOUND,
-#            detail="Movie with the given ID was not found."
-#        )
-#
-#    comment = MovieComment(
-#        user=current_user,
-#        movie=movie,
-#        text=comment_data.text
-#    )
-#
-#    db.add(comment)
-#    await db.commit()
-#    await db.refresh(comment)
+@router.post(
+    "/movies/{movie_id}/comments",
+    response_model=MovieCommentResponseSchema,
+    status_code=status.HTTP_201_CREATED
+)
+async def create_movie_comments(
+    movie_id: int,
+    comment_data: MovieCommentCreateSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    if not current_user.has_group(UserGroupEnum.USER):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
 
+    query = select(Movie).where(Movie.id == movie_id)
+    result = await db.execute(query)
+    movie = result.scalars().first()
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie with the given ID was not found."
+        )
+
+    new_comment = MovieComment(
+        **comment_data.model_dump(exclude_unset=True),
+        movie_id=movie_id,
+        user_id=current_user.id
+    )
+    try:
+        db.add(new_comment)
+        await db.commit()
+        await db.refresh(new_comment)
+
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
+
+    return new_comment
 
 
 # Authorization endpoint
 @router.get("/movies/{movie_id}/comments")
-async def get_movie_comments():
-    pass
+async def get_movie_comments(
+    movie_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    if not current_user.has_group(UserGroupEnum.USER):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    query = select(MovieComment).where(MovieComment.movie_id == movie_id).options(joinedload(MovieComment.user))
+    result = await db.execute(query)
+    comments = result.scalars().all()
+
+    comments_list = [MovieCommentResponseSchema.model_validate(comment) for comment in comments]
+
+    return comments_list
+
+
 
 
 
