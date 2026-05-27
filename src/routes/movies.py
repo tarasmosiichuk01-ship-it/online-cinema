@@ -6,12 +6,13 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from config.dependencies import get_moderator_user
+from config.dependencies import get_moderator_user, get_current_user
 from database import get_postgresql_db
 from models.accounts import User, UserGroupEnum
-from models.movies import Movie, Genre, Certification, Star, Director
+from models.movies import Movie, Genre, Certification, Star, Director, MovieComment
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
-    GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema, MovieUpdateSchema
+    GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema, MovieUpdateSchema, \
+    MovieCommentCreateSchema, MovieCommentResponseSchema
 from utils.utils import get_or_create
 
 router = APIRouter()
@@ -202,9 +203,36 @@ async def delete_movie(
 
 
 # Authorization endpoint
-@router.post("/movies/{movie_id}/comments")
-async def create_movie_comments():
-    pass
+#@router.post("/movies/{movie_id}/comments", response_model=MovieCommentResponseSchema, status_code=status.HTTP_201_CREATED)
+#async def create_movie_comments(
+#    movie_id: int,
+#    comment_data: MovieCommentCreateSchema,
+#    current_user: User = Depends(get_current_user),
+#    db: AsyncSession = Depends(get_postgresql_db)
+#):
+#    if not current_user.has_group(UserGroupEnum.USER):
+#        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+#
+#    query = select(Movie).where(Movie.id == movie_id)
+#    result = await db.execute(query)
+#    movie = result.scalars().first()
+#
+#    if not movie:
+#        raise HTTPException(
+#            status_code=status.HTTP_404_NOT_FOUND,
+#            detail="Movie with the given ID was not found."
+#        )
+#
+#    comment = MovieComment(
+#        user=current_user,
+#        movie=movie,
+#        text=comment_data.text
+#    )
+#
+#    db.add(comment)
+#    await db.commit()
+#    await db.refresh(comment)
+
 
 
 # Authorization endpoint
@@ -250,7 +278,7 @@ async def delete_movie_favorites():
     pass
 
 
-# Authorization endpoint
+# Moderator endpoint
 @router.post("/genres", response_model=GenreDetailSchema, status_code=status.HTTP_201_CREATED)
 async def create_genre(
     genre_data: GenreCreateShema,
@@ -297,3 +325,88 @@ async def get_genre_list(db: AsyncSession = Depends(get_postgresql_db)) -> Genre
     genre_list = [GenreDetailSchema.model_validate(genre) for genre in genres]
 
     return GenreListResponseSchema(genres=genre_list)
+
+
+# Moderator endpoint
+@router.patch("/genres/{genre_id}")
+async def update_genre():
+    pass
+
+
+# Moderator endpoint
+@router.delete("/genres/{genre_id}")
+async def delete_genre():
+    pass
+
+
+# Moderator endpoint
+@router.post("/stars")
+async def create_star():
+    pass
+
+
+# Public endpoint
+@router.get("/stars")
+async def get_star_list():
+    pass
+
+
+# Moderator endpoint
+@router.patch("/stars/{star_id}")
+async def update_star():
+    pass
+
+
+# Moderator endpoint
+@router.delete("/stars/{star_id}")
+async def delete_star():
+    pass
+
+
+# Moderator endpoint
+@router.post("/directors")
+async def create_director():
+    pass
+
+
+# Public endpoint
+@router.get("/directors")
+async def get_director_list():
+    pass
+
+
+# Moderator endpoint
+@router.patch("/directors/{director_id}")
+async def update_director():
+    pass
+
+
+# Moderator endpoint
+@router.delete("/directors/{director_id}")
+async def delete_director():
+    pass
+
+
+
+# Moderator endpoint
+@router.post("/certifications")
+async def create_certification():
+    pass
+
+
+# Public endpoint
+@router.get("/certifications")
+async def get_certification_list():
+    pass
+
+
+# Moderator endpoint
+@router.patch("/certifications/{certification_id}")
+async def update_certifications():
+    pass
+
+
+# Moderator endpoint
+@router.delete("/certifications/{certification_id}")
+async def delete_certification():
+    pass
