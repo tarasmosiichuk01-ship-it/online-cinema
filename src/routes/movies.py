@@ -176,9 +176,29 @@ async def update_movie(
 
 
 # Moderators endpoint
-@router.delete("/movies/{movie_id}")
-async def delete_movie():
-    pass
+@router.delete("/movies/{movie_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_movie(
+    movie_id: int,
+    current_user: User = Depends(get_moderator_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    if not current_user.has_group(UserGroupEnum.MODERATOR):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    query = select(Movie).where(Movie.id == movie_id)
+    result = await db.execute(query)
+    movie = result.scalars().first()
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie with the given ID was not found."
+        )
+
+    await db.delete(movie)
+    await db.commit()
+
+    return {"detail": "Movie deleted successfully."}
 
 
 # Authorization endpoint
