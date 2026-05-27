@@ -11,7 +11,7 @@ from database import get_postgresql_db
 from models.accounts import User, UserGroupEnum
 from models.movies import Movie, Genre, Certification, Star, Director
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
-    GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema
+    GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema, MovieUpdateSchema
 from utils.utils import get_or_create
 
 router = APIRouter()
@@ -141,9 +141,38 @@ async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_postgres
 
 
 # Moderators endpoint
-@router.put("/movies/{movie_id}")
-async def update_movie():
-    pass
+@router.patch("/movies/{movie_id}", status_code=status.HTTP_200_OK)
+async def update_movie(
+    movie_id: int,
+    movie_data: MovieUpdateSchema,
+    current_user: User = Depends(get_moderator_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    if not current_user.has_group(UserGroupEnum.MODERATOR):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    query = select(Movie).where(Movie.id == movie_id)
+    result = await db.execute(query)
+    movie = result.scalars().first()
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie with the given ID was not found."
+        )
+
+    for field, value in movie_data.model_dump(exclude_unset=True).items():
+        setattr(movie, field, value)
+
+    try:
+        await db.commit()
+        await db.refresh(movie)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
+
+    return {"detail": "Movie updated successfully."}
+
 
 
 # Moderators endpoint
