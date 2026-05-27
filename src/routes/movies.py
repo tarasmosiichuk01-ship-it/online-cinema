@@ -13,7 +13,8 @@ from models.movies import Movie, Genre, Certification, Star, Director, MovieComm
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
     GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema, MovieUpdateSchema, \
     MovieCommentCreateSchema, MovieCommentResponseSchema, GenreUpdateShema, StarCreateSchema, StarResponseSchema, \
-    StarListResponseSchema, StarUpdateSchema, DirectorCreateSchema, DirectorResponseSchema, DirectorListResponseSchema
+    StarListResponseSchema, StarUpdateSchema, DirectorCreateSchema, DirectorResponseSchema, DirectorListResponseSchema, \
+    DirectorUpdateSchema
 from utils.utils import get_or_create
 
 router = APIRouter()
@@ -545,8 +546,36 @@ async def get_director_list(db: AsyncSession = Depends(get_postgresql_db)):
 
 # Moderator endpoint
 @router.patch("/directors/{director_id}")
-async def update_director():
-    pass
+async def update_director(
+    director_id: int,
+    director_data: DirectorUpdateSchema,
+    current_user: User = Depends(get_moderator_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    if not current_user.has_group(UserGroupEnum.MODERATOR):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
+
+    query = select(Director).where(Director.id == director_id)
+    result = await db.execute(query)
+    director = result.scalars().first()
+
+    if not director:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Director with the given ID was not found."
+        )
+
+    for field, value in director_data.model_dump(exclude_unset=True).items():
+        setattr(director, field, value)
+
+    try:
+        await db.commit()
+        await db.refresh(director)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
+
+    return {"detail": "Director updated successfully."}
 
 
 # Moderator endpoint
