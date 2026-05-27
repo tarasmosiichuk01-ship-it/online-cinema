@@ -55,8 +55,14 @@ class StarUpdateSchema(StarBaseSchema):
     name: Optional[str] = None
 
 
-class StarResponseSchema(BaseModel):
+class StarResponseSchema(StarBaseSchema):
     id: int
+
+
+class StarListResponseSchema(BaseModel):
+    stars: List[StarResponseSchema]
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DirectorBaseSchema(BaseModel):
@@ -75,6 +81,12 @@ class DirectorUpdateSchema(DirectorBaseSchema):
 
 class DirectorResponseSchema(DirectorBaseSchema):
     id: int
+
+
+class DirectorListResponseSchema(BaseModel):
+    directors: List[DirectorResponseSchema]
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CertificationSchema(BaseModel):
@@ -187,10 +199,19 @@ class MovieCommentUpdateSchema(MovieCommentBaseSchema):
 
 class MovieCommentResponseSchema(BaseModel):
     id: int
-    author: str
+    user: str
     text: str
     created_at: datetime
     replies: List["MovieCommentResponseSchema"] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("user", mode="before")
+    @classmethod
+    def convert_user_to_string(cls, value):
+        if hasattr(value, "email"):
+            return value.email
+        return value
 
 
 class MovieReactionCreateSchema(BaseModel):
