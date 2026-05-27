@@ -9,13 +9,14 @@ from sqlalchemy.orm import joinedload, selectinload
 from config.dependencies import get_moderator_user, get_current_user
 from database import get_postgresql_db
 from models.accounts import User, UserGroupEnum
-from models.movies import Movie, Genre, Certification, Star, Director, MovieComment, MovieReaction, MovieRating
+from models.movies import Movie, Genre, Certification, Star, Director, MovieComment, MovieReaction, MovieRating, \
+    MovieFavourite
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
     GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema, MovieUpdateSchema, \
     MovieCommentCreateSchema, MovieCommentResponseSchema, GenreUpdateShema, StarCreateSchema, StarResponseSchema, \
     StarListResponseSchema, StarUpdateSchema, DirectorCreateSchema, DirectorResponseSchema, DirectorListResponseSchema, \
     DirectorUpdateSchema, MovieReactionResponseSchema, MovieReactionCreateSchema, MovieRatingResponseSchema, \
-    MovieRatingSchema
+    MovieRatingSchema, MovieFavouriteResponseSchema, MovieFavouriteSchema
 from utils.utils import get_or_create
 
 router = APIRouter()
@@ -399,9 +400,40 @@ async def rate_movie(
 
 
 # Authorization endpoint
-@router.post("/movies/favorites")
-async def add_movie_favorites():
-    pass
+@router.post("/movies/favorites", response_model=MovieFavouriteResponseSchema, status_code=status.HTTP_200_OK)
+async def add_movie_favorites(
+    movie_data: MovieFavouriteSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    if not current_user.has_group(UserGroupEnum.USER):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    query = select(Movie).where(Movie.name == movie_data.movie_name)
+    result = await db.execute(query)
+    movie = result.scalars().first()
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie with the given name was not found."
+        )
+
+    movie_favourite = MovieFavourite(
+        movie_id=movie.id,
+        user_id=current_user.id
+    )
+
+    try:
+        db.add(movie_favourite)
+        await db.commit()
+        await db.refresh(movie_favourite, attribute_names=["movie"])
+
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
+
+    return movie_favourite
 
 
 # Authorization endpoint
