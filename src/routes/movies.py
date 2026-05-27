@@ -13,7 +13,7 @@ from models.movies import Movie, Genre, Certification, Star, Director, MovieComm
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
     GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema, MovieUpdateSchema, \
     MovieCommentCreateSchema, MovieCommentResponseSchema, GenreUpdateShema, StarCreateSchema, StarResponseSchema, \
-    StarListResponseSchema, StarUpdateSchema
+    StarListResponseSchema, StarUpdateSchema, DirectorCreateSchema, DirectorResponseSchema
 from utils.utils import get_or_create
 
 router = APIRouter()
@@ -496,9 +496,36 @@ async def delete_star(
 
 
 # Moderator endpoint
-@router.post("/directors")
-async def create_director():
-    pass
+@router.post("/directors", response_model=DirectorResponseSchema, status_code=status.HTTP_201_CREATED)
+async def create_director(
+    director_data: DirectorCreateSchema,
+    current_user: User = Depends(get_moderator_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    if not current_user.has_group(UserGroupEnum.MODERATOR):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
+
+    query = select(Director).where(Director.name == director_data.name)
+    result = await db.execute(query)
+    existing_director = result.scalars().first()
+
+    if existing_director:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Director with that name already exists")
+
+    new_director = Director(name=director_data.name)
+
+    try:
+        db.add(new_director)
+        await db.commit()
+
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Director with the name '{new_director.name}' already exists"
+        )
+
+    return DirectorResponseSchema.model_validate(new_director)
 
 
 # Public endpoint
@@ -518,27 +545,3 @@ async def update_director():
 async def delete_director():
     pass
 
-
-
-# Moderator endpoint
-@router.post("/certifications")
-async def create_certification():
-    pass
-
-
-# Public endpoint
-@router.get("/certifications")
-async def get_certification_list():
-    pass
-
-
-# Moderator endpoint
-@router.patch("/certifications/{certification_id}")
-async def update_certifications():
-    pass
-
-
-# Moderator endpoint
-@router.delete("/certifications/{certification_id}")
-async def delete_certification():
-    pass
