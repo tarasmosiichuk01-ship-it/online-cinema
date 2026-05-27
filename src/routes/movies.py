@@ -12,7 +12,7 @@ from models.accounts import User, UserGroupEnum
 from models.movies import Movie, Genre, Certification, Star, Director, MovieComment
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
     GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema, MovieUpdateSchema, \
-    MovieCommentCreateSchema, MovieCommentResponseSchema, GenreUpdateShema
+    MovieCommentCreateSchema, MovieCommentResponseSchema, GenreUpdateShema, StarCreateSchema, StarResponseSchema
 from utils.utils import get_or_create
 
 router = APIRouter()
@@ -387,9 +387,36 @@ async def delete_genre(
 
 
 # Moderator endpoint
-@router.post("/stars")
-async def create_star():
-    pass
+@router.post("/stars", response_model=StarResponseSchema, status_code=status.HTTP_201_CREATED)
+async def create_star(
+    star_data: StarCreateSchema,
+    current_user: User = Depends(get_moderator_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    if not current_user.has_group(UserGroupEnum.MODERATOR):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
+
+    query = select(Star).where(Star.name == star_data.name)
+    result = await db.execute(query)
+    existing_star = result.scalars().first()
+
+    if existing_star:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Star with that name already exists")
+
+    new_star = Star(name=star_data.name)
+
+    try:
+        db.add(new_star)
+        await db.commit()
+
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Star with the name '{new_star.name}' already exists"
+        )
+
+    return StarResponseSchema.model_validate(new_star)
 
 
 # Public endpoint
