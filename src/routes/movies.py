@@ -580,6 +580,26 @@ async def update_director(
 
 # Moderator endpoint
 @router.delete("/directors/{director_id}")
-async def delete_director():
-    pass
+async def delete_director(
+    director_id: int,
+    current_user: User = Depends(get_moderator_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    if not current_user.has_group(UserGroupEnum.MODERATOR):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
+
+    query = select(Director).where(Director.id == director_id)
+    result = await db.execute(query)
+    director = result.scalars().first()
+
+    if not director:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Director with the given ID was not found."
+        )
+
+    await db.delete(director)
+    await db.commit()
+
+    return {"detail": "Director deleted successfully."}
 
