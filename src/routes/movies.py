@@ -471,8 +471,28 @@ async def update_star(
 
 # Moderator endpoint
 @router.delete("/stars/{star_id}")
-async def delete_star():
-    pass
+async def delete_star(
+    star_id: int,
+    current_user: User = Depends(get_moderator_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    if not current_user.has_group(UserGroupEnum.MODERATOR):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
+
+    query = select(Star).where(Star.id == star_id)
+    result = await db.execute(query)
+    star = result.scalars().first()
+
+    if not star:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Star with the given ID was not found."
+        )
+
+    await db.delete(star)
+    await db.commit()
+
+    return {"detail": "Star deleted successfully."}
 
 
 # Moderator endpoint
