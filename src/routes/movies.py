@@ -13,7 +13,7 @@ from models.movies import Movie, Genre, Certification, Star, Director, MovieComm
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
     GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema, MovieUpdateSchema, \
     MovieCommentCreateSchema, MovieCommentResponseSchema, GenreUpdateShema, StarCreateSchema, StarResponseSchema, \
-    StarListResponseSchema, StarUpdateSchema, DirectorCreateSchema, DirectorResponseSchema
+    StarListResponseSchema, StarUpdateSchema, DirectorCreateSchema, DirectorResponseSchema, DirectorListResponseSchema
 from utils.utils import get_or_create
 
 router = APIRouter()
@@ -529,9 +529,18 @@ async def create_director(
 
 
 # Public endpoint
-@router.get("/directors")
-async def get_director_list():
-    pass
+@router.get("/directors", response_model=DirectorListResponseSchema)
+async def get_director_list(db: AsyncSession = Depends(get_postgresql_db)):
+    query = select(Director).order_by(Director.id.desc())
+    result = await db.execute(query)
+    directors = result.scalars().all()
+
+    if not directors:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No directors found.")
+
+    director_list = [DirectorResponseSchema.model_validate(director) for director in directors]
+
+    return DirectorListResponseSchema(directors=director_list)
 
 
 # Moderator endpoint
