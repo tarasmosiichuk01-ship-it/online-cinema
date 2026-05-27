@@ -9,12 +9,13 @@ from sqlalchemy.orm import joinedload, selectinload
 from config.dependencies import get_moderator_user, get_current_user
 from database import get_postgresql_db
 from models.accounts import User, UserGroupEnum
-from models.movies import Movie, Genre, Certification, Star, Director, MovieComment, MovieReaction
+from models.movies import Movie, Genre, Certification, Star, Director, MovieComment, MovieReaction, MovieRating
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
     GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema, MovieUpdateSchema, \
     MovieCommentCreateSchema, MovieCommentResponseSchema, GenreUpdateShema, StarCreateSchema, StarResponseSchema, \
     StarListResponseSchema, StarUpdateSchema, DirectorCreateSchema, DirectorResponseSchema, DirectorListResponseSchema, \
-    DirectorUpdateSchema, MovieReactionResponseSchema, MovieReactionCreateSchema
+    DirectorUpdateSchema, MovieReactionResponseSchema, MovieReactionCreateSchema, MovieRatingResponseSchema, \
+    MovieRatingSchema
 from utils.utils import get_or_create
 
 router = APIRouter()
@@ -356,9 +357,45 @@ async def dislike_movie(
 
 
 # Authorization endpoint
-@router.post("/movies/{movie_id}/rate")
-async def rate_movie():
-    pass
+@router.post(
+    "/movies/{movie_id}/rate",
+    response_model=MovieRatingResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def rate_movie(
+    movie_id: int,
+    rating_data: MovieRatingSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    if not current_user.has_group(UserGroupEnum.USER):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    query = select(Movie).where(Movie.id == movie_id)
+    result = await db.execute(query)
+    movie = result.scalars().first()
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie with the given ID was not found."
+        )
+
+    rating = MovieRating(
+        **rating_data.model_dump(exclude_unset=True),
+        movie_id=movie_id,
+        user_id=current_user.id
+    )
+
+    try:
+        db.add(rating)
+        await db.commit()
+        await db.refresh(rating)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
+
+    return rating
 
 
 # Authorization endpoint
