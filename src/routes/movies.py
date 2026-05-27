@@ -12,7 +12,7 @@ from models.accounts import User, UserGroupEnum
 from models.movies import Movie, Genre, Certification, Star, Director, MovieComment
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
     GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema, MovieUpdateSchema, \
-    MovieCommentCreateSchema, MovieCommentResponseSchema
+    MovieCommentCreateSchema, MovieCommentResponseSchema, GenreUpdateShema
 from utils.utils import get_or_create
 
 router = APIRouter()
@@ -299,7 +299,6 @@ async def create_genre(
     try:
         db.add(new_genre)
         await db.commit()
-        #await refresh(new_genre)
 
     except IntegrityError:
         await db.rollback()
@@ -328,9 +327,37 @@ async def get_genre_list(db: AsyncSession = Depends(get_postgresql_db)) -> Genre
 
 
 # Moderator endpoint
-@router.patch("/genres/{genre_id}")
-async def update_genre():
-    pass
+@router.patch("/genres/{genre_id}", status_code=status.HTTP_200_OK)
+async def update_genre(
+    genre_id: int,
+    genre_data: GenreUpdateShema,
+    current_user: User = Depends(get_moderator_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    if not current_user.has_group(UserGroupEnum.MODERATOR):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
+
+    query = select(Genre).where(Genre.id == genre_id)
+    result = await db.execute(query)
+    genre = result.scalars().first()
+
+    if not genre:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Genre with the given ID was not found."
+        )
+
+    for field, value in genre_data.model_dump(exclude_unset=True).items():
+        setattr(genre, field, value)
+
+    try:
+        await db.commit()
+        await db.refresh(genre)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
+
+    return {"detail": "Genre updated successfully."}
 
 
 # Moderator endpoint
