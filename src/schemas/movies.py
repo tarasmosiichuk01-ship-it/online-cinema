@@ -240,3 +240,5 @@ class MovieFavouriteResponseSchema(BaseModel):
     id: int
     movie: MovieListItemSchema
     created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
