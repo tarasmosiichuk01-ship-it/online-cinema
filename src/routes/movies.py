@@ -463,8 +463,22 @@ async def get_movie_favorites(
 
 # Authorization endpoint
 @router.delete("/movies/my/favorites/{movie_id}")
-async def delete_movie_favorites():
-    pass
+async def delete_movie_favorites(
+    movie_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    if not current_user.has_group(UserGroupEnum.USER):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    query = select(MovieFavourite).where(MovieFavourite.movie_id == movie_id, MovieFavourite.user_id == current_user.id)
+    result = await db.execute(query)
+    favourite_movie = result.scalars().first()
+
+    await db.delete(favourite_movie)
+    await db.commit()
+
+    return {"detail": "Favourite Movie deleted successfully."}
 
 
 # Moderator endpoint
