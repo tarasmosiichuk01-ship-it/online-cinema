@@ -25,7 +25,7 @@ async def resolve_movie_relations(
     Returns a tuple of ORM objects (genres, stars, directors, certification).
     If no argument is passed (None), returns None for this element.
     """
-    from src.models.movies import Genre, Star, Director, Certification
+    from models.movies import Genre, Star, Director, Certification
 
     genre_tasks = [get_or_create(db=db, model=Genre, name=genre) for genre in genres] if genres is not None else []
     star_tasks = [get_or_create(db=db, model=Star, name=star) for star in stars] if stars is not None else []
@@ -35,8 +35,8 @@ async def resolve_movie_relations(
     resolved_stars = await asyncio.gather(*star_tasks) if star_tasks else (None if stars is None else [])
     resolved_directors = await asyncio.gather(*director_tasks) if director_tasks else (None if directors is None else [])
 
-    resolved_cert = None
+    resolved_certification = None
     if certification:
-        resolved_cert = await get_or_create(db=db, model=Certification, name=certification)
+        resolved_certification = await get_or_create(db=db, model=Certification, name=certification)
 
-    return resolved_genres, resolved_stars, resolved_directors, resolved_cert
+    return resolved_genres, resolved_stars, resolved_directors, resolved_certification
