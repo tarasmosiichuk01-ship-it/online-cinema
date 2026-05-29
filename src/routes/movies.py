@@ -6,11 +6,12 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
-from config.dependencies import get_moderator_user, get_current_user
+from config.dependencies import get_moderator_user, get_current_user, get_accounts_email_notificator
 from database import get_postgresql_db
 from models.accounts import User, UserGroupEnum
 from models.movies import Movie, Genre, Certification, Star, Director, MovieComment, MovieReaction, MovieRating, \
     MovieFavourite
+from notifications.interfaces import EmailSenderInterface
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
     GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema, MovieUpdateSchema, \
     MovieCommentCreateSchema, MovieCommentResponseSchema, GenreUpdateShema, StarCreateSchema, StarResponseSchema, \
@@ -250,10 +251,9 @@ async def create_movie_comments(
     movie_id: int,
     comment_data: MovieCommentCreateSchema,
     current_user: User = Depends(get_current_user),
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.USER):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
 
     query = select(Movie).where(Movie.id == movie_id)
     result = await db.execute(query)
@@ -265,21 +265,48 @@ async def create_movie_comments(
             detail="Movie with the given ID was not found."
         )
 
+    parent_comment = None
+    if hasattr(comment_data, "parent_id") and comment_data.parent_id:
+        comment_query = (
+            select(MovieComment)
+            .options(joinedload(MovieComment.user))
+            .where(MovieComment.id == comment_data.parent_id))
+        comment_result = await db.execute(comment_query)
+        parent_comment = comment_result.scalars().first()
+
+        if not parent_comment:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent comment not found.")
+
+        if parent_comment.movie_id != movie_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Parent comment does not belong to this movie."
+            )
+
     new_comment = MovieComment(
         **comment_data.model_dump(exclude_unset=True),
         movie_id=movie_id,
         user_id=current_user.id
     )
+
     try:
         db.add(new_comment)
         await db.commit()
-        await db.refresh(new_comment)
+        await db.refresh(new_comment, ["user"])
 
     except IntegrityError:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
 
-    return new_comment
+    if parent_comment and parent_comment.user_id != current_user.id:
+        comments_link = f"http://127.0.0.1/movies/{movie_id}/comments"
+
+        await email_sender.send_reply_comment_email(
+            email=parent_comment.user.email,
+            comment_link=comments_link
+        )
+
+    return MovieCommentResponseSchema.model_validate(new_comment)
 
 
 # Authorization endpoint
