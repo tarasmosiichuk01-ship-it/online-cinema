@@ -49,7 +49,7 @@ async def create_movie(
             )
         )
 
-    genres, stars, directors, certificaton = await resolve_movie_relations(
+    genres, stars, directors, certification = await resolve_movie_relations(
         db=db,
         genres=movie_data.genres,
         stars=movie_data.stars,
@@ -68,7 +68,7 @@ async def create_movie(
             gross=movie_data.gross,
             description=movie_data.description,
             price=movie_data.price,
-            certification=certificaton,
+            certification=certification,
             genres=genres,
             stars=stars,
             directors=directors
@@ -159,9 +159,6 @@ async def update_movie(
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.MODERATOR):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
-
     query = select(Movie).where(Movie.id == movie_id)
     result = await db.execute(query)
     movie = result.scalars().first()
@@ -172,8 +169,25 @@ async def update_movie(
             detail="Movie with the given ID was not found."
         )
 
-    for field, value in movie_data.model_dump(exclude_unset=True).items():
-        setattr(movie, field, value)
+    update_dict = movie_data.model_dump(exclude_unset=True)
+
+    genres, stars, directors, certification = await resolve_movie_relations(
+        db=db,
+        genres=update_dict.get("genres"),
+        stars=update_dict.get("stars"),
+        directors=update_dict.get("directors"),
+        certification=update_dict.get("certification")
+    )
+
+    if genres is not None: movie.genres = genres
+    if stars is not None: movie.stars = stars
+    if directors is not None: movie.directors = directors
+    if certification is not None: movie.certification = certification
+
+    movie_fields = {"genres", "stars", "directors", "certification"}
+    for field, value in update_dict.items():
+        if field not in movie_fields:
+            setattr(movie, field, value)
 
     try:
         await db.commit()
