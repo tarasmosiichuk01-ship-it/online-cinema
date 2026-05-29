@@ -214,6 +214,19 @@ class MovieCommentResponseSchema(BaseModel):
         return value
 
 
+class CommentReactionCreate(BaseModel):
+    reaction_type: ReactionTypeEnum
+
+class CommentReactionResponse(BaseModel):
+    id: int
+    comment_id: int
+    user_id: int
+    reaction_type: ReactionTypeEnum
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class MovieReactionCreateSchema(BaseModel):
     reaction_type: ReactionTypeEnum
 
