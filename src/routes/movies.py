@@ -17,7 +17,7 @@ from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDe
     StarListResponseSchema, StarUpdateSchema, DirectorCreateSchema, DirectorResponseSchema, DirectorListResponseSchema, \
     DirectorUpdateSchema, MovieReactionResponseSchema, MovieReactionCreateSchema, MovieRatingResponseSchema, \
     MovieRatingSchema, MovieFavouriteResponseSchema, MovieFavouriteSchema
-from utils.utils import get_or_create
+from utils.utils import get_or_create, resolve_movie_relations
 
 router = APIRouter()
 
@@ -32,9 +32,6 @@ async def create_movie(
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.MODERATOR):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
-
     existing_query = select(Movie).where(
         (Movie.name == movie_data.name),
         (Movie.year == movie_data.year),
@@ -52,6 +49,14 @@ async def create_movie(
             )
         )
 
+    genres, stars, directors, certificaton = await resolve_movie_relations(
+        db=db,
+        genres=movie_data.genres,
+        stars=movie_data.stars,
+        directors=movie_data.directors,
+        certification=movie_data.certification,
+    )
+
     try:
         new_movie = Movie(
             name=movie_data.name,
@@ -63,15 +68,15 @@ async def create_movie(
             gross=movie_data.gross,
             description=movie_data.description,
             price=movie_data.price,
-            certification=await get_or_create(db=db, model=Certification, name=movie_data.certification),
-            genres=[await get_or_create(db=db, model=Genre, name=genre) for genre in movie_data.genres],
-            stars=[await get_or_create(db=db, model=Star, name=star) for star in movie_data.stars],
-            directors=[await get_or_create(db=db, model=Director, name=director) for director in movie_data.directors]
+            certification=certificaton,
+            genres=genres,
+            stars=stars,
+            directors=directors
         )
 
         db.add(new_movie)
         await db.commit()
-        await db.refresh(new_movie, ["genres", "stars", "directors"])
+        await db.refresh(new_movie, ["certification", "genres", "stars", "directors"])
 
         return MovieDetailSchema.model_validate(new_movie)
 
