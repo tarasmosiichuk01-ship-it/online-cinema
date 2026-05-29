@@ -16,5 +16,5 @@ class EmailSenderInterface(ABC):
         pass
 
     @abstractmethod
-    async def send_reply_comment_email(self, email: str, comments_link: str) -> None:
+    async def send_reply_comment_email(self, email: str, comment_link: str) -> None:
         pass

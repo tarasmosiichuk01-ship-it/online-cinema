@@ -22,6 +22,7 @@ class EmailSender(EmailSenderInterface):
         activation_email_template_name: str,
         activation_complete_email_template_name: str,
         password_email_template_name: str,
+        reply_comment_template_name: str,
     ):
         self._hostname = hostname
         self._port = port
@@ -31,6 +32,7 @@ class EmailSender(EmailSenderInterface):
         self._activation_email_template_name = activation_email_template_name
         self._activation_complete_email_template_name = activation_complete_email_template_name
         self._password_email_template_name = password_email_template_name
+        self._reply_comment_template_name = reply_comment_template_name
 
         self._env = Environment(loader=FileSystemLoader(template_dir))
 
@@ -73,5 +75,11 @@ class EmailSender(EmailSenderInterface):
         template = self._env.get_template(self._password_email_template_name)
         html_content = template.render(email=email, reset_link=reset_link)
         subject = "Password Reset Request"
+        await self._send_email(email, subject, html_content)
+
+    async def send_reply_comment_email(self, email: str, comment_link: str) -> None:
+        template = self._env.get_template(self._reply_comment_template_name)
+        html_content = template.render(email=email, comment_link=comment_link)
+        subject = "Reply Comment"
         await self._send_email(email, subject, html_content)
 
