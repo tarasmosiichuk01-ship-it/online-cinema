@@ -103,7 +103,11 @@ async def get_movie_list(
     next_page = f"/movies/?page={page + 1}&per_page={per_page}" if page < total_pages else None
 
     queryset = (
-        select(Movie).order_by(Movie.id.desc()).offset((page - 1) * per_page).limit(per_page)
+        select(Movie)
+        .options(joinedload(Movie.certification), selectinload(Movie.genres))
+        .order_by(Movie.id.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
     )
     result = await db.execute(queryset)
     movies = result.scalars().all()
@@ -207,8 +211,6 @@ async def delete_movie(
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.MODERATOR):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
 
     query = select(Movie).where(Movie.id == movie_id)
     result = await db.execute(query)
