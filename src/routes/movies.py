@@ -1,4 +1,5 @@
 import math
+from typing import Optional
 
 from fastapi import APIRouter, status, Query, Depends, HTTPException
 from sqlalchemy import select, func
@@ -10,7 +11,7 @@ from config.dependencies import get_moderator_user, get_current_user, get_accoun
 from database import get_postgresql_db
 from models.accounts import User, UserGroupEnum
 from models.movies import Movie, Genre, Certification, Star, Director, MovieComment, MovieReaction, MovieRating, \
-    MovieFavourite
+    MovieFavourite, ReactionTypeEnum
 from notifications.interfaces import EmailSenderInterface
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
     GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema, MovieUpdateSchema, \
@@ -337,27 +338,22 @@ async def get_movie_comments(
     return comments_list
 
 
-
-
-
 # Authorization endpoint
 @router.post(
-    "/movies/{movie_id}/like",
-    response_model=MovieReactionResponseSchema,
+    "/movies/{movie_id}/reactions",
+    response_model=Optional[MovieReactionResponseSchema],
     status_code=status.HTTP_200_OK
 )
-async def like_movie(
+async def toggle_movie_reaction(
     movie_id: int,
     reaction_data: MovieReactionCreateSchema,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.USER):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
 
-    query = select(Movie).where(Movie.id == movie_id)
-    result = await db.execute(query)
-    movie = result.scalars().first()
+    movie_query = select(Movie).where(Movie.id == movie_id)
+    movie_result = await db.execute(movie_query)
+    movie = movie_result.scalars().first()
 
     if not movie:
         raise HTTPException(
@@ -365,65 +361,40 @@ async def like_movie(
             detail="Movie with the given ID was not found."
         )
 
-    new_like = MovieReaction(
-        **reaction_data.model_dump(exclude_unset=True),
-        movie_id=movie_id,
-        user_id=current_user.id
+    reaction_query = select(MovieReaction).where(
+        MovieReaction.movie_id == movie_id,
+        MovieReaction.user_id == current_user.id
     )
+    reaction_result = await db.execute(reaction_query)
+    existing_reaction = reaction_result.scalars().first()
+
 
     try:
-        db.add(new_like)
-        await db.commit()
-        await db.refresh(new_like)
+        if existing_reaction:
+            if existing_reaction.reaction_type == reaction_data.reaction_type:
+                await db.delete(existing_reaction)
+                await db.commit()
+                return None
 
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
+            else:
+                existing_reaction.reaction_type = reaction_data.reaction_type
+                await db.commit()
+                await db.refresh(existing_reaction)
+                return existing_reaction
 
-    return new_like
-
-
-# Authorization endpoint
-@router.post(
-    "/movies/{movie_id}/dislike",
-    response_model=MovieReactionResponseSchema,
-    status_code=status.HTTP_200_OK
-)
-async def dislike_movie(
-    movie_id: int,
-    reaction_data: MovieReactionCreateSchema,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_postgresql_db)
-):
-    if not current_user.has_group(UserGroupEnum.USER):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
-
-    query = select(Movie).where(Movie.id == movie_id)
-    result = await db.execute(query)
-    movie = result.scalars().first()
-
-    if not movie:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given ID was not found."
+        new_reaction = MovieReaction(
+            movie_id=movie_id,
+            user_id=current_user.id,
+            reaction_type=reaction_data.reaction_type
         )
-
-    new_dislike = MovieReaction(
-        **reaction_data.model_dump(exclude_unset=True),
-        movie_id=movie_id,
-        user_id=current_user.id
-    )
-
-    try:
-        db.add(new_dislike)
+        db.add(new_reaction)
         await db.commit()
-        await db.refresh(new_dislike)
+        await db.refresh(new_reaction)
+        return existing_reaction
 
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
-
-    return new_dislike
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data or race condition.")
 
 
 # Authorization endpoint
