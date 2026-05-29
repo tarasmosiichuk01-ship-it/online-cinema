@@ -11,6 +11,7 @@ class BaseAppSettings(BaseSettings):
     ACTIVATION_COMPLETE_EMAIL_TEMPLATE_NAME: str = "activation_complete.html"
     PASSWORD_RESET_TEMPLATE_NAME: str = "password_reset_request.html"
     REPLY_COMMENT_TEMPLATE_NAME: str = "reply_comment.html"
+    REACTION_COMMENT_TEMPLATE_NAME: str = "reaction_comment.html"
 
     LOGIN_TIME_DAYS: int = 7
 
