@@ -156,14 +156,27 @@ async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_postgres
 
 
 # Moderators endpoint
-@router.patch("/movies/{movie_id}", status_code=status.HTTP_200_OK)
+@router.patch(
+    "/movies/{movie_id}",
+    response_model=MovieDetailSchema,
+    status_code=status.HTTP_200_OK
+)
 async def update_movie(
     movie_id: int,
     movie_data: MovieUpdateSchema,
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    query = select(Movie).where(Movie.id == movie_id)
+    query = (
+        select(Movie)
+        .options(
+            joinedload(Movie.certification),
+            selectinload(Movie.genres),
+            selectinload(Movie.stars),
+            selectinload(Movie.directors),
+        )
+        .where(Movie.id == movie_id)
+    )
     result = await db.execute(query)
     movie = result.scalars().first()
 
@@ -195,12 +208,11 @@ async def update_movie(
 
     try:
         await db.commit()
-        await db.refresh(movie)
+        await db.refresh(movie, ["certification", "genres", "stars", "directors"])
+        return MovieDetailSchema.model_validate(movie)
     except IntegrityError:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
-
-    return {"detail": "Movie updated successfully."}
 
 
 
