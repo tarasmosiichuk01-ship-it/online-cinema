@@ -192,7 +192,7 @@ class MovieComment(Base):
 
 
 class MovieReaction(Base):
-    __tablename__ = "movies_likes"
+    __tablename__ = "movies_reactions"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
@@ -254,3 +254,26 @@ class MovieFavourite(Base):
         UniqueConstraint("user_id", "movie_id", name="unique_movie_favourites_constraint"),
     )
 
+class CommentReaction(Base):
+    __tablename__ = "comments_reactions"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    user: Mapped["User"] = relationship("User", back_populates="comment_reactions")
+
+    comment_id: Mapped[int] = mapped_column(ForeignKey("movies_comments.id"), nullable=False)
+    comment: Mapped["Movie"] = relationship("MovieComment", back_populates="comment_reactions")
+
+    reaction_type: Mapped["ReactionTypeEnum"] = mapped_column(
+        Enum(ReactionTypeEnum, inherit_schema=True),
+        nullable=False
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "comment_id", name="unique_comment_reaction_constraint"),
+    )
