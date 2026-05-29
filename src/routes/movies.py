@@ -313,15 +313,24 @@ async def create_movie_comments(
 @router.get("/movies/{movie_id}/comments")
 async def get_movie_comments(
     movie_id: int,
-    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.USER):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+    movie_query = select(Movie).where(Movie.id == movie_id)
+    movie_result = await db.execute(movie_query)
+    movie = movie_result.scalars().first()
 
-    query = select(MovieComment).where(MovieComment.movie_id == movie_id).options(joinedload(MovieComment.user))
-    result = await db.execute(query)
-    comments = result.scalars().all()
+    if not movie:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Movie not found.")
+
+
+    comments_query = (
+        select(MovieComment)
+        .where(MovieComment.movie_id == movie_id)
+        .options(joinedload(MovieComment.user))
+        .order_by(MovieComment.id.asc())
+    )
+    comments_result = await db.execute(comments_query)
+    comments = comments_result.scalars().all()
 
     comments_list = [MovieCommentResponseSchema.model_validate(comment) for comment in comments]
 
