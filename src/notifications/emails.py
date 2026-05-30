@@ -23,7 +23,7 @@ class EmailSender(EmailSenderInterface):
         activation_complete_email_template_name: str,
         password_email_template_name: str,
         reply_comment_template_name: str,
-            reaction_comment_template_name: str
+        reaction_comment_template_name: str
     ):
         self._hostname = hostname
         self._port = port

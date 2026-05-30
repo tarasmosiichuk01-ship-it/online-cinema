@@ -402,7 +402,7 @@ async def toggle_comment_reaction(
 
         comments_link = f"http://127.0.0.1/movies/{comment.movie.id}/comments"
 
-        email_sender.send_reaction_comment_email(
+        await email_sender.send_reaction_comment_email(
             email=comment.user.email,
             comment_link=comments_link
         )
@@ -412,9 +412,6 @@ async def toggle_comment_reaction(
     except IntegrityError:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data or race condition.")
-
-
-
 
 
 # Authorization endpoint
@@ -488,34 +485,48 @@ async def rate_movie(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.USER):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
 
-    query = select(Movie).where(Movie.id == movie_id)
-    result = await db.execute(query)
-    movie = result.scalars().first()
+    movie_query = select(Movie).where(Movie.id == movie_id)
+    movie_result = await db.execute(movie_query)
+    movie_exists = movie_result.scalars().first()
 
-    if not movie:
+    if not movie_exists:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Movie with the given ID was not found."
         )
 
-    rating = MovieRating(
-        **rating_data.model_dump(exclude_unset=True),
-        movie_id=movie_id,
-        user_id=current_user.id
+    rating_query = select(MovieRating).where(
+        MovieRating.movie_id == movie_id,
+        MovieRating.user_id == current_user.id
     )
+    rating_result = await db.execute(rating_query)
+    existing_rating = rating_result.scalars().first()
+
+    if existing_rating:
+        existing_rating.rating = rating_data.rating
+        rating_obj = existing_rating
+
+    else:
+
+        rating_obj = MovieRating(
+            rating=rating_data.rating,
+            movie_id=movie_id,
+            user_id=current_user.id
+        )
+        db.add(rating_obj)
 
     try:
-        db.add(rating)
         await db.commit()
-        await db.refresh(rating)
+        await db.refresh(rating_obj)
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Input data is invalid."
+        )
 
-    return rating
+    return rating_obj
 
 
 # Authorization endpoint
