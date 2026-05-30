@@ -255,3 +255,13 @@ class MovieFavouriteResponseSchema(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+class MovieFavouriteListResponseSchema(BaseModel):
+    movies_favourite: List[MovieFavouriteResponseSchema]
+    prev_page: Optional[str]
+    next_page: Optional[str]
+    total_pages: int
+    total_items: int
+
+    model_config = ConfigDict(from_attributes=True)
+
