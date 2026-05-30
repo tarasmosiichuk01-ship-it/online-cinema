@@ -11,14 +11,15 @@ from config.dependencies import get_moderator_user, get_current_user, get_accoun
 from database import get_postgresql_db
 from models.accounts import User, UserGroupEnum
 from models.movies import Movie, Genre, Certification, Star, Director, MovieComment, MovieReaction, MovieRating, \
-    MovieFavourite, ReactionTypeEnum
+    MovieFavourite, ReactionTypeEnum, CommentReaction
 from notifications.interfaces import EmailSenderInterface
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
     GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema, MovieUpdateSchema, \
     MovieCommentCreateSchema, MovieCommentResponseSchema, GenreUpdateShema, StarCreateSchema, StarResponseSchema, \
     StarListResponseSchema, StarUpdateSchema, DirectorCreateSchema, DirectorResponseSchema, DirectorListResponseSchema, \
-    DirectorUpdateSchema, MovieReactionResponseSchema, MovieReactionCreateSchema, MovieRatingResponseSchema, \
-    MovieRatingSchema, MovieFavouriteResponseSchema, MovieFavouriteSchema
+    DirectorUpdateSchema, MovieReactionResponseSchema, MovieRatingResponseSchema, \
+    MovieRatingSchema, MovieFavouriteResponseSchema, MovieFavouriteSchema, CommentReactionCreate, \
+    CommentReactionResponse, MovieReactionCreateSchema
 from utils.utils import get_or_create, resolve_movie_relations
 
 router = APIRouter()
@@ -339,6 +340,84 @@ async def get_movie_comments(
 
 
 # Authorization endpoint
+
+@router.post(
+    "/comments/{comment_id}/reactions",
+    response_model=Optional[CommentReactionResponse],
+    status_code=status.HTTP_200_OK
+)
+async def toggle_comment_reaction(
+    comment_id: int,
+    reaction_data: CommentReactionCreate,
+    current_user: User = Depends(get_current_user),
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    comment_query = (
+        select(MovieComment)
+        .where(MovieComment.id == comment_id)
+        .options(
+            joinedload(MovieComment.user),
+            joinedload(MovieComment.movie)
+        )
+    )
+    comment_result = await db.execute(comment_query)
+    comment = comment_result.scalars().first()
+
+    if not comment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comment with the given ID was not found."
+        )
+
+    reaction_query = select(CommentReaction).where(
+        CommentReaction.comment_id == comment_id,
+        CommentReaction.user_id == current_user.id
+    )
+    reaction_result = await db.execute(reaction_query)
+    existing_reaction = reaction_result.scalars().first()
+
+    try:
+        if existing_reaction:
+            if existing_reaction.reaction_type == reaction_data.reaction_type:
+                await db.delete(existing_reaction)
+                await db.commit()
+                return None
+
+            else:
+                existing_reaction.reaction_type = reaction_data.reaction_type
+                await db.commit()
+                await db.refresh(existing_reaction)
+                return existing_reaction
+
+        new_reaction = CommentReaction(
+            comment_id=comment_id,
+            user_id=current_user.id,
+            reaction_type=reaction_data.reaction_type
+        )
+
+        db.add(new_reaction)
+        await db.commit()
+        await db.refresh(new_reaction)
+
+        comments_link = f"http://127.0.0.1/movies/{comment.movie.id}/comments"
+
+        email_sender.send_reaction_comment_email(
+            email=comment.user.email,
+            comment_link=comments_link
+        )
+
+        return new_reaction
+
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data or race condition.")
+
+
+
+
+
+# Authorization endpoint
 @router.post(
     "/movies/{movie_id}/reactions",
     response_model=Optional[MovieReactionResponseSchema],
@@ -390,7 +469,7 @@ async def toggle_movie_reaction(
         db.add(new_reaction)
         await db.commit()
         await db.refresh(new_reaction)
-        return existing_reaction
+        return new_reaction
 
     except IntegrityError:
         await db.rollback()
