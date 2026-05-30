@@ -23,6 +23,7 @@ class EmailSender(EmailSenderInterface):
         activation_complete_email_template_name: str,
         password_email_template_name: str,
         reply_comment_template_name: str,
+            reaction_comment_template_name: str
     ):
         self._hostname = hostname
         self._port = port
@@ -33,6 +34,7 @@ class EmailSender(EmailSenderInterface):
         self._activation_complete_email_template_name = activation_complete_email_template_name
         self._password_email_template_name = password_email_template_name
         self._reply_comment_template_name = reply_comment_template_name
+        self._reaction_comment_template_name = reaction_comment_template_name
 
         self._env = Environment(loader=FileSystemLoader(template_dir))
 
@@ -83,3 +85,8 @@ class EmailSender(EmailSenderInterface):
         subject = "Reply Comment"
         await self._send_email(email, subject, html_content)
 
+    async def send_reaction_comment_email(self, email: str, comment_link: str) -> None:
+        template = self._env.get_template(self._reaction_comment_template_name)
+        html_content = template.render(email=email, comment_link=comment_link)
+        subject = "Reaction Comment"
+        await self._send_email(email, subject, html_content)
