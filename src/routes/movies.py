@@ -573,7 +573,10 @@ async def rate_movie(
 
 
 # Authorization endpoint
-@router.post("/movies/my/favorites", response_model=MovieFavouriteResponseSchema, status_code=status.HTTP_200_OK)
+@router.post("/movies/my/favorites",
+    response_model=MovieFavouriteResponseSchema,
+    status_code=status.HTTP_200_OK
+)
 async def add_movie_favorites(
     movie_data: MovieFavouriteSchema,
     current_user: User = Depends(get_current_user),
@@ -644,18 +647,27 @@ async def get_movie_favorites(
     return favourite_movie_list
 
 # Authorization endpoint
-@router.delete("/movies/my/favorites/{movie_id}")
+@router.delete(
+    "/movies/my/favorites/{movie_id}",
+    status_code=status.HTTP_200_OK
+)
 async def delete_movie_favorites(
     movie_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.USER):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
-
-    query = select(MovieFavourite).where(MovieFavourite.movie_id == movie_id, MovieFavourite.user_id == current_user.id)
+    query = select(MovieFavourite).where(
+        MovieFavourite.movie_id == movie_id,
+        MovieFavourite.user_id == current_user.id
+    )
     result = await db.execute(query)
     favourite_movie = result.scalars().first()
+
+    if not favourite_movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie is not found in your favorites."
+        )
 
     await db.delete(favourite_movie)
     await db.commit()
