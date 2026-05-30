@@ -190,6 +190,11 @@ class MovieComment(Base):
 
     parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("movies_comments.id"), nullable=True)
 
+    comment_reactions: Mapped[list["CommentReaction"]] = relationship(
+        "CommentReaction",
+        back_populates="comment"
+    )
+
 
 class MovieReaction(Base):
     __tablename__ = "movies_reactions"
@@ -263,7 +268,7 @@ class CommentReaction(Base):
     user: Mapped["User"] = relationship("User", back_populates="comment_reactions")
 
     comment_id: Mapped[int] = mapped_column(ForeignKey("movies_comments.id"), nullable=False)
-    comment: Mapped["Movie"] = relationship("MovieComment", back_populates="comment_reactions")
+    comment: Mapped["MovieComment"] = relationship("MovieComment", back_populates="comment_reactions")
 
     reaction_type: Mapped["ReactionTypeEnum"] = mapped_column(
         Enum(ReactionTypeEnum, inherit_schema=True),
