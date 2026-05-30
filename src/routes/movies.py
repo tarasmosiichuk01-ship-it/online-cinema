@@ -579,18 +579,27 @@ async def add_movie_favorites(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.USER):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
 
-    query = select(Movie).where(Movie.name == movie_data.movie_name)
-    result = await db.execute(query)
-    movie = result.scalars().first()
+    movie_query = select(Movie).where(Movie.id == movie_data.movie_id)
+    movie_result = await db.execute(movie_query)
+    movie = movie_result.scalars().first()
 
     if not movie:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Movie with the given name was not found."
         )
+
+    favourite_query = select(MovieFavourite).where(
+        MovieFavourite.movie_id == movie_data.movie_id,
+        MovieFavourite.user_id == current_user.id
+    )
+    favourite_result = await db.execute(favourite_query)
+    existing_favourite = favourite_result.scalars().first()
+
+    if existing_favourite:
+        await db.refresh(existing_favourite, attribute_names=["movie"])
+        return existing_favourite
 
     movie_favourite = MovieFavourite(
         movie_id=movie.id,
