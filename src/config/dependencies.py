@@ -1,6 +1,6 @@
-from typing import Annotated
+from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Query
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from sqlalchemy import select
@@ -105,3 +105,21 @@ def get_jwt_auth_manager(settings: Settings = Depends(get_settings)) -> JWTAuthM
         secret_key_refresh=settings.SECRET_KEY_REFRESH,
         algorithm=settings.JWT_SIGNING_ALGORITHM
     )
+
+
+def get_query_params(
+    search: Optional[str] = Query(None, description="Search by name, description, star or director"),
+    release_year: Optional[int] = Query(None, description="Filter by year"),
+    min_rating_imdb: Optional[float] = Query(None, description="Filter by IMDb rating"),
+    genre: Optional[str] = Query(None, description="Filter by genre"),
+    sort_by: str = Query("id", description="Sort field: id, year, price, votes"),
+    order: str = Query("desc", description="Direction: asc (growing) or desc (falling)"),
+):
+    return {
+        "search": search,
+        "release_year": release_year,
+        "min_rating_imdb": min_rating_imdb,
+        "genre": genre,
+        "sort_by": sort_by,
+        "order": order,
+    }
