@@ -2,16 +2,16 @@ import math
 from typing import Optional
 
 from fastapi import APIRouter, status, Query, Depends, HTTPException
-from sqlalchemy import select, func
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from sqlalchemy import select, func, asc, desc
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
-from config.dependencies import get_moderator_user, get_current_user, get_accounts_email_notificator
+from config.dependencies import get_moderator_user, get_current_user, get_accounts_email_notificator, get_query_params
 from database import get_postgresql_db
 from models.accounts import User, UserGroupEnum
-from models.movies import Movie, Genre, Certification, Star, Director, MovieComment, MovieReaction, MovieRating, \
-    MovieFavourite, ReactionTypeEnum, CommentReaction
+from models.movies import Movie, Genre, Star, Director, MovieComment, MovieReaction, MovieRating, \
+    MovieFavourite, CommentReaction
 from notifications.interfaces import EmailSenderInterface
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
     GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema, MovieUpdateSchema, \
@@ -20,7 +20,7 @@ from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDe
     DirectorUpdateSchema, MovieReactionResponseSchema, MovieRatingResponseSchema, \
     MovieRatingSchema, MovieFavouriteResponseSchema, MovieFavouriteSchema, CommentReactionCreate, \
     CommentReactionResponse, MovieReactionCreateSchema
-from utils.utils import get_or_create, resolve_movie_relations
+from utils.utils import resolve_movie_relations
 
 router = APIRouter()
 
@@ -97,18 +97,61 @@ async def create_movie(
 async def get_movie_list(
     page: int = Query(1, ge=1, description="Page number (1-based index)"),
     per_page: int = Query(10, ge=1, le=20, description="Number of items per page"),
+    params: dict = Depends(get_query_params),
     db: AsyncSession = Depends(get_postgresql_db)
 ) -> MovieListResponseSchema:
 
-    total_items = (await db.execute(select(func.count()).select_from(Movie))).scalar()
+    base_query = select(Movie)
+    count_query = select(func.count()).select_from(Movie)
+
+    if params["release_year"]:
+        base_query = base_query.where(Movie.year == params["release_year"])
+        count_query = count_query.where(Movie.year == params["release_year"])
+
+    if params["min_rating_imdb"]:
+        base_query = base_query.where(Movie.imdb >= params["min_rating_imdb"])
+        count_query = count_query.where(Movie.imdb >= params["min_rating_imdb"])
+
+    if params["genre"]:
+        genre_condition = Movie.genres.any(Genre.name.ilike(f"%{params['genre']}%"))
+        base_query = base_query.where(genre_condition)
+        count_query = count_query.where(genre_condition)
+
+    if params["search"]:
+        search_term = f"%{params['search']}%"
+
+        movie_text_condition = (Movie.name.ilike(search_term)) | (Movie.description.ilike(search_term))
+        star_condition = Movie.stars.any(Star.name.ilike(search_term))
+        director_condition = Movie.directors.any(Director.name.ilike(search_term))
+
+        full_search_condition = movie_text_condition | star_condition | director_condition
+
+        base_query = base_query.where(full_search_condition)
+        count_query = count_query.where(full_search_condition)
+
+    sort_mapping = {
+        "id": Movie.id,
+        "year": Movie.year,
+        "price": Movie.price,
+        "votes": Movie.votes,
+    }
+    sort_column = sort_mapping.get(params["sort_by"], Movie.id)
+
+    if params["order"] == "asc":
+        base_query = base_query.order_by(asc(sort_column))
+    else:
+        base_query = base_query.order_by(desc(sort_column))
+
+    total_items_result = await db.execute(count_query)
+    total_items = total_items_result.scalar() or 0
+
     total_pages = 1 if total_items == 0 else math.ceil(total_items / per_page)
     prev_page = f"/movies/?page={page - 1}&per_page={per_page}" if page > 1 else None
     next_page = f"/movies/?page={page + 1}&per_page={per_page}" if page < total_pages else None
 
     queryset = (
-        select(Movie)
+        base_query
         .options(joinedload(Movie.certification), selectinload(Movie.genres))
-        .order_by(Movie.id.desc())
         .offset((page - 1) * per_page)
         .limit(per_page)
     )
