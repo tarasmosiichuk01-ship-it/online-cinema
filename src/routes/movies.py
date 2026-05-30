@@ -19,7 +19,7 @@ from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDe
     StarListResponseSchema, StarUpdateSchema, DirectorCreateSchema, DirectorResponseSchema, DirectorListResponseSchema, \
     DirectorUpdateSchema, MovieReactionResponseSchema, MovieRatingResponseSchema, \
     MovieRatingSchema, MovieFavouriteResponseSchema, MovieFavouriteSchema, CommentReactionCreate, \
-    CommentReactionResponse, MovieReactionCreateSchema
+    CommentReactionResponse, MovieReactionCreateSchema, MovieFavouriteListResponseSchema
 from utils.utils import resolve_movie_relations
 
 router = APIRouter()
@@ -622,29 +622,101 @@ async def add_movie_favorites(
 
 
 # Authorization endpoint
-@router.get("/movies/my/favorites")
+@router.get(
+    "/movies/my/favorites",
+    response_model=MovieFavouriteListResponseSchema,
+    status_code=status.HTTP_200_OK
+)
 async def get_movie_favorites(
+    page: int = Query(1, ge=1, description="Page number (1-based index)"),
+    per_page: int = Query(10, ge=1, le=20, description="Number of items per page"),
+    params: dict = Depends(get_query_params),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.USER):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
 
-    query = (
+
+    base_query = (
         select(MovieFavourite)
+        .join(MovieFavourite.movie)
         .where(MovieFavourite.user_id == current_user.id)
-        .options(joinedload(MovieFavourite.movie))
-        .order_by(MovieFavourite.id.desc())
     )
-    result = await db.execute(query)
+    count_query = (
+        select(func.count())
+        .select_from(MovieFavourite)
+        .join(MovieFavourite.movie)
+        .where(MovieFavourite.user_id == current_user.id)
+    )
+
+    if params["release_year"]:
+        base_query = base_query.where(Movie.year == params["release_year"])
+        count_query = count_query.where(Movie.year == params["release_year"])
+
+    if params["min_rating_imdb"]:
+        base_query = base_query.where(Movie.imdb >= params["min_rating_imdb"])
+        count_query = count_query.where(Movie.imdb >= params["min_rating_imdb"])
+
+    if params["genre"]:
+        genre_condition = Movie.genres.any(Genre.name.ilike(f"%{params['genre']}%"))
+        base_query = base_query.where(genre_condition)
+        count_query = count_query.where(genre_condition)
+
+    if params["search"]:
+        search_term = f"%{params['search']}%"
+
+        movie_text_condition = (Movie.name.ilike(search_term)) | (Movie.description.ilike(search_term))
+        star_condition = Movie.stars.any(Star.name.ilike(search_term))
+        director_condition = Movie.directors.any(Director.name.ilike(search_term))
+
+        full_search_condition = movie_text_condition | star_condition | director_condition
+
+        base_query = base_query.where(full_search_condition)
+        count_query = count_query.where(full_search_condition)
+
+    sort_mapping = {
+        "id": MovieFavourite.id,
+        "year": Movie.year,
+        "price": Movie.price,
+        "votes": Movie.votes,
+    }
+    sort_column = sort_mapping.get(params["sort_by"], Movie.id)
+
+    if params["order"] == "asc":
+        base_query = base_query.order_by(asc(sort_column))
+    else:
+        base_query = base_query.order_by(desc(sort_column))
+
+    total_items_result = await db.execute(count_query)
+    total_items = total_items_result.scalar() or 0
+
+    total_pages = 1 if total_items == 0 else math.ceil(total_items / per_page)
+    prev_page = f"/movies/my/favorites?page={page - 1}&per_page={per_page}" if page > 1 else None
+    next_page = f"/movies/my/favorites?page={page + 1}&per_page={per_page}" if page < total_pages else None
+
+    queryset = (
+        base_query
+        .options(
+            joinedload(MovieFavourite.movie).joinedload(Movie.certification),
+            joinedload(MovieFavourite.movie).selectinload(Movie.genres))
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
+    result = await db.execute(queryset)
     favourite_movies = result.scalars().all()
 
     if not favourite_movies:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No favourite movies found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No movies found.")
 
-    favourite_movie_list = [MovieFavouriteResponseSchema.model_validate(fav_movie) for fav_movie in favourite_movies]
+    movie_list = [MovieFavouriteResponseSchema.model_validate(movie) for movie in favourite_movies]
 
-    return favourite_movie_list
+    return MovieFavouriteListResponseSchema(
+        movies_favourite=movie_list,
+        prev_page=prev_page,
+        next_page=next_page,
+        total_pages=total_pages,
+        total_items=total_items,
+    )
+
 
 # Authorization endpoint
 @router.delete(
