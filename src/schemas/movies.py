@@ -247,7 +247,7 @@ class MovieRatingResponseSchema(BaseModel):
     movie_id: int
 
 class MovieFavouriteSchema(BaseModel):
-    movie_name: str
+    movie_id: int
 
 class MovieFavouriteResponseSchema(BaseModel):
     id: int
