@@ -1,6 +1,6 @@
 from sqlalchemy import select
 
-from database import AsyncPostgresqlSession
+from config.database import AsyncPostgresqlSession
 from models.accounts import UserGroupEnum, UserGroup
 
 

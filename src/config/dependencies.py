@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from config.settings import settings, Settings
-from database import get_postgresql_db
+from config.database import get_postgresql_db
 from models.accounts import User, UserGroupEnum
 from notifications.emails import EmailSender
 from notifications.interfaces import EmailSenderInterface

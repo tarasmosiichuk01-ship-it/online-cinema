@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 
 from config.dependencies import get_moderator_user, get_query_params
-from database import get_postgresql_db
+from config.database import get_postgresql_db
 from models.accounts import User
 from models.movies import Movie, Genre, Star, Director
 from schemas.movies import (

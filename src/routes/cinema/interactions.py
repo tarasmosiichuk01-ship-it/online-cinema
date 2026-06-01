@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from config.dependencies import get_current_user, get_accounts_email_notificator, get_query_params
-from database import get_postgresql_db
+from config.database import get_postgresql_db
 from models.accounts import User
 from models.movies import Movie, MovieComment, CommentReaction, MovieReaction, MovieRating, MovieFavourite, Star, \
     Director, Genre

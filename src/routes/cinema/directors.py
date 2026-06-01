@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.dependencies import get_moderator_user
-from database import get_postgresql_db
+from config.database import get_postgresql_db
 from models.accounts import User
 from models.movies import Director
 from schemas.movies import (

@@ -8,7 +8,7 @@ from sqlalchemy.orm import joinedload
 
 from config.dependencies import get_accounts_email_notificator, get_jwt_auth_manager, get_settings, get_current_user
 from config.settings import BaseAppSettings
-from database import get_postgresql_db
+from config.database import get_postgresql_db
 from exceptions.security import BaseSecurityError
 from notifications.interfaces import EmailSenderInterface
 from schemas.accounts import UserRegistrationRequestSchema, UserRegistrationResponseSchema, MessageResponseSchema, \
