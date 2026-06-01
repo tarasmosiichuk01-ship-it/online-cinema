@@ -19,7 +19,7 @@ from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDe
     StarListResponseSchema, StarUpdateSchema, DirectorCreateSchema, DirectorResponseSchema, DirectorListResponseSchema, \
     DirectorUpdateSchema, MovieReactionResponseSchema, MovieRatingResponseSchema, \
     MovieRatingSchema, MovieFavouriteResponseSchema, MovieFavouriteSchema, CommentReactionCreate, \
-    CommentReactionResponse, MovieReactionCreateSchema, MovieFavouriteListResponseSchema
+    CommentReactionResponse, MovieReactionCreateSchema, MovieFavouriteListResponseSchema, GenreWithMoviesCountSchema
 from utils.utils import resolve_movie_relations
 
 router = APIRouter()
@@ -783,14 +783,22 @@ async def create_genre(
 @router.get("/genres", response_model=GenreListResponseSchema)
 async def get_genre_list(db: AsyncSession = Depends(get_postgresql_db)) -> GenreListResponseSchema:
 
-    query = select(Genre).order_by(Genre.id.desc())
+    query = (
+        select(Genre, func.count(Movie.id).label("movies_count"))
+        .join(Genre.movies, isouter=True)
+        .group_by(Genre.id)
+        .order_by(Genre.id.desc())
+    )
     result = await db.execute(query)
-    genres = result.scalars().all()
+    genre_rows = result.all()
 
-    if not genres:
+    if not genre_rows:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No genres found.")
 
-    genre_list = [GenreDetailSchema.model_validate(genre) for genre in genres]
+    genre_list = [
+        GenreWithMoviesCountSchema(id=genre.id, name=genre.name, movies_count=count)
+        for genre, count in genre_rows
+    ]
 
     return GenreListResponseSchema(genres=genre_list)
 
