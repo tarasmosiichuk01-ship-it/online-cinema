@@ -96,6 +96,8 @@ class User(Base):
         "MovieFavourite", back_populates="user"
     )
 
+    cart: Mapped["Cart"] = relationship("Cart", back_populates="user", uselist=False)
+
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, is_active={self.is_active})>"
 
