@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import String, Table, Column, ForeignKey, Integer, Float, Text, DECIMAL, UniqueConstraint, Enum, \
     DateTime, func, CheckConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
 
 from src.models.base import Base
 
@@ -189,6 +189,12 @@ class MovieComment(Base):
     )
 
     parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("movies_comments.id"), nullable=True)
+
+    replies: Mapped[list["MovieComment"]] = relationship(
+        "MovieComment",
+        backref=backref("parent", remote_side="MovieComment.id"),
+        cascade="all, delete-orphan"
+    )
 
     comment_reactions: Mapped[list["CommentReaction"]] = relationship(
         "CommentReaction",
