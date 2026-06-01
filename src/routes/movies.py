@@ -927,10 +927,8 @@ async def create_star(
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.MODERATOR):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
 
-    query = select(Star).where(Star.name == star_data.name)
+    query = select(Star).where(Star.name.ilike(star_data.name))
     result = await db.execute(query)
     existing_star = result.scalars().first()
 
@@ -942,6 +940,7 @@ async def create_star(
     try:
         db.add(new_star)
         await db.commit()
+        await db.refresh(new_star)
 
     except IntegrityError:
         await db.rollback()
@@ -956,7 +955,7 @@ async def create_star(
 # Public endpoint
 @router.get("/stars", response_model=StarListResponseSchema)
 async def get_star_list(db: AsyncSession = Depends(get_postgresql_db)) -> StarListResponseSchema:
-    query = select(Star).order_by(Star.id.desc())
+    query = select(Star).order_by(Star.id.asc())
     result = await db.execute(query)
     stars = result.scalars().all()
 
@@ -976,8 +975,6 @@ async def update_star(
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.MODERATOR):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
 
     query = select(Star).where(Star.id == star_id)
     result = await db.execute(query)
@@ -988,6 +985,18 @@ async def update_star(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Star with the given ID was not found."
         )
+
+    if star_data.name:
+        name_query = select(Star).where(
+            Genre.name.ilike(star_data.name),
+            Genre.id != star_id
+        )
+        name_result = await db.execute(name_query)
+        if name_result.scalars().first():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Star with the name '{star_data.name}' already exists."
+            )
 
     for field, value in star_data.model_dump(exclude_unset=True).items():
         setattr(star, field, value)
@@ -1009,8 +1018,6 @@ async def delete_star(
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.MODERATOR):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
 
     query = select(Star).where(Star.id == star_id)
     result = await db.execute(query)
@@ -1035,8 +1042,7 @@ async def create_director(
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.MODERATOR):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
+
 
     query = select(Director).where(Director.name == director_data.name)
     result = await db.execute(query)
