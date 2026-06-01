@@ -21,11 +21,11 @@ class GenreDetailSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class GenreCreateShema(GenreBaseSchema):
+class GenreCreateSchema(GenreBaseSchema):
     pass
 
 
-class GenreUpdateShema(GenreBaseSchema):
+class GenreUpdateSchema(GenreBaseSchema):
     name: Optional[str] = None
 
 
@@ -54,7 +54,7 @@ class GenreMoviesListSchema(BaseModel):
 class GenreMoviesListResponseSchema(BaseModel):
     id: int
     name: str
-    movies: List[GenreMoviesListSchema]
+    movies: List[GenreDetailSchema]
 
 
 class StarBaseSchema(BaseModel):
