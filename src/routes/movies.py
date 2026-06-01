@@ -14,8 +14,8 @@ from models.movies import Movie, Genre, Star, Director, MovieComment, MovieReact
     MovieFavourite, CommentReaction
 from notifications.interfaces import EmailSenderInterface
 from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDetailSchema, \
-    GenreListResponseSchema, GenreDetailSchema, GenreCreateShema, MovieCreateSchema, MovieUpdateSchema, \
-    MovieCommentCreateSchema, MovieCommentResponseSchema, GenreUpdateShema, StarCreateSchema, StarResponseSchema, \
+    GenreListResponseSchema, GenreDetailSchema, GenreCreateSchema, MovieCreateSchema, MovieUpdateSchema, \
+    MovieCommentCreateSchema, MovieCommentResponseSchema, GenreUpdateSchema, StarCreateSchema, StarResponseSchema, \
     StarListResponseSchema, StarUpdateSchema, DirectorCreateSchema, DirectorResponseSchema, DirectorListResponseSchema, \
     DirectorUpdateSchema, MovieReactionResponseSchema, MovieRatingResponseSchema, \
     MovieRatingSchema, MovieFavouriteResponseSchema, MovieFavouriteSchema, CommentReactionCreate, \
@@ -755,7 +755,7 @@ async def delete_movie_favorites(
     status_code=status.HTTP_201_CREATED
 )
 async def create_genre(
-    genre_data: GenreCreateShema,
+    genre_data: GenreCreateSchema,
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
@@ -856,12 +856,10 @@ async def get_movies_by_genre(
 @router.patch("/genres/{genre_id}", status_code=status.HTTP_200_OK)
 async def update_genre(
     genre_id: int,
-    genre_data: GenreUpdateShema,
+    genre_data: GenreUpdateSchema,
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.MODERATOR):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
 
     query = select(Genre).where(Genre.id == genre_id)
     result = await db.execute(query)
@@ -872,6 +870,18 @@ async def update_genre(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Genre with the given ID was not found."
         )
+
+    if genre_data.name:
+        name_query = select(Genre).where(
+            Genre.name.ilike(genre_data.name),
+            Genre.id != genre_id
+        )
+        name_result = await db.execute(name_query)
+        if name_result.scalars().first():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Genre with the name '{genre_data.name}' already exists."
+            )
 
     for field, value in genre_data.model_dump(exclude_unset=True).items():
         setattr(genre, field, value)
@@ -893,8 +903,6 @@ async def delete_genre(
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.MODERATOR):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
 
     query = select(Genre).where(Genre.id == genre_id)
     result = await db.execute(query)
