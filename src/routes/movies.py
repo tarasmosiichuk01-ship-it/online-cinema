@@ -749,18 +749,21 @@ async def delete_movie_favorites(
 
 
 # Moderator endpoint
-@router.post("/genres", response_model=GenreDetailSchema, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/genres",
+    response_model=GenreDetailSchema,
+    status_code=status.HTTP_201_CREATED
+)
 async def create_genre(
     genre_data: GenreCreateShema,
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.MODERATOR):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
 
-    query = select(Genre).where(Genre.name == genre_data.name)
+    query = select(Genre).where(Genre.name.ilike(genre_data.name))
     result = await db.execute(query)
     existing_genre = result.scalars().first()
+
     if existing_genre:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Genre with that name already exists")
 
@@ -769,6 +772,7 @@ async def create_genre(
     try:
         db.add(new_genre)
         await db.commit()
+        await db.refresh(new_genre)
 
     except IntegrityError:
         await db.rollback()
