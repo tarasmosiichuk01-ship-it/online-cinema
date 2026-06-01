@@ -988,8 +988,8 @@ async def update_star(
 
     if star_data.name:
         name_query = select(Star).where(
-            Genre.name.ilike(star_data.name),
-            Genre.id != star_id
+            Star.name.ilike(star_data.name),
+            Star.id != star_id
         )
         name_result = await db.execute(name_query)
         if name_result.scalars().first():
@@ -1043,8 +1043,7 @@ async def create_director(
     db: AsyncSession = Depends(get_postgresql_db)
 ):
 
-
-    query = select(Director).where(Director.name == director_data.name)
+    query = select(Director).where(Director.name.ilike(director_data.name))
     result = await db.execute(query)
     existing_director = result.scalars().first()
 
@@ -1056,6 +1055,7 @@ async def create_director(
     try:
         db.add(new_director)
         await db.commit()
+        await db.refresh(new_director)
 
     except IntegrityError:
         await db.rollback()
@@ -1070,7 +1070,7 @@ async def create_director(
 # Public endpoint
 @router.get("/directors", response_model=DirectorListResponseSchema)
 async def get_director_list(db: AsyncSession = Depends(get_postgresql_db)):
-    query = select(Director).order_by(Director.id.desc())
+    query = select(Director).order_by(Director.id.asc())
     result = await db.execute(query)
     directors = result.scalars().all()
 
@@ -1090,8 +1090,6 @@ async def update_director(
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.MODERATOR):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
 
     query = select(Director).where(Director.id == director_id)
     result = await db.execute(query)
@@ -1102,6 +1100,18 @@ async def update_director(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Director with the given ID was not found."
         )
+
+    if director_data.name:
+        name_query = select(Director).where(
+            Director.name.ilike(director_data.name),
+            Director.id != director_id
+        )
+        name_result = await db.execute(name_query)
+        if name_result.scalars().first():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Director with the name '{director_data.name}' already exists."
+            )
 
     for field, value in director_data.model_dump(exclude_unset=True).items():
         setattr(director, field, value)
@@ -1123,8 +1133,6 @@ async def delete_director(
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    if not current_user.has_group(UserGroupEnum.MODERATOR):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not enough permissions")
 
     query = select(Director).where(Director.id == director_id)
     result = await db.execute(query)
