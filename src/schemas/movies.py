@@ -29,16 +29,19 @@ class GenreUpdateShema(GenreBaseSchema):
     name: Optional[str] = None
 
 
-class GenreListResponseSchema(BaseModel):
-    genres: List[GenreDetailSchema]
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class GenreWithMoviesCountSchema(BaseModel):
     id: int
     name: str
     movies_count: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GenreListResponseSchema(BaseModel):
+    genres: List[GenreWithMoviesCountSchema]
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 
 class StarBaseSchema(BaseModel):
