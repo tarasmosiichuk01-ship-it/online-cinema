@@ -19,7 +19,8 @@ from schemas.movies import MovieListResponseSchema, MovieListItemSchema, MovieDe
     StarListResponseSchema, StarUpdateSchema, DirectorCreateSchema, DirectorResponseSchema, DirectorListResponseSchema, \
     DirectorUpdateSchema, MovieReactionResponseSchema, MovieRatingResponseSchema, \
     MovieRatingSchema, MovieFavouriteResponseSchema, MovieFavouriteSchema, CommentReactionCreate, \
-    CommentReactionResponse, MovieReactionCreateSchema, MovieFavouriteListResponseSchema, GenreWithMoviesCountSchema
+    CommentReactionResponse, MovieReactionCreateSchema, MovieFavouriteListResponseSchema, GenreWithMoviesCountSchema, \
+    GenreMoviesListResponseSchema, GenreMoviesListSchema
 from utils.utils import resolve_movie_relations
 
 router = APIRouter()
@@ -801,6 +802,45 @@ async def get_genre_list(db: AsyncSession = Depends(get_postgresql_db)) -> Genre
     ]
 
     return GenreListResponseSchema(genres=genre_list)
+
+
+# Authorization endpoint
+@router.get(
+    "/genres/{genre_id}/movies",
+    response_model=GenreMoviesListResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def get_movies_by_genre(
+    genre_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+) -> GenreMoviesListResponseSchema:
+    query = (
+        select(Genre)
+        .where(Genre.id == genre_id)
+        .options(selectinload(Genre.movies))
+    )
+    result = await db.execute(query)
+    genre = result.scalars().first()
+
+    if not genre:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Genre with the given ID was not found."
+        )
+
+    if not genre.movies:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No movies found for this genre."
+        )
+
+    movie_list = [GenreMoviesListSchema(id=movie.id, name=movie.name) for movie in genre.movies]
+    return GenreMoviesListResponseSchema(
+        id=genre.id,
+        name=genre.name,
+        movies=movie_list
+    )
 
 
 # Moderator endpoint
