@@ -44,13 +44,6 @@ class GenreListResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class GenreMoviesListSchema(BaseModel):
-    id: int
-    name: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class GenreMoviesListResponseSchema(BaseModel):
     id: int
     name: str
