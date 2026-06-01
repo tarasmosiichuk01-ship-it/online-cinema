@@ -797,7 +797,12 @@ async def get_genre_list(db: AsyncSession = Depends(get_postgresql_db)) -> Genre
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No genres found.")
 
     genre_list = [
-        GenreWithMoviesCountSchema(id=genre.id, name=genre.name, movies_count=count)
+        GenreWithMoviesCountSchema(
+            id=genre.id,
+            name=genre.name,
+            movies_count=count,
+            movies_url=f"http://127.0.0.1:8000/api/v1/genres/{genre.id}/movies",
+        )
         for genre, count in genre_rows
     ]
 
