@@ -12,12 +12,8 @@
       <div style="border: 1px solid #e9ecef; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
                   padding: 32px; max-width: 480px; width: 100%; margin: 20px auto; background-color: #ffffff; color: #333333; box-sizing: border-box;">
 
-        <div style="font-size: 40px; margin-bottom: 20px; text-align: center;">
-          {% if reaction_data.reaction_type == 'LIKE' %}👍{% else %}👎{% endif %}
-        </div>
-
         <p style="margin: 0 0 24px 0; line-height: 1.6; font-size: 16px; color: #495057; text-align: center;">
-          Someone <strong>{{ reaction_data.reaction_type | lower }}d</strong> your comment on the movie!
+          Someone reacted to your comment on the movie!
         </p>
 
         <p style="margin: 24px 0; text-align: center;">
