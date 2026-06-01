@@ -5,7 +5,8 @@ from fastapi import APIRouter, status, Depends, HTTPException, Query
 from sqlalchemy import select, func, asc, desc
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm.attributes import set_committed_value
 
 from config.dependencies import get_current_user, get_accounts_email_notificator, get_query_params
 from config.database import get_postgresql_db
@@ -54,7 +55,10 @@ async def create_movie_comments(
         parent_comment = comment_result.scalars().first()
 
         if not parent_comment:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent comment not found.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Parent comment not found."
+            )
 
         if parent_comment.movie_id != movie_id:
             raise HTTPException(
@@ -76,6 +80,8 @@ async def create_movie_comments(
     except IntegrityError:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
+
+    set_committed_value(new_comment, "replies", [])
 
     if parent_comment and parent_comment.user_id != current_user.id:
         comments_link = f"http://127.0.0.1/movies/{movie_id}/comments"
@@ -104,8 +110,15 @@ async def get_movie_comments(
 
     comments_query = (
         select(MovieComment)
-        .where(MovieComment.movie_id == movie_id)
-        .options(joinedload(MovieComment.user))
+        .where(
+            MovieComment.movie_id == movie_id,
+            MovieComment.parent_id == None
+        )
+        .options(
+            selectinload(MovieComment.user),
+            selectinload(MovieComment.replies).selectinload(MovieComment.user),
+            selectinload(MovieComment.replies).selectinload(MovieComment.replies)
+        )
         .order_by(MovieComment.id.asc())
     )
     comments_result = await db.execute(comments_query)
