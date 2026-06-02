@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, status, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
@@ -160,4 +160,22 @@ async def delete_cart_item(
         )
 
     await db.delete(cart_item)
+    await db.commit()
+
+
+# Authorization endpoint
+@router.delete("/carts/clear", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_cart_items(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    delete_query = (
+        delete(CartItem)
+        .where(
+            CartItem.cart_id == (
+                select(Cart.id).where(Cart.user_id == current_user.id).scalar_subquery()
+            )
+        )
+    )
+    await db.execute(delete_query)
     await db.commit()
