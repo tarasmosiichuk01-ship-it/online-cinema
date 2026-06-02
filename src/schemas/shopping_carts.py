@@ -23,3 +23,13 @@ class CartItemMovieSchema(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+class CartItemResponseSchema(BaseModel):
+    id: int
+    cart_id: int
+    added_at: datetime
+    movie: CartItemMovieSchema
+
+    model_config = ConfigDict(from_attributes=True)
+
+
