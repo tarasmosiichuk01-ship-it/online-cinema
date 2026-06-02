@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from routes import accounts_router
+from routes import accounts_router, shopping_carts_router
 from routes.cinema import cinema_router
 
 app = FastAPI(
@@ -12,3 +12,4 @@ api_version_prefix = "/api/v1"
 
 app.include_router(accounts_router, prefix=f"{api_version_prefix}/accounts", tags=["accounts"])
 app.include_router(cinema_router, prefix=f"{api_version_prefix}/cinema", tags=["cinema"])
+app.include_router(shopping_carts_router, prefix=f"{api_version_prefix}/shopping_carts", tags=["shopping_carts"])
