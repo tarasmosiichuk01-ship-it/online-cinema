@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from config.database import get_postgresql_db
 from config.dependencies import get_current_user
@@ -14,7 +15,11 @@ router = APIRouter()
 
 
 # Authorization endpoint
-@router.post("/carts", response_model=CartItemResponseSchema, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/carts",
+    response_model=CartItemResponseSchema,
+    status_code=status.HTTP_201_CREATED
+)
 async def add_movie_to_cart(
     cart_item_data: CartItemCreateSchema,
     current_user: User = Depends(get_current_user),
@@ -61,7 +66,10 @@ async def add_movie_to_cart(
         db.add(cart)
         await db.flush()
 
-    cart_item_query = select(CartItem).where(CartItem.cart_id == cart.id, CartItem.movie_id == cart_item_data.movie_id)
+    cart_item_query = select(CartItem).where(
+        CartItem.cart_id == cart.id,
+        CartItem.movie_id == cart_item_data.movie_id
+    )
     cart_item_result = await db.execute(cart_item_query)
     existing_cart_item = cart_item_result.scalars().first()
 
@@ -79,8 +87,18 @@ async def add_movie_to_cart(
     try:
         db.add(new_cart_item)
         await db.commit()
-        await db.refresh(new_cart_item)
-        return new_cart_item
+
+        completed_item_query = (
+            select(CartItem)
+            .where(CartItem.id == new_cart_item.id)
+            .options(
+                joinedload(CartItem.movie).joinedload(Movie.genres)
+            )
+        )
+        completed_item_result = await db.execute(completed_item_query)
+        completed_cart_item = completed_item_result.scalars().first()
+
+        return completed_cart_item
 
     except IntegrityError:
         await db.rollback()
