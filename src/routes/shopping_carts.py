@@ -2,21 +2,21 @@ from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from config.database import get_postgresql_db
 from config.dependencies import get_current_user
 from models.accounts import User, UserGroupEnum
 from models.movies import Movie
 from models.shopping_carts import Cart, CartItem
-from schemas.shopping_carts import CartItemCreateSchema, CartItemResponseSchema
+from schemas.shopping_carts import CartItemCreateSchema, CartItemResponseSchema, CartResponse
 
 router = APIRouter()
 
 
 # Authorization endpoint
 @router.post(
-    "/carts",
+    "/cart-items",
     response_model=CartItemResponseSchema,
     status_code=status.HTTP_201_CREATED
 )
@@ -106,3 +106,30 @@ async def add_movie_to_cart(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This movie is already in your cart."
         )
+
+# Authorization endpoint
+@router.get(
+    "/carts",
+    response_model=CartResponse,
+    status_code=status.HTTP_200_OK
+)
+async def get_current_user_cart(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    query = (
+        select(Cart)
+        .where(Cart.user_id == current_user.id)
+        .options(
+            selectinload(Cart.cart_items)
+            .joinedload(CartItem.movie)
+            .joinedload(Movie.genres)
+        )
+    )
+    result = await db.execute(query)
+    cart = result.scalars().first()
+
+    if not cart:
+        return Cart(user_id=current_user.id, cart_items=[])
+
+    return cart
