@@ -14,3 +14,12 @@ class GenreShortResponseSchema(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+class CartItemMovieSchema(BaseModel):
+    name: str
+    price: decimal.Decimal
+    genres: list[GenreShortResponseSchema]
+    year: int
+
+    model_config = ConfigDict(from_attributes=True)
+
