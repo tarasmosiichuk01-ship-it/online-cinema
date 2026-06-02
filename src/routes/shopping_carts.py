@@ -16,7 +16,7 @@ router = APIRouter()
 
 # Authorization endpoint
 @router.post(
-    "/cart-items",
+    "/carts",
     response_model=CartItemResponseSchema,
     status_code=status.HTTP_201_CREATED
 )
@@ -133,3 +133,31 @@ async def get_current_user_cart(
         return Cart(user_id=current_user.id, cart_items=[])
 
     return cart
+
+
+# Authorization endpoint
+@router.delete("/carts/items/{movie_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_cart_item(
+    movie_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    query = (
+        select(CartItem)
+        .join(Cart)
+        .where(
+            CartItem.movie_id == movie_id,
+            Cart.user_id == current_user.id
+        )
+    )
+    result = await db.execute(query)
+    cart_item = result.scalars().first()
+
+    if not cart_item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This movie is not in your cart."
+        )
+
+    await db.delete(cart_item)
+    await db.commit()
