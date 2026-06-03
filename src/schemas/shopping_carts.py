@@ -34,7 +34,7 @@ class CartItemResponseSchema(BaseModel):
 
 
 class CartResponse(BaseModel):
-    id: int
+    id: int | None = None
     user_id: int
     cart_items: list[CartItemResponseSchema]
 
