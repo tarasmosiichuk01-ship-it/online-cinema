@@ -15,4 +15,37 @@ class StatusEnum(str, enum.Enum):
     CANCELED = "canceled"
 
 
+class Order(Base):
+    __tablename__ = "orders"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    user: Mapped["User"] = relationship("User", back_populates="orders")
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+
+    status: Mapped[StatusEnum] = mapped_column(
+        Enum(StatusEnum),
+        nullable=False,
+        default=StatusEnum.PENDING
+    )
+
+    total_amount: Mapped[Optional[decimal.Decimal]] = mapped_column(
+        DECIMAL(10, 2),
+        nullable=True
+    )
+
+    order_items: Mapped[list["OrderItem"]] = relationship(
+        "OrderItem",
+        back_populates="order",
+        cascade="all, delete-orphan"
+    )
+
+
 
