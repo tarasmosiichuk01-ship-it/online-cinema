@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.models.base import Base
 
 
-class StatusEnum(str, enum.Enum):
+class OrderStatusEnum(str, enum.Enum):
     PENDING = "pending"
     PAID = "paid"
     CANCELED = "canceled"
@@ -30,10 +30,10 @@ class Order(Base):
         nullable=False
     )
 
-    status: Mapped[StatusEnum] = mapped_column(
-        Enum(StatusEnum),
+    status: Mapped[OrderStatusEnum] = mapped_column(
+        Enum(OrderStatusEnum),
         nullable=False,
-        default=StatusEnum.PENDING
+        default=OrderStatusEnum.PENDING
     )
 
     total_amount: Mapped[Optional[decimal.Decimal]] = mapped_column(
