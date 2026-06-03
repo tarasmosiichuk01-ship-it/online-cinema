@@ -10,6 +10,7 @@ from config.dependencies import get_moderator_user, get_query_params
 from config.database import get_postgresql_db
 from models.accounts import User
 from models.movies import Movie, Genre, Star, Director
+from models.shopping_carts import CartItem
 from schemas.movies import (
     MovieDetailSchema,
     MovieCreateSchema,
@@ -275,6 +276,16 @@ async def delete_movie(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Movie with the given ID was not found."
+        )
+
+    cart_check_query = select(CartItem).where(CartItem.movie_id == movie_id)
+    cart_check_result = await db.execute(cart_check_query)
+    existing_in_cart = cart_check_result.scalars().first()
+
+    if existing_in_cart:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Warning to Moderator: This movie cannot be deleted because it is currently in users' shopping carts."
         )
 
     await db.delete(movie)
