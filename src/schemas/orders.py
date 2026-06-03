@@ -20,3 +20,13 @@ class MovieShortResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class OrderItemResponseSchema(BaseModel):
+    id: int
+    order_id: int
+    movie_id: int
+    movie: MovieShortResponseSchema
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+
