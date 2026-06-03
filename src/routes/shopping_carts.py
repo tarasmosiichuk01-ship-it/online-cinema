@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from config.database import get_postgresql_db
-from config.dependencies import get_current_user
+from config.dependencies import get_current_user, get_admin_user
 from models.accounts import User, UserGroupEnum
 from models.movies import Movie
 from models.shopping_carts import Cart, CartItem
@@ -179,3 +179,32 @@ async def delete_cart_items(
     )
     await db.execute(delete_query)
     await db.commit()
+
+
+# Admin endpoint
+@router.get(
+    "/admin/carts/{user_id}",
+    response_model=CartResponse,
+    status_code=status.HTTP_200_OK
+)
+async def get_cart_by_user_id(
+    user_id: int,
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    query = (
+        select(Cart)
+        .where(Cart.user_id == user_id)
+        .options(
+            selectinload(Cart.cart_items)
+            .joinedload(CartItem.movie)
+            .joinedload(Movie.genres)
+        )
+    )
+    result = await db.execute(query)
+    cart = result.scalars().first()
+
+    if not cart:
+        return Cart(user_id=user_id, cart_items=[])
+
+    return cart
