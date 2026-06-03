@@ -12,3 +12,11 @@ class GenreShortResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class MovieShortResponseSchema(BaseModel):
+    id: int
+    name: str
+    genres: list[GenreShortResponseSchema]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
