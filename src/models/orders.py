@@ -48,4 +48,18 @@ class Order(Base):
     )
 
 
+class OrderItem(Base):
+    __tablename__ = "order_items"
 
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), nullable=False)
+    order: Mapped["Order"] = relationship("Order", back_populates="order_items")
+
+    movie_id: Mapped[int] = mapped_column(ForeignKey("movies.id"), nullable=False)
+    movie: Mapped["Movie"] = relationship("Movie", back_populates="order_items")
+
+    price_at_order: Mapped[decimal.Decimal] = mapped_column(
+        DECIMAL(10, 2),
+        nullable=False
+    )
