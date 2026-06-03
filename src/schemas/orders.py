@@ -29,4 +29,11 @@ class OrderItemResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class OrderResponseSchema(BaseModel):
+    id: int
+    user_id: int
+    status: OrderStatusEnum
+    created_at: datetime
+    items: list[OrderItemResponseSchema]
 
+    model_config = ConfigDict(from_attributes=True)
