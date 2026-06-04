@@ -15,6 +15,7 @@ from models.accounts import User
 router = APIRouter()
 
 
+# Authorization endpoint
 @router.post(
     "/orders",
     response_model=OrderResponseSchema,
@@ -89,3 +90,30 @@ async def create_order(
 
     return completed_order
 
+
+# Authorization endpoint
+@router.get(
+    "/orders",
+    response_model=list[OrderResponseSchema],
+    status_code=status.HTTP_200_OK
+)
+async def get_orders(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    query = (
+        select(Order)
+        .where(Order.user_id == current_user.id)
+        .options(
+            selectinload(Order.order_items).options(
+                joinedload(OrderItem.movie).options(
+                    joinedload(Movie.genres)
+                )
+            )
+        )
+        .order_by(Order.created_at.desc())
+    )
+    result = await db.execute(query)
+    orders = result.scalars().all()
+
+    return orders
