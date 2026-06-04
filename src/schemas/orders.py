@@ -1,6 +1,7 @@
+import decimal
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field
 
 from models.orders import OrderStatusEnum
 
@@ -25,6 +26,7 @@ class OrderItemResponseSchema(BaseModel):
     order_id: int
     movie_id: int
     movie: MovieShortResponseSchema
+    price_at_order: decimal.Decimal
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -37,3 +39,9 @@ class OrderResponseSchema(BaseModel):
     order_items: list[OrderItemResponseSchema]
 
     model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def total_amount(self) -> decimal.Decimal:
+        result = [order_item.price_at_order for order_item in self.order_items]
+        return sum(result, decimal.Decimal(0))
