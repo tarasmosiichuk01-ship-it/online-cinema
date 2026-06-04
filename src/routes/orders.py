@@ -1,3 +1,5 @@
+import decimal
+
 from fastapi import APIRouter, status, Depends, HTTPException
 from sqlalchemy import select, delete
 from sqlalchemy.exc import IntegrityError
@@ -48,6 +50,10 @@ async def create_order(
     new_order = Order(
         user_id=current_user.id,
         status=OrderStatusEnum.PENDING,
+        total_amount=sum(
+            (cart_item.movie.price for cart_item in cart.cart_items),
+            decimal.Decimal(0)
+        )
     )
 
     try:
@@ -117,3 +123,55 @@ async def get_orders(
     orders = result.scalars().all()
 
     return orders
+
+
+# Authorization endpoint
+@router.patch(
+    "/orders/{order_id}/cancel",
+    response_model=OrderResponseSchema,
+    status_code=status.HTTP_200_OK
+)
+async def cancel_order(
+    order_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+
+    query = (
+        select(Order)
+        .where(
+            Order.id == order_id,
+            Order.user_id == current_user.id,
+        )
+    )
+    result = await db.execute(query)
+    order = result.scalars().first()
+
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found"
+        )
+
+    if order.status != OrderStatusEnum.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You can only cancel pending orders"
+        )
+
+    order.status = OrderStatusEnum.CANCELED
+    await db.commit()
+
+    query_with_relations = (
+        select(Order)
+        .where(Order.id == order.id)
+        .options(
+            selectinload(Order.order_items).options(
+                joinedload(OrderItem.movie).options(joinedload(Movie.genres))
+            )
+        )
+    )
+    final_result = await db.execute(query_with_relations)
+    canceled_order = final_result.scalars().first()
+
+    return canceled_order
