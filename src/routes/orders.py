@@ -1,13 +1,13 @@
 import decimal
 
 from fastapi import APIRouter, status, Depends, HTTPException
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, cast, Date
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 
 from config.database import get_postgresql_db
-from config.dependencies import get_current_user
+from config.dependencies import get_current_user, admin_query_params, get_admin_user
 from models.movies import Movie
 from models.orders import Order, OrderStatusEnum, OrderItem
 from models.shopping_carts import Cart, CartItem
@@ -175,3 +175,46 @@ async def cancel_order(
     canceled_order = final_result.scalars().first()
 
     return canceled_order
+
+
+#Admin endpoint
+@router.get(
+    "/admin/orders",
+    response_model=list[OrderResponseSchema],
+    status_code=status.HTTP_200_OK
+)
+async def get_order_users_by_filters(
+    params: dict = Depends(admin_query_params),
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+
+    base_query = (
+        select(Order)
+        .options(
+            selectinload(Order.order_items).options(
+                joinedload(OrderItem.movie).options(
+                    joinedload(Movie.genres)
+                )
+            )
+        )
+    )
+
+    if params["user_id"] is not None:
+        base_query = base_query.where(Order.user_id == params["user_id"])
+
+    if params["start_date"] is not None:
+        base_query = base_query.where(cast(Order.created_at, Date) >= params["start_date"])
+
+    if params["end_date"] is not None:
+        base_query = base_query.where(cast(Order.created_at, Date) <= params["end_date"])
+
+    if params["order_status"] is not None:
+        base_query = base_query.where(Order.status == params["order_status"])
+
+    base_query = base_query.order_by(Order.created_at.desc())
+
+    result = await db.execute(base_query)
+    orders = result.scalars().all()
+
+    return orders
