@@ -36,12 +36,7 @@ class OrderResponseSchema(BaseModel):
     user_id: int
     status: OrderStatusEnum
     created_at: datetime
+    total_amount: decimal.Decimal
     order_items: list[OrderItemResponseSchema]
 
     model_config = ConfigDict(from_attributes=True)
-
-    @computed_field
-    @property
-    def total_amount(self) -> decimal.Decimal:
-        result = [order_item.price_at_order for order_item in self.order_items]
-        return sum(result, decimal.Decimal(0))
