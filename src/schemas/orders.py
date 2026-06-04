@@ -34,6 +34,6 @@ class OrderResponseSchema(BaseModel):
     user_id: int
     status: OrderStatusEnum
     created_at: datetime
-    items: list[OrderItemResponseSchema]
+    order_items: list[OrderItemResponseSchema]
 
     model_config = ConfigDict(from_attributes=True)
