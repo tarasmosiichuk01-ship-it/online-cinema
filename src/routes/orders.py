@@ -57,6 +57,7 @@ async def create_order(
             order_item = OrderItem(
                 order_id=new_order.id,
                 movie_id=cart_item.movie.id,
+                price_at_order=cart_item.movie.price,
             )
             db.add(order_item)
 
@@ -76,7 +77,7 @@ async def create_order(
         select(Order)
         .where(Order.id == new_order.id)
         .options(
-            selectinload(Order.items).options(
+            selectinload(Order.order_items).options(
                 joinedload(OrderItem.movie).options(
                     joinedload(Movie.genres)
                 )
