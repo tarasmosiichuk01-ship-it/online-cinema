@@ -49,6 +49,9 @@ class Settings(BaseAppSettings):
     CELERY_BROKER_URL: str
     CELERY_RESULT_BACKEND: str
 
+    STRIPE_SECRET_KEY: str
+    STRIPE_WEBHOOK_SECRET: str
+
     @property
     def postgres_database_url(self) -> str:
         return (
