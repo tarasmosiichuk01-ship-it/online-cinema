@@ -1,16 +1,18 @@
 import stripe
-from fastapi import APIRouter, status, Depends, HTTPException
+from fastapi import APIRouter, status, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 
 from config.database import get_postgresql_db
-from config.dependencies import get_current_user
+from config.dependencies import get_current_user, get_accounts_email_notificator
 from config.settings import settings
 from models.accounts import User
+from models.movies import Movie
 from models.orders import Order, OrderStatusEnum, OrderItem
-from models.payments import Payment, PaymentStatusEnum
+from models.payments import Payment, PaymentStatusEnum, PaymentItem
+from notifications.interfaces import EmailSenderInterface
 from schemas.payments import StripeSessionResponseSchema, PaymentCreateSchema
 
 router = APIRouter()
@@ -33,7 +35,7 @@ async def create_checkout_session(
         .options(
             selectinload(Order.order_items).options(
                 joinedload(OrderItem.movie).options(
-                    joinedload(OrderItem.movie.genres)
+                    selectinload(Movie.genres)
                 )
             )
         )
@@ -105,4 +107,87 @@ async def create_checkout_session(
         )
 
     return {"session_id": session.id, "checkout_url": session.url}
+
+
+@router.post("/payments/webhook", status_code=status.HTTP_200_OK)
+async def stripe_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_postgresql_db),
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator)
+):
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload=payload,
+            sig_header=sig_header,
+            secret=settings.STRIPE_WEBHOOK_SECRET
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid payload: {e}"
+        )
+    except stripe.error.SignatureVerificationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Signature verification failed: {e}"
+        )
+
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+
+        try:
+            query = (
+                select(Payment)
+                .where(Payment.external_payment_id == session["id"])
+                .options(
+                    joinedload(Payment.order).options(
+                        selectinload(Order.order_items).options(
+                            joinedload(OrderItem.movie)
+                        )
+                    ),
+                    joinedload(Payment.user)
+                )
+            )
+            result = await db.execute(query)
+            payment = result.scalars().first()
+
+            if not payment:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Payment not found."
+                )
+
+            payment.status = PaymentStatusEnum.SUCCESSFUL
+            payment.order.status = OrderStatusEnum.PAID
+
+            for order_item in payment.order.order_items:
+                payment_item = PaymentItem(
+                    payment_id=payment.id,
+                    order_item_id=order_item.id,
+                    price_at_payment=order_item.price_at_order,
+                )
+                db.add(payment_item)
+
+            await db.commit()
+
+            order_link = f"http://127.0.0.1/orders/orders"
+
+            await email_sender.send_confirmation_payment_email(
+                email=payment.user.email,
+                order_link=order_link,
+            )
+
+            return {"status": "success"}
+
+        except IntegrityError:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Database error: Could not save payment transaction."
+            )
+
+    return {"status": "ignored"}
 
