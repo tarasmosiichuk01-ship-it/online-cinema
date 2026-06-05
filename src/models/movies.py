@@ -5,7 +5,7 @@ from typing import Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import String, Table, Column, ForeignKey, Integer, Float, Text, DECIMAL, UniqueConstraint, Enum, \
-    DateTime, func, CheckConstraint
+    DateTime, func, CheckConstraint, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
 
 from src.models.base import Base
@@ -123,6 +123,7 @@ class Movie(Base):
     gross: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     price: Mapped[decimal.Decimal] = mapped_column(DECIMAL(10, 2), nullable=False)
+    is_available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     certification_id: Mapped[int] = mapped_column(ForeignKey("certifications.id"), nullable=False)
     certification: Mapped["Certification"] = relationship("Certification", back_populates="movies")
