@@ -1,5 +1,6 @@
 import decimal
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, computed_field
 
@@ -38,5 +39,12 @@ class OrderResponseSchema(BaseModel):
     created_at: datetime
     total_amount: decimal.Decimal
     order_items: list[OrderItemResponseSchema]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrderCreationResponseSchema(BaseModel):
+    order: Optional[OrderResponseSchema]
+    warnings: list[str]
 
     model_config = ConfigDict(from_attributes=True)
