@@ -12,6 +12,7 @@ class BaseAppSettings(BaseSettings):
     PASSWORD_RESET_TEMPLATE_NAME: str = "password_reset_request.html"
     REPLY_COMMENT_TEMPLATE_NAME: str = "reply_comment.html"
     REACTION_COMMENT_TEMPLATE_NAME: str = "reaction_comment.html"
+    CONFIRMATION_PAYMENT_TEMPLATE_NAME: str = "confirmation_payment.html"
 
     LOGIN_TIME_DAYS: int = 7
 
