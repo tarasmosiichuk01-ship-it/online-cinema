@@ -35,7 +35,7 @@ async def create_movie_comments(
     db: AsyncSession = Depends(get_postgresql_db)
 ):
 
-    query = select(Movie).where(Movie.id == movie_id)
+    query = select(Movie).where(Movie.id == movie_id, Movie.is_available == True)
     result = await db.execute(query)
     movie = result.scalars().first()
 
@@ -100,7 +100,10 @@ async def get_movie_comments(
     movie_id: int,
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-    movie_query = select(Movie).where(Movie.id == movie_id)
+    movie_query = select(Movie).where(
+        Movie.id == movie_id,
+        Movie.is_available == True
+    )
     movie_result = await db.execute(movie_query)
     movie = movie_result.scalars().first()
 
@@ -217,7 +220,10 @@ async def toggle_movie_reaction(
     db: AsyncSession = Depends(get_postgresql_db)
 ):
 
-    movie_query = select(Movie).where(Movie.id == movie_id)
+    movie_query = select(Movie).where(
+        Movie.id == movie_id,
+        Movie.is_available == True
+    )
     movie_result = await db.execute(movie_query)
     movie = movie_result.scalars().first()
 
@@ -276,7 +282,10 @@ async def rate_movie(
     db: AsyncSession = Depends(get_postgresql_db)
 ):
 
-    movie_query = select(Movie).where(Movie.id == movie_id)
+    movie_query = select(Movie).where(
+        Movie.id == movie_id,
+        Movie.is_available == True
+    )
     movie_result = await db.execute(movie_query)
     movie_exists = movie_result.scalars().first()
 
@@ -330,7 +339,10 @@ async def add_movie_favorites(
     db: AsyncSession = Depends(get_postgresql_db)
 ):
 
-    movie_query = select(Movie).where(Movie.id == movie_data.movie_id)
+    movie_query = select(Movie).where(
+        Movie.id == movie_data.movie_id,
+        Movie.is_available == True
+    )
     movie_result = await db.execute(movie_query)
     movie = movie_result.scalars().first()
 
@@ -386,13 +398,13 @@ async def get_movie_favorites(
     base_query = (
         select(MovieFavourite)
         .join(MovieFavourite.movie)
-        .where(MovieFavourite.user_id == current_user.id)
+        .where(MovieFavourite.user_id == current_user.id, Movie.is_available == True)
     )
     count_query = (
         select(func.count())
         .select_from(MovieFavourite)
         .join(MovieFavourite.movie)
-        .where(MovieFavourite.user_id == current_user.id)
+        .where(MovieFavourite.user_id == current_user.id, Movie.is_available == True)
     )
 
     if params["release_year"]:
