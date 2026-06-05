@@ -43,3 +43,12 @@ class PaymentItemResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PaymentResponseSchema(BaseModel):
+    id: int
+    order_id: int
+    amount: decimal.Decimal
+    status: PaymentStatusEnum
+    created_at: datetime
+    payment_items: list[PaymentItemResponseSchema]
+
+    model_config = ConfigDict(from_attributes=True)
