@@ -48,4 +48,18 @@ class Payment(Base):
     payment_items: Mapped[list["PaymentItem"]] = relationship("PaymentItem", back_populates="payment")
 
 
+class PaymentItem(Base):
+    __tablename__ = "payment_items"
 
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id"), nullable=False)
+    payment: Mapped["Payment"] = relationship("Payment", back_populates="payment_items")
+
+    order_item_id: Mapped[int] = mapped_column(ForeignKey("order_items.id"), nullable=False)
+    order_item: Mapped["OrderItem"] = relationship("OrderItem", back_populates="payment_items")
+
+    price_at_payment: Mapped[decimal.Decimal] = mapped_column(
+        DECIMAL(10, 2),
+        nullable=False
+    )
