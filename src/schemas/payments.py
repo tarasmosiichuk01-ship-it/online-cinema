@@ -27,7 +27,7 @@ class PaymentCreateSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class StripeSessionResponseSchem(BaseModel):
+class StripeSessionResponseSchema(BaseModel):
     session_id: str
     checkout_url: str
 
