@@ -11,7 +11,7 @@ from config.dependencies import get_current_user, admin_query_params, get_admin_
 from models.movies import Movie
 from models.orders import Order, OrderStatusEnum, OrderItem
 from models.shopping_carts import Cart, CartItem
-from schemas.orders import OrderResponseSchema
+from schemas.orders import OrderResponseSchema, OrderCreationResponseSchema
 from models.accounts import User
 
 router = APIRouter()
@@ -20,7 +20,7 @@ router = APIRouter()
 # Authorization endpoint
 @router.post(
     "/orders",
-    response_model=OrderResponseSchema,
+    response_model=OrderCreationResponseSchema,
     status_code=status.HTTP_201_CREATED
 )
 async def create_order(
@@ -47,11 +47,29 @@ async def create_order(
             detail="Your cart is empty"
         )
 
+    available_items = []
+    warnings = []
+
+    for cart_item in cart.cart_items:
+        if cart_item.movie.is_available:
+            available_items.append(cart_item)
+        else:
+            warnings.append(f"Movie '{cart_item.movie.name}' is currently unavailable and was excluded.")
+
+    if not available_items:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "All movies in your cart are currently unavailable.",
+                "warnings": warnings
+            }
+        )
+
     new_order = Order(
         user_id=current_user.id,
         status=OrderStatusEnum.PENDING,
         total_amount=sum(
-            (cart_item.movie.price for cart_item in cart.cart_items),
+            (cart_item.movie.price for cart_item in available_items),
             decimal.Decimal(0)
         )
     )
@@ -60,7 +78,7 @@ async def create_order(
         db.add(new_order)
         await db.flush()
 
-        for cart_item in cart.cart_items:
+        for cart_item in available_items:
             order_item = OrderItem(
                 order_id=new_order.id,
                 movie_id=cart_item.movie.id,
@@ -94,7 +112,7 @@ async def create_order(
     final_order_result = await db.execute(final_order_query)
     completed_order = final_order_result.scalars().first()
 
-    return completed_order
+    return {"order": completed_order, "warnings": warnings}
 
 
 # Authorization endpoint
