@@ -99,8 +99,8 @@ async def get_movie_list(
     db: AsyncSession = Depends(get_postgresql_db)
 ) -> MovieListResponseSchema:
 
-    base_query = select(Movie)
-    count_query = select(func.count()).select_from(Movie)
+    base_query = select(Movie).where(Movie.is_available == True)
+    count_query = select(func.count()).select_from(Movie).where(Movie.is_available == True)
 
     if params["release_year"]:
         base_query = base_query.where(Movie.year == params["release_year"])
@@ -185,7 +185,7 @@ async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_postgres
             selectinload(Movie.stars),
             selectinload(Movie.directors),
         )
-        .where(Movie.id == movie_id)
+        .where(Movie.id == movie_id, Movie.is_available == True)
     )
     result = await db.execute(query)
     movie = result.scalars().first()
