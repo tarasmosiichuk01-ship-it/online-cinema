@@ -34,4 +34,12 @@ class StripeSessionResponseSchem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PaymentItemResponseSchema(BaseModel):
+    id: int
+    order_item_id: int
+    price_at_payment: decimal.Decimal
+    movie: MovieShortResponseSchema
+
+    model_config = ConfigDict(from_attributes=True)
+
 
