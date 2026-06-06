@@ -12,6 +12,7 @@ from config.settings import settings, Settings
 from config.database import get_postgresql_db
 from models.accounts import User, UserGroupEnum
 from models.orders import OrderStatusEnum
+from models.payments import PaymentStatusEnum
 from notifications.emails import EmailSender
 from notifications.interfaces import EmailSenderInterface
 from security.interfaces import JWTAuthManagerInterface
@@ -132,12 +133,12 @@ def admin_query_params(
     start_date: Optional[datetime.date] = Query(None, description="Filter by start date"),
     end_date: Optional[datetime.date] = Query(None, description="Filter by end date"),
     order_status: Optional[OrderStatusEnum] = Query(None, description="Filter by order status"),
-    #payment_status: Optional[PaymentStatusEnum] = Query(None, description="Filter by payment status")
+    payment_status: Optional[PaymentStatusEnum] = Query(None, description="Filter by payment status")
 ):
     return {
         "user_id": user_id,
         "start_date": start_date,
         "end_date": end_date,
         "order_status": order_status,
-        #"payment_status": payment_status,
+        "payment_status": payment_status,
     }

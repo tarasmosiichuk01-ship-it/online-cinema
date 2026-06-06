@@ -1,12 +1,12 @@
 import stripe
 from fastapi import APIRouter, status, Depends, HTTPException, Request
-from sqlalchemy import select
+from sqlalchemy import select, cast, Date
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 
 from config.database import get_postgresql_db
-from config.dependencies import get_current_user, get_accounts_email_notificator
+from config.dependencies import get_current_user, get_accounts_email_notificator, admin_query_params, get_admin_user
 from config.settings import settings
 from models.accounts import User
 from models.movies import Movie
@@ -193,6 +193,8 @@ async def stripe_webhook(
 
     return {"status": "ignored"}
 
+
+# Authorization endpoint
 @router.get(
     "/payments/my",
     response_model=list[PaymentResponseSchema],
@@ -222,6 +224,45 @@ async def get_payments(
     return payments
 
 
-@router.get("/admin/payments")
-async def get_payments_for_admin():
-    pass
+# Admin endpoint
+@router.get(
+    "/admin/payments",
+    response_model=list[PaymentResponseSchema],
+    status_code=status.HTTP_200_OK
+)
+async def get_payments_for_admin(
+    params: dict = Depends(admin_query_params),
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    base_query = (
+        select(Payment)
+        .options(
+            selectinload(Payment.payment_items).options(
+                joinedload(PaymentItem.order_item).options(
+                    joinedload(OrderItem.movie).options(
+                        selectinload(Movie.genres)
+                    )
+                )
+            )
+        )
+    )
+
+    if params["user_id"] is not None:
+        base_query = base_query.where(Payment.user_id == params["user_id"])
+
+    if params["start_date"] is not None:
+        base_query = base_query.where(cast(Payment.created_at, Date) >= params["start_date"])
+
+    if params["end_date"] is not None:
+        base_query = base_query.where(cast(Payment.created_at, Date) <= params["end_date"])
+
+    if params["payment_status"] is not None:
+        base_query = base_query.where(Payment.status == params["payment_status"])
+
+    base_query = base_query.order_by(Payment.created_at.desc())
+
+    result = await db.execute(base_query)
+    payments = result.scalars().all()
+
+    return payments
