@@ -32,7 +32,10 @@ async def create_checkout_session(
 ):
     query = (
         select(Order)
-        .where(Order.id == payment_data.order_id, Order.user_id == current_user.id)
+        .where(
+            Order.id == payment_data.order_id,
+            Order.user_id == current_user.id
+        )
         .options(
             selectinload(Order.order_items).options(
                 joinedload(OrderItem.movie).options(
@@ -56,8 +59,15 @@ async def create_checkout_session(
             detail="You can only pay for pending orders"
         )
 
-    line_items = []
+    calculated_total = sum(item.price_at_order for item in order.order_items)
 
+    if calculated_total != order.total_amount:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Order total amount mismatch with items configuration."
+        )
+
+    line_items = []
     for order_item in order.order_items:
         line_items.append({
             "price_data": {
@@ -75,7 +85,7 @@ async def create_checkout_session(
             payment_method_types=["card"],
             line_items=line_items,
             mode="payment",
-            success_url="http://127.0.0.1:8000/docs?session_id={CHECKOUT_SESSION_ID}",
+            success_url="http://127.0.0.1:8000/api/v1/payments/payments/success?session_id={CHECKOUT_SESSION_ID}",
             cancel_url="https://your-site.com/cancel",
             metadata={
                 "order_id": order.id,
@@ -93,7 +103,7 @@ async def create_checkout_session(
         order_id=order.id,
         external_payment_id=session.id,
         amount=order.total_amount,
-        status=PaymentStatusEnum.CANCELED
+        status=PaymentStatusEnum.PENDING
     )
 
     try:
@@ -192,6 +202,9 @@ async def stripe_webhook(
             )
 
     return {"status": "ignored"}
+
+
+
 
 
 # Authorization endpoint
