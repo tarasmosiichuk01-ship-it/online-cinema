@@ -204,7 +204,49 @@ async def stripe_webhook(
     return {"status": "ignored"}
 
 
+# Authorization endpoint
+@router.get("/payments/success", status_code=status.HTTP_200_OK)
+async def get_payments_success(
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    query = (
+        select(Payment)
+        .where(
+            Payment.user_id == current_user.id,
+            Payment.external_payment_id == session_id,
+        )
+    )
+    result = await db.execute(query)
+    payment = result.scalars().first()
 
+    if not payment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Payment not found."
+        )
+
+    if payment.status == PaymentStatusEnum.SUCCESSFUL:
+        return {
+            "status": "success",
+            "message": "Thank you for your purchase!",
+            "payment_status": payment.status
+        }
+
+    elif payment.status == PaymentStatusEnum.PENDING:
+        return {
+            "status": "processing",
+            "message": "Payment is being processed by the gateway. Please refresh in a moment.",
+            "payment_status": payment.status
+        }
+
+    else:
+        return {
+            "status": "failed",
+            "message": "Payment was not successful or was canceled.",
+            "payment_status": payment.status
+        }
 
 
 # Authorization endpoint
