@@ -8,6 +8,7 @@ from config.database import get_postgresql_db
 from config.dependencies import get_current_user, get_admin_user
 from models.accounts import User, UserGroupEnum
 from models.movies import Movie
+from models.orders import OrderItem, Order, OrderStatusEnum
 from models.shopping_carts import Cart, CartItem
 from schemas.shopping_carts import CartItemCreateSchema, CartItemResponseSchema, CartResponse
 
@@ -33,19 +34,19 @@ async def add_movie_to_cart(
                    "Please register here http://127.0.0.1:8000/api/v1/accounts/register/"
         )
 
-    #purchased_query = select(OrderItem).join(Order).where(
-    #    Order.user_id == current_user.id,
-    #    Order.status == OrderStatusEnum.PAID,
-    #    OrderItem.movie_id == cart_item_data.movie_id
-    #)
-    #purchased_result = await db.execute(purchased_query)
-    #existing_purchase = purchased_result.scalars().first()
-    #
-    #if existing_purchase:
-    #    raise HTTPException(
-    #        status_code=status.HTTP_400_BAD_REQUEST,
-    #        detail="Repeat purchases are not allowed."
-    #    )
+    purchased_query = select(OrderItem).join(Order).where(
+        Order.user_id == current_user.id,
+        Order.status == OrderStatusEnum.PAID,
+        OrderItem.movie_id == cart_item_data.movie_id
+    )
+    purchased_result = await db.execute(purchased_query)
+    existing_purchase = purchased_result.scalars().first()
+
+    if existing_purchase:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Repeat purchases are not allowed."
+        )
 
     movie_query = select(Movie).where(Movie.id == cart_item_data.movie_id)
     movie_result = await db.execute(movie_query)
