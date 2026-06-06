@@ -13,12 +13,13 @@ from models.movies import Movie
 from models.orders import Order, OrderStatusEnum, OrderItem
 from models.payments import Payment, PaymentStatusEnum, PaymentItem
 from notifications.interfaces import EmailSenderInterface
-from schemas.payments import StripeSessionResponseSchema, PaymentCreateSchema
+from schemas.payments import StripeSessionResponseSchema, PaymentCreateSchema, PaymentResponseSchema
 
 router = APIRouter()
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
+# Authorization endpoint
 @router.post(
     "/payments/create-checkout-session",
     response_model=StripeSessionResponseSchema,
@@ -109,6 +110,7 @@ async def create_checkout_session(
     return {"session_id": session.id, "checkout_url": session.url}
 
 
+# Public endpoint
 @router.post("/payments/webhook", status_code=status.HTTP_200_OK)
 async def stripe_webhook(
     request: Request,
@@ -173,7 +175,7 @@ async def stripe_webhook(
 
             await db.commit()
 
-            order_link = f"http://127.0.0.1/orders/orders"
+            order_link = f"http://127.0.0.1:8000/api/v1/orders/orders"
 
             await email_sender.send_confirmation_payment_email(
                 email=payment.user.email,
@@ -191,3 +193,35 @@ async def stripe_webhook(
 
     return {"status": "ignored"}
 
+@router.get(
+    "/payments/my",
+    response_model=list[PaymentResponseSchema],
+    status_code=status.HTTP_200_OK
+)
+async def get_payments(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    query = (
+        select(Payment)
+        .where(Payment.user_id == current_user.id)
+        .options(
+            selectinload(Payment.payment_items).options(
+                joinedload(PaymentItem.order_item).options(
+                    joinedload(OrderItem.movie).options(
+                        selectinload(Movie.genres)
+                    )
+                )
+            )
+        )
+        .order_by(Payment.created_at.desc())
+    )
+    result = await db.execute(query)
+    payments = result.scalars().all()
+
+    return payments
+
+
+@router.get("/admin/payments")
+async def get_payments_for_admin():
+    pass
