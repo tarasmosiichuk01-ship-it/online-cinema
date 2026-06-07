@@ -201,6 +201,66 @@ async def stripe_webhook(
                 detail="Database error: Could not save payment transaction."
             )
 
+    elif event["type"] == "checkout.session.expired":
+        session = event["data"]["object"]
+
+        try:
+            query = (
+                select(Payment)
+                .where(Payment.external_payment_id == session["id"])
+            )
+            result = await db.execute(query)
+            payment = result.scalars().first()
+
+            if not payment:
+                return {
+                    "status": "error",
+                    "detail": "Payment record not found for expired session"
+                }
+
+            payment.status = PaymentStatusEnum.CANCELED
+            await db.commit()
+
+            return {
+                "status": "canceled",
+                "message": f"Checkout session timed out. Session: {session['id']}"
+            }
+
+        except IntegrityError:
+            await db.rollback()
+            return {"status": "database_error"}
+
+
+    elif event["type"] == "charge.failed":
+        charge = event["data"]["object"]
+        error_message = charge.get("failure_message")
+        error_code = charge.get("failure_code")
+        try:
+
+            metadata = charge.get("metadata", {})
+            order_id = metadata.get("order_id")
+            if order_id:
+                query = select(Payment).where(
+                    Payment.order_id == int(order_id),
+                    Payment.status == PaymentStatusEnum.PENDING
+                )
+                result = await db.execute(query)
+                payment = result.scalars().first()
+
+                if payment:
+                    payment.status = PaymentStatusEnum.CANCELED
+                    await db.commit()
+
+            return {
+                "status": "failed_payment_handled",
+                "reason": error_message,
+                "code": error_code
+            }
+
+        except IntegrityError:
+            await db.rollback()
+            return {"status": "database_error"}
+
     return {"status": "ignored"}
 
 
