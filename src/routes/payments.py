@@ -167,10 +167,7 @@ async def stripe_webhook(
             payment = result.scalars().first()
 
             if not payment:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Payment not found."
-                )
+                return {"status": "ignored", "reason": "Payment record not found"}
 
             payment.status = PaymentStatusEnum.SUCCESSFUL
             payment.order.status = OrderStatusEnum.PAID
@@ -304,7 +301,9 @@ async def get_payments_success(
     else:
         return {
             "status": "failed",
-            "message": "Payment was not successful or was canceled.",
+            "message": "Payment was declined or canceled. "
+                       "Please check your card balance, ensure internet limits are sufficient, "
+                       "or try a different payment method.",
             "payment_status": payment.status
         }
 
