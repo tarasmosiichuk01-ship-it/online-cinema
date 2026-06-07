@@ -86,7 +86,7 @@ async def create_checkout_session(
             line_items=line_items,
             mode="payment",
             success_url="http://127.0.0.1:8000/api/v1/payments/payments/success?session_id={CHECKOUT_SESSION_ID}",
-            cancel_url="https://your-site.com/cancel",
+            cancel_url="http://127.0.0.1:8000/api/v1/payments/payments/canceled",
             metadata={
                 "order_id": order.id,
                 "user_id": current_user.id
@@ -307,6 +307,14 @@ async def get_payments_success(
             "message": "Payment was not successful or was canceled.",
             "payment_status": payment.status
         }
+
+
+@router.get("/payments/canceled", status_code=status.HTTP_200_OK)
+async def get_payments_canceled():
+    return {
+        "status": "canceled",
+        "message": "You have canceled the payment. Your order remains pending."
+    }
 
 
 # Authorization endpoint
