@@ -1,7 +1,7 @@
 import datetime
 from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, status, Query
+from fastapi import Depends, HTTPException, status, Query, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from sqlalchemy import select
@@ -21,6 +21,9 @@ from security.token_manager import JWTAuthManager
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
+
+def get_settings() -> Settings:
+    return settings
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
@@ -81,8 +84,14 @@ async def get_admin_user(current_user: User = Depends(get_current_user)) -> User
     return current_user
 
 
-def get_settings() -> Settings:
-    return settings
+async def get_optional_current_user(
+    request: Request,
+    db: AsyncSession = Depends(get_postgresql_db)
+) -> User | None:
+    try:
+        return await get_current_user(request, db)
+    except HTTPException:
+        return None
 
 
 def get_accounts_email_notificator() -> EmailSenderInterface:
