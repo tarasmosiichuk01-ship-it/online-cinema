@@ -1,7 +1,7 @@
 import math
 
 from fastapi import APIRouter, status, Depends, HTTPException, Query
-from sqlalchemy import select, func, desc, asc
+from sqlalchemy import select, func, desc, asc, exists
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
@@ -10,6 +10,7 @@ from config.dependencies import get_moderator_user, get_query_params
 from config.database import get_postgresql_db
 from models.accounts import User
 from models.movies import Movie, Genre, Star, Director
+from models.orders import OrderStatusEnum, OrderItem, Order
 from models.shopping_carts import CartItem
 from schemas.movies import (
     MovieDetailSchema,
@@ -261,7 +262,7 @@ async def update_movie(
 
 
 # Moderators endpoint
-@router.delete("/movies/{movie_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/movies/{movie_id}", status_code=status.HTTP_200_OK)
 async def delete_movie(
     movie_id: int,
     current_user: User = Depends(get_moderator_user),
@@ -286,6 +287,21 @@ async def delete_movie(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Warning to Moderator: This movie cannot be deleted because it is currently in users' shopping carts."
+        )
+
+    query_purchased = (
+        select(exists())
+        .where(OrderItem.movie_id == movie_id)
+        .join(Order)
+        .where(Order.status == OrderStatusEnum.PAID)
+    )
+    result_purchased = await db.execute(query_purchased)
+    has_been_purchased = result_purchased.scalar()
+
+    if has_been_purchased:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This movie cannot be deleted because it has already been purchased by at least one user."
         )
 
     await db.delete(movie)
