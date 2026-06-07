@@ -1,7 +1,7 @@
 import decimal
 
 from fastapi import APIRouter, status, Depends, HTTPException
-from sqlalchemy import select, delete, cast, Date
+from sqlalchemy import select, delete, cast, Date, exists
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
@@ -46,12 +46,31 @@ async def create_order(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Your cart is empty"
         )
+    #-----
+
+    cart_movie_ids = [item.movie_id for item in cart.cart_items]
+
+    purchased_query = (
+        select(OrderItem.movie_id)
+        .join(Order)
+        .where(
+            Order.user_id == current_user.id,
+            Order.status == OrderStatusEnum.PAID,
+            OrderItem.movie_id.in_(cart_movie_ids)
+        )
+    )
+    purchased_result = await db.execute(purchased_query)
+    purchased_movie_ids = purchased_result.scalars().all()
+
+    #-----
 
     available_items = []
     warnings = []
 
     for cart_item in cart.cart_items:
-        if cart_item.movie.is_available:
+        if cart_item.movie_id in purchased_movie_ids:
+            warnings.append(f"Movie '{cart_item.movie.name}' was already purchased and was excluded.")
+        elif cart_item.movie.is_available:
             available_items.append(cart_item)
         else:
             warnings.append(f"Movie '{cart_item.movie.name}' is currently unavailable and was excluded.")
@@ -63,6 +82,28 @@ async def create_order(
                 "message": "All movies in your cart are currently unavailable.",
                 "warnings": warnings
             }
+        )
+
+    pending_check_ids = [item.movie_id for item in available_items]
+
+    existing_pending_query = (
+        select(exists())
+        .select_from(Order)
+        .join(OrderItem)
+        .where(
+            Order.user_id == current_user.id,
+            Order.status == OrderStatusEnum.PENDING,
+            OrderItem.movie_id.in_(pending_check_ids)
+        )
+    )
+    existing_pending_result = await db.execute(existing_pending_query)
+    existing_pending = existing_pending_result.scalar()
+
+    if existing_pending:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You already have a pending order containing some of these movies. "
+                   "Please complete or cancel it first."
         )
 
     new_order = Order(
@@ -87,7 +128,10 @@ async def create_order(
             db.add(order_item)
 
         await db.execute(
-            delete(CartItem).where(CartItem.cart_id == cart.id)
+            delete(CartItem).where(
+                CartItem.cart_id == cart.id,
+                CartItem.movie_id.in_([item.movie.id for item in available_items])
+            )
         )
         await db.commit()
 
