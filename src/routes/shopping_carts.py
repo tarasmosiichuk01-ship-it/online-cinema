@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from config.database import get_postgresql_db
-from config.dependencies import get_current_user, get_admin_user
+from config.dependencies import get_current_user, get_admin_user, get_optional_current_user
 from models.accounts import User, UserGroupEnum
 from models.movies import Movie
 from models.orders import OrderItem, Order, OrderStatusEnum
@@ -23,15 +23,14 @@ router = APIRouter()
 )
 async def add_movie_to_cart(
     cart_item_data: CartItemCreateSchema,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
-
-    if not current_user.has_group(UserGroupEnum.USER):
+    if not current_user:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not authorized to perform this action. "
-                   "Please register here http://127.0.0.1:8000/api/v1/accounts/register/"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You must sign up or log in before completing a purchase. "
+                   "Register here: http://127.0.0.1:8000/api/v1/accounts/register/"
         )
 
     purchased_query = select(OrderItem).join(Order).where(
@@ -87,7 +86,7 @@ async def add_movie_to_cart(
 
     try:
         db.add(new_cart_item)
-        await db.commit()
+        await db.flush()
 
         completed_item_query = (
             select(CartItem)
@@ -99,6 +98,8 @@ async def add_movie_to_cart(
         completed_item_result = await db.execute(completed_item_query)
         completed_cart_item = completed_item_result.scalars().first()
 
+        await db.commit()
+
         return completed_cart_item
 
     except IntegrityError:
@@ -107,6 +108,7 @@ async def add_movie_to_cart(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This movie is already in your cart."
         )
+
 
 # Authorization endpoint
 @router.get(
