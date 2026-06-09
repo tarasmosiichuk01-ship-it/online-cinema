@@ -9,10 +9,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.models.base import Base
 
 class PaymentStatusEnum(str, enum.Enum):
-    PENDING = "pending"
-    SUCCESSFUL = "successful"
-    CANCELED = "canceled"
-    REFUNDED = "refunded"
+    PENDING = "PENDING"
+    SUCCESSFUL = "SUCCESSFUL"
+    CANCELED = "CANCELED"
+    REFUNDED = "REFUNDED"
 
 
 class Payment(Base):
@@ -45,6 +45,7 @@ class Payment(Base):
     )
 
     external_payment_id: Mapped[Optional[str]] = mapped_column(nullable=True)
+    payment_intent_id: Mapped[Optional[str]] = mapped_column(nullable=True)
 
     payment_items: Mapped[list["PaymentItem"]] = relationship("PaymentItem", back_populates="payment")
 
