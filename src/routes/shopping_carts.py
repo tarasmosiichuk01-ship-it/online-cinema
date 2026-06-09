@@ -9,8 +9,8 @@ from config.dependencies import get_current_user, get_admin_user, get_optional_c
 from models.accounts import User, UserGroupEnum
 from models.movies import Movie
 from models.orders import OrderItem, Order, OrderStatusEnum
-from models.shopping_carts import Cart, CartItem
-from schemas.shopping_carts import CartItemCreateSchema, CartItemResponseSchema, CartResponse
+from models.shopping_carts import Cart, CartItem, PurchasedMovie
+from schemas.shopping_carts import CartItemCreateSchema, CartItemResponseSchema, CartResponse, PurchasedMovieResponseSchema
 
 router = APIRouter()
 
@@ -211,3 +211,27 @@ async def get_cart_by_user_id(
         return Cart(user_id=user_id, cart_items=[])
 
     return cart
+
+
+# Authorization endpoint
+@router.get(
+    "/carts/purchased",
+    response_model=list[PurchasedMovieResponseSchema],
+    status_code=status.HTTP_200_OK
+)
+async def get_purchased_movies(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    query = (
+        select(PurchasedMovie)
+        .where(PurchasedMovie.user_id == current_user.id)
+        .options(
+            selectinload(PurchasedMovie.movie)
+            .selectinload(Movie.genres)
+        )
+    )
+    result = await db.execute(query)
+    purchased_movies = result.scalars().all()
+
+    return purchased_movies
