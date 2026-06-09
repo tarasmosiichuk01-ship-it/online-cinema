@@ -7,7 +7,7 @@ celery = Celery(
     "online_cinema",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["tasks.accounts"]
+    include=["tasks.accounts", "tasks.payments"]
 )
 
 celery.conf.beat_schedule = {
