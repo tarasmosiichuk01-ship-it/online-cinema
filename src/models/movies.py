@@ -166,6 +166,11 @@ class Movie(Base):
 
     order_items: Mapped[list["OrderItem"]] = relationship("OrderItem", back_populates="movie")
 
+    purchased_movies: Mapped[list["PurchasedMovie"]] = relationship(
+        "PurchasedMovie",
+        back_populates="movie"
+    )
+
 
     __table_args__ = (
         UniqueConstraint("name", "year", "time", name="unique_movie_constraint"),
