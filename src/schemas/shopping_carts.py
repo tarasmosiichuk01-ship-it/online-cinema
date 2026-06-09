@@ -39,3 +39,11 @@ class CartResponse(BaseModel):
     cart_items: list[CartItemResponseSchema]
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PurchasedMovieResponseSchema(BaseModel):
+    id: int
+    user_id: int
+    movie: CartItemMovieSchema
+
+    model_config = ConfigDict(from_attributes=True)
