@@ -88,10 +88,34 @@ async def get_optional_current_user(
     request: Request,
     db: AsyncSession = Depends(get_postgresql_db)
 ) -> User | None:
-    try:
-        return await get_current_user(request, db)
-    except HTTPException:
+
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
         return None
+
+    token = auth_header.split(" ")[1]
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY_ACCESS,
+            algorithms=[settings.JWT_SIGNING_ALGORITHM],
+        )
+        user_id = payload.get("user_id")
+        if user_id is None:
+            return None
+
+    except JWTError:
+        return None
+
+    query = select(User).options(joinedload(User.group)).where(User.id == int(user_id))
+    result = await db.execute(query)
+    user = result.scalars().first()
+
+    if user is None or not user.is_active:
+        return None
+
+    return user
 
 
 def get_accounts_email_notificator() -> EmailSenderInterface:
