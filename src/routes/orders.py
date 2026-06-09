@@ -84,16 +84,16 @@ async def create_order(
     pending_check_ids = [item.movie_id for item in available_items]
 
     existing_pending_query = (
-        select(exists())
-        .select_from(Order)
+        select(Order.id)
         .join(OrderItem)
         .where(
             Order.user_id == current_user.id,
             Order.status == OrderStatusEnum.PENDING,
             OrderItem.movie_id.in_(pending_check_ids)
         )
+        .exists()
     )
-    existing_pending_result = await db.execute(existing_pending_query)
+    existing_pending_result = await db.execute(select(existing_pending_query))
     existing_pending = existing_pending_result.scalar()
 
     if existing_pending:
