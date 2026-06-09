@@ -16,6 +16,7 @@ from models.orders import Order, OrderStatusEnum, OrderItem
 from models.payments import Payment, PaymentStatusEnum, PaymentItem
 from notifications.interfaces import EmailSenderInterface
 from schemas.payments import StripeSessionResponseSchema, PaymentCreateSchema, PaymentResponseSchema
+from tasks.payments import add_movies_to_purchased_table
 
 router = APIRouter()
 
@@ -124,7 +125,7 @@ async def create_checkout_session(
 
 
 # Public endpoint
-@router.post("/payments/webhook", status_code=status.HTTP_200_OK)
+@router.post("/webhook", status_code=status.HTTP_200_OK)
 async def stripe_webhook(
     request: Request,
     db: AsyncSession = Depends(get_postgresql_db),
@@ -186,6 +187,11 @@ async def stripe_webhook(
                 db.add(payment_item)
 
             await db.commit()
+
+            add_movies_to_purchased_table.delay(
+                user_id=payment.user_id,
+                order_id=payment.order_id
+            )
 
             order_link = f"http://127.0.0.1:8000/api/v1/orders/orders"
 
