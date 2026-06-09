@@ -106,6 +106,8 @@ class User(Base):
 
     payments: Mapped[list["Payment"]] = relationship("Payment", back_populates="user")
 
+    purchased_movies: Mapped[list["PurchasedMovie"]] = relationship("PurchasedMovie", back_populates="user")
+
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, is_active={self.is_active})>"
 
