@@ -1,3 +1,5 @@
+import asyncio
+
 import stripe
 from fastapi import APIRouter, status, Depends, HTTPException, Request
 from sqlalchemy import select, cast, Date
@@ -102,6 +104,7 @@ async def create_checkout_session(
         user_id=current_user.id,
         order_id=order.id,
         external_payment_id=session.id,
+        payment_intent_id=None,
         amount=order.total_amount,
         status=PaymentStatusEnum.PENDING
     )
@@ -168,6 +171,8 @@ async def stripe_webhook(
 
             if not payment:
                 return {"status": "ignored", "reason": "Payment record not found"}
+
+            payment.payment_intent_id = session["payment_intent"]
 
             payment.status = PaymentStatusEnum.SUCCESSFUL
             payment.order.status = OrderStatusEnum.PAID
@@ -259,6 +264,64 @@ async def stripe_webhook(
             return {"status": "database_error"}
 
     return {"status": "ignored"}
+
+
+# Authorization endpoint
+@router.post(
+    "/orders/{order_id}/refund",
+    status_code=status.HTTP_200_OK
+)
+async def refund_order(
+    order_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_postgresql_db)
+):
+    order_query = (
+        select(Order)
+        .where(
+            Order.id == order_id,
+            Order.user_id == current_user.id,
+            Order.status == OrderStatusEnum.PAID
+        )
+    )
+    order_result = await db.execute(order_query)
+    order = order_result.scalars().first()
+
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found"
+        )
+
+    payment_query = (
+        select(Payment)
+        .where(
+            Payment.order_id == order_id,
+            Payment.user_id == current_user.id,
+            Payment.status == PaymentStatusEnum.SUCCESSFUL
+        )
+    )
+    payment_result = await db.execute(payment_query)
+    payment = payment_result.scalars().first()
+
+    try:
+        await asyncio.to_thread(
+            stripe.Refund.create,
+            payment_intent=payment.payment_intent_id,
+        )
+
+        payment.status = PaymentStatusEnum.REFUNDED
+        order.status = OrderStatusEnum.CANCELED
+        await db.commit()
+
+    except stripe.error.StripeError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Stripe error: {str(e)}"
+        )
+
+    return {"message": "Refund successful", "order_id": order.id, "status": order.status}
 
 
 # Authorization endpoint
