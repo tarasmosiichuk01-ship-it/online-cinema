@@ -782,3 +782,41 @@ async def test_login_user_inactive_account(client, db_session_commit, seed_user_
     assert response.json()["detail"] == "User account is not activated.", \
         "Unexpected error message for inactive user."
 
+
+@pytest.mark.asyncio
+async def test_login_user_commit_error(client, db_session_commit, seed_user_groups):
+    """
+    Test login when a database commit error occurs.
+
+    Validates that the endpoint returns a 500 status code and an appropriate error message.
+    """
+    user_payload = {
+        "email": "database_error_testuser@example.com",
+        "password": "Test1234!"
+    }
+    query = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
+    result = await db_session_commit.execute(query)
+    user_group = result.scalars().first()
+    assert user_group is not None, "Default user group should exist."
+
+    user = User.create(
+        email=user_payload["email"],
+        raw_password=user_payload["password"],
+        group_id=user_group.id
+    )
+    user.is_active = True
+    db_session_commit.add(user)
+    await db_session_commit.commit()
+
+    login_payload = {
+        "email": user_payload["email"],
+        "password": user_payload["password"]
+    }
+
+    with patch("routes.accounts.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.post("/api/v1/accounts/login/", json=login_payload)
+
+    assert response.status_code == 500, "Expected status code 500 for database commit error."
+    assert response.json()["detail"] == "An error occurred while processing the request.", (
+        "Unexpected error message for database commit error."
+    )
