@@ -263,3 +263,41 @@ async def test_activate_user_with_deleted_token(client, db_session, seed_user_gr
 
     assert activation_response.status_code == 400
     assert activation_response.json()["detail"] == "Invalid or expired activation token."
+
+
+@pytest.mark.asyncio
+async def test_activate_already_active_user(client, db_session_commit, seed_user_groups):
+    """
+    Test activation of an already active user.
+
+    Ensures that the endpoint returns a 400 error if the user is already active.
+    Steps:
+    - Create a new active user directly in the database.
+    - Create an activation token for the user.
+    - Attempt to activate the user using the activation token.
+    - Verify that a 400 error with the expected error message is returned.
+    """
+    query = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
+    result = await db_session_commit.execute(query)
+    user_group = result.scalars().first()
+
+    user = User.create(
+        email="already_active_testuser@example.com",
+        raw_password="Test1234!",
+        group_id=user_group.id
+    )
+    user.is_active = True
+    db_session_commit.add(user)
+    await db_session_commit.flush()
+
+    token = ActivationToken(user_id=user.id)
+    db_session_commit.add(token)
+    await db_session_commit.flush()
+    token_value = token.token
+    await db_session_commit.commit()
+
+    activation_response = await client.get(
+        f"/api/v1/accounts/activate/{token_value}/"
+    )
+    assert activation_response.status_code == 400
+    assert activation_response.json()["detail"] == "User account is already active."
