@@ -820,3 +820,55 @@ async def test_login_user_commit_error(client, db_session_commit, seed_user_grou
     assert response.json()["detail"] == "An error occurred while processing the request.", (
         "Unexpected error message for database commit error."
     )
+
+
+@pytest.mark.asyncio
+async def test_refresh_access_token_success(client, db_session_commit, jwt_manager, seed_user_groups):
+    """
+    Test successful access token refresh.
+
+    Validates that a new access token is returned when a valid refresh token is provided.
+    Steps:
+    - Create an active user in the database.
+    - Log in the user to obtain a refresh token.
+    - Use the refresh token to obtain a new access token.
+    """
+    user_payload = {
+        "email": "access_token_testuser@example.com",
+        "password": "Test1234!"
+    }
+    query = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
+    result = await db_session_commit.execute(query)
+    user_group = result.scalars().first()
+    assert user_group is not None, "Default user group should exist."
+
+    user = User.create(
+        email=user_payload["email"],
+        raw_password=user_payload["password"],
+        group_id=user_group.id
+    )
+    user.is_active = True
+    db_session_commit.add(user)
+    await db_session_commit.commit()
+    user_id = user.id
+
+    login_payload = {
+        "email": user_payload["email"],
+        "password": user_payload["password"]
+    }
+    login_response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    assert login_response.status_code == 200, "Expected status code 200 for successful login."
+    login_data = login_response.json()
+    refresh_token = login_data["refresh_token"]
+
+    refresh_payload = {"refresh_token": refresh_token}
+    refresh_response = await client.post("/api/v1/accounts/refresh/", json=refresh_payload)
+    assert refresh_response.status_code == 200, "Expected status code 200 for successful token refresh."
+    refresh_data = refresh_response.json()
+
+    assert "access_token" in refresh_data, "Access token is missing in the response."
+    assert refresh_data["access_token"], "Access token is empty."
+
+    refresh_token_data = jwt_manager.decode_refresh_token(refresh_token)
+    assert refresh_token_data["user_id"] == user_id, "Refresh token does not contain correct user ID."
+
