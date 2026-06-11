@@ -47,7 +47,7 @@ async def setup_database():
 
 
 @pytest_asyncio.fixture(scope="session")
-async def seed_database(setup_database):
+async def seed_user_groups(setup_database):
     async with AsyncPostgresqlSession() as session:
         for group in UserGroupEnum:
             result = await session.execute(select(UserGroup).where(UserGroup.name == group))
@@ -83,7 +83,7 @@ async def override_get_email_notificator():
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(seed_database):
+async def client(seed_user_groups):
     app.dependency_overrides[get_postgresql_db] = override_get_postgresql_db
     app.dependency_overrides[get_accounts_email_notificator] = override_get_email_notificator
 
