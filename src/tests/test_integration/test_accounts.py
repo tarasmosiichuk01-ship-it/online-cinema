@@ -373,3 +373,39 @@ async def test_request_password_reset_token_nonexistent_user(client, db_session)
     result = await db_session.execute(query)
     reset_token_count = result.scalar_one()
     assert reset_token_count == 0, "No password reset token should be created for non-existent user."
+
+
+@pytest.mark.asyncio
+async def test_request_password_reset_token_for_inactive_user(client, db_session, seed_user_groups):
+    """
+    Test password reset token request for a registered but inactive user.
+
+    Ensures that the endpoint returns the generic success message and that no password reset token
+    is created when the user is registered but inactive.
+    """
+    registration_payload = {
+        "email": "inactiveuser@example.com",
+        "password": "Test1234!"
+    }
+    registration_response = await client.post("/api/v1/accounts/register/", json=registration_payload)
+    assert registration_response.status_code == 201, "Expected status code 201 for successful registration."
+
+    query_user = select(User).where(User.email == registration_payload["email"])
+    result_user = await db_session.execute(query_user)
+    created_user = result_user.scalars().first()
+    assert created_user is not None, "User should be created in the database."
+    assert not created_user.is_active, "User should not be active after registration."
+
+    reset_payload = {"email": registration_payload["email"]}
+    reset_response = await client.post("/api/v1/accounts/forgot-password/", json=reset_payload)
+    assert reset_response.status_code == 200, "Expected status code 200 for inactive user password reset request."
+    assert reset_response.json()["message"] == "If you wish to reset your password, you will receive an email.", (
+        "Expected generic success message for inactive user password reset request."
+    )
+
+    query_tokens = select(func.count(PasswordResetToken.id)).join(User).where(
+        User.email == reset_payload["email"]
+    )
+    result_tokens = await db_session.execute(query_tokens)
+    reset_token_count = result_tokens.scalar_one()
+    assert reset_token_count == 0, "No password reset token should be created for an inactive user."
