@@ -68,7 +68,7 @@ async def test_register_user_password_validation(client, seed_user_groups, inval
     """
     payload = {
         "email": "testuser@example.com",
-        "password": invalid_password
+        "password": invalid_password,
     }
 
     response = await client.post("/api/v1/accounts/register/", json=payload)
@@ -76,3 +76,37 @@ async def test_register_user_password_validation(client, seed_user_groups, inval
 
     response_data = response.json()
     assert expected_error in str(response_data), f"Expected error message: {expected_error}"
+
+
+@pytest.mark.asyncio
+async def test_register_user_conflict(client, db_session, seed_user_groups):
+    """
+    Test user registration conflict.
+
+    Ensures that trying to register a user with an existing email
+    returns a 409 Conflict status and the correct error message.
+
+    Args:
+        client: The asynchronous HTTP client fixture.
+        db_session: The asynchronous database session fixture.
+        seed_user_groups: Fixture that seeds default user groups.
+    """
+    payload = {
+        "email": "testuser1@example.com",
+        "password": "Test1234!",
+    }
+
+    response_first = await client.post("/api/v1/accounts/register/", json=payload)
+    assert response_first.status_code == 201, "Expected status code 201 for the first registration."
+
+    query = select(User).where(User.email == payload["email"])
+    result = await db_session.execute(query)
+    created_user = result.scalars().first()
+    assert created_user is not None, "User should be created after the first registration."
+
+    response_second = await client.post("/api/v1/accounts/register/", json=payload)
+    assert response_second.status_code == 409, "Expected status code 409 for a duplicate registration."
+
+    response_data = response_second.json()
+    expected_message = f"A user with this email {payload['email']} already exists."
+    assert response_data["detail"] == expected_message, f"Expected error message: {expected_message}"
