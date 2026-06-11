@@ -533,3 +533,55 @@ async def test_reset_password_invalid_token(client, db_session, seed_user_groups
     result_token = await db_session.execute(query_token)
     token_record = result_token.scalars().first()
     assert token_record is None, "The original valid token should still exist in the DB."
+
+
+@pytest.mark.asyncio
+async def test_reset_password_expired_token(client, db_session_commit, seed_user_groups):
+    """
+    Test password reset with an expired token.
+
+    Validates that the endpoint returns a 400 status code and an appropriate error message when the password
+    reset token is expired, and verifies that the expired token is removed from the database.
+    """
+    registration_payload = {
+        "email": "expired_token_testuser@example.com",
+        "password": "Test1234!"
+    }
+    registration_response = await client.post("/api/v1/accounts/register/", json=registration_payload)
+    assert registration_response.status_code == 201, "User registration failed."
+
+    query_user = select(User).where(User.email == registration_payload["email"])
+    result_user = await db_session_commit.execute(query_user)
+    user = result_user.scalars().first()
+    assert user is not None, "User should exist in the database."
+    user_id = user.id
+
+    user.is_active = True
+    await db_session_commit.commit()
+
+    reset_request_payload = {"email": registration_payload["email"]}
+    reset_request_response = await client.post("/api/v1/accounts/forgot-password/", json=reset_request_payload)
+    assert reset_request_response.status_code == 200, "Password reset request failed."
+
+    query_token = select(PasswordResetToken).where(PasswordResetToken.user_id == user_id)
+    result_token = await db_session_commit.execute(query_token)
+    token_record = result_token.scalars().first()
+    assert token_record is not None, "Password reset token not created."
+
+    token_value = token_record.token
+
+    token_record.expires_at = datetime.now(timezone.utc) - timedelta(days=1)
+    await db_session_commit.commit()
+
+    reset_complete_payload = {
+        "new_password": "NewTest1234!",
+        "confirm_password": "NewTest1234!"
+    }
+    reset_response = await client.post(f"/api/v1/accounts/reset-password/{token_value}/", json=reset_complete_payload)
+    assert reset_response.status_code == 400, "Expected status code 400 for expired token."
+    assert reset_response.json()["detail"] == "Invalid or expired password reset token.", "Unexpected error message."
+
+    query_token_check = select(PasswordResetToken).where(PasswordResetToken.user_id == user_id)
+    result_token_check = await db_session_commit.execute(query_token_check)
+    expired_token = result_token_check.scalars().first()
+    assert expired_token is None, "Expired token was not removed."
