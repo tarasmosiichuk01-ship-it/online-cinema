@@ -872,3 +872,22 @@ async def test_refresh_access_token_success(client, db_session_commit, jwt_manag
     refresh_token_data = jwt_manager.decode_refresh_token(refresh_token)
     assert refresh_token_data["user_id"] == user_id, "Refresh token does not contain correct user ID."
 
+
+@pytest.mark.asyncio
+async def test_refresh_access_token_expired_token(client, jwt_manager):
+    """
+    Test refresh token with expired token.
+
+    Validates that a 400 status code and "Token has expired." message are returned
+    when the refresh token is expired.
+    """
+    expired_token = jwt_manager.create_refresh_token(
+        {"user_id": 1},
+        expires_delta=timedelta(days=-1)
+    )
+
+    refresh_payload = {"refresh_token": expired_token}
+    refresh_response = await client.post("/api/v1/accounts/refresh/", json=refresh_payload)
+
+    assert refresh_response.status_code == 400, "Expected status code 400 for expired token."
+    assert refresh_response.json()["detail"] == "Token has expired.", "Unexpected error message."
