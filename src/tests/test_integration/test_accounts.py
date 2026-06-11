@@ -6,7 +6,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
-from models.accounts import User, ActivationToken, UserGroup, UserGroupEnum
+from models.accounts import User, ActivationToken, UserGroup, UserGroupEnum, PasswordResetToken
 
 
 @pytest.mark.asyncio
@@ -301,3 +301,53 @@ async def test_activate_already_active_user(client, db_session_commit, seed_user
     )
     assert activation_response.status_code == 400
     assert activation_response.json()["detail"] == "User account is already active."
+
+
+@pytest.mark.asyncio
+async def test_request_password_reset_token_success(client, db_session_commit, seed_user_groups):
+    """
+    Test successful password reset token request.
+
+    Ensures that a password reset token is created for an active user.
+
+    Steps:
+    - Register a new user.
+    - Mark the user as active.
+    - Request a password reset token.
+    - Verify that the endpoint returns status 200 and the expected success message.
+    - Query the database to confirm that a PasswordResetTokenModel record was created.
+    - Verify that the token's expiration date is in the future.
+    """
+    registration_payload = {
+        "email": "reset_token_testuser@example.com",
+        "password": "Test1234!"
+    }
+    registration_response = await client.post("/api/v1/accounts/register/", json=registration_payload)
+    assert registration_response.status_code == 201, "Expected status code 201 for successful registration."
+
+    query_user = select(User).where(User.email == registration_payload["email"])
+    result_user = await db_session_commit.execute(query_user)
+    user = result_user.scalars().first()
+    assert user is not None, "User should exist in the database."
+
+    user.is_active = True
+    await db_session_commit.commit()
+
+    reset_payload = {"email": registration_payload["email"]}
+    reset_response = await client.post("/api/v1/accounts/forgot-password/", json=reset_payload)
+    assert reset_response.status_code == 200, "Expected status code 200 for successful token request."
+    assert reset_response.json()["message"] == "If you wish to reset your password, you will receive an email.", \
+        "Expected success message for password reset token request."
+
+    query_token = select(PasswordResetToken).where(PasswordResetToken.user_id == user.id)
+    result_token = await db_session_commit.execute(query_token)
+    reset_token = result_token.scalars().first()
+    assert reset_token is not None, "Password reset token should be created for the user."
+
+    expires_at = reset_token.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    assert expires_at > datetime.now(timezone.utc), "Password reset token should have a future expiration date."
+
+
