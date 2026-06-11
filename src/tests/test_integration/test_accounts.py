@@ -891,3 +891,20 @@ async def test_refresh_access_token_expired_token(client, jwt_manager):
 
     assert refresh_response.status_code == 400, "Expected status code 400 for expired token."
     assert refresh_response.json()["detail"] == "Token has expired.", "Unexpected error message."
+
+
+@pytest.mark.asyncio
+async def test_refresh_access_token_token_not_found(client, jwt_manager):
+    """
+    Test refresh token when token is not found in the database.
+
+    Validates that a 401 status code and 'Refresh token not found.' message
+    are returned when the refresh token is not stored in the database.
+    """
+    refresh_token = jwt_manager.create_refresh_token({"user_id": 1})
+    refresh_payload = {"refresh_token": refresh_token}
+    refresh_response = await client.post("/api/v1/accounts/refresh/", json=refresh_payload)
+
+    assert refresh_response.status_code == 401, "Expected status code 401 for token not found."
+    assert refresh_response.json()["detail"] == "Refresh token not found.", "Unexpected error message."
+
