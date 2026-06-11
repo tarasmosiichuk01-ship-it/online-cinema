@@ -657,9 +657,9 @@ async def test_login_user_success(client, db_session_commit, jwt_manager, seed_u
         "password": "Test1234!"
     }
 
-    stmt = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
-    result = await db_session_commit.execute(stmt)
-    user_group = result.scalars().first()
+    query_user = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
+    result_user = await db_session_commit.execute(query_user)
+    user_group = result_user.scalars().first()
     assert user_group is not None, "Default user group should exist."
 
     user = User.create(
@@ -688,8 +688,8 @@ async def test_login_user_success(client, db_session_commit, jwt_manager, seed_u
     refresh_token_data = jwt_manager.decode_refresh_token(response_data["refresh_token"])
     assert refresh_token_data["user_id"] == user_id, "Refresh token does not contain correct user ID."
 
-    stmt_refresh = select(RefreshToken).where(RefreshToken.user_id == user_id)
-    result_refresh = await db_session_commit.execute(stmt_refresh)
+    query_refresh = select(RefreshToken).where(RefreshToken.user_id == user_id)
+    result_refresh = await db_session_commit.execute(query_refresh)
     refresh_token_record = result_refresh.scalars().first()
     assert refresh_token_record is not None, "Refresh token was not stored in the database."
     assert refresh_token_record.token == response_data["refresh_token"], "Stored refresh token does not match."
@@ -699,3 +699,49 @@ async def test_login_user_success(client, db_session_commit, jwt_manager, seed_u
         expires_at = expires_at.replace(tzinfo=timezone.utc)
 
     assert expires_at > datetime.now(timezone.utc), "Refresh token is already expired."
+
+
+@pytest.mark.asyncio
+async def test_login_user_invalid_cases(client, db_session, seed_user_groups):
+    """
+    Test login with invalid cases:
+    1. Non-existent user.
+    2. Incorrect password for an existing user.
+    """
+    login_payload = {
+        "email": "nonexistent@example.com",
+        "password": "SomePassword123!"
+    }
+    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    assert response.status_code == 401, "Expected status code 401 for non-existent user."
+    assert response.json()["detail"] == "Invalid email or password.", \
+        "Unexpected error message for non-existent user."
+
+    user_payload = {
+        "email": "invalid_testuser@example.com",
+        "password": "CorrectPassword123!"
+    }
+    query = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
+    result = await db_session.execute(query)
+    user_group = result.scalars().first()
+    assert user_group is not None, "Default user group should exist."
+
+    user = User.create(
+        email=user_payload["email"],
+        raw_password=user_payload["password"],
+        group_id=user_group.id
+    )
+    user.is_active = True
+    db_session.add(user)
+    await db_session.commit()
+
+    login_payload_incorrect_password = {
+        "email": user_payload["email"],
+        "password": "WrongPassword123!"
+    }
+    response = await client.post("/api/v1/accounts/login/", json=login_payload_incorrect_password)
+    assert response.status_code == 401, "Expected status code 401 for incorrect password."
+    assert response.json()["detail"] == "Invalid email or password.", \
+        "Unexpected error message for incorrect password."
+
+
