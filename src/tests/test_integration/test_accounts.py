@@ -8,6 +8,11 @@ from models.accounts import User, ActivationToken
 
 @pytest.mark.asyncio
 async def test_register_user_success(client, db_session):
+    """
+    Test successful user registration.
+
+    Validates that a new user and an activation token are created in the database.
+    """
     payload = {
         "email": "testuser@example.com",
         "password": "Test1234!",
@@ -38,3 +43,36 @@ async def test_register_user_success(client, db_session):
         expires_at = expires_at.replace(tzinfo=timezone.utc)
 
     assert expires_at > datetime.now(timezone.utc), "Activation token is already expired."
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalid_password, expected_error", [
+    ("short", "Password must contain at least 8 characters."),
+    ("NoDigitHere!", "Password must contain at least one digit."),
+    ("nodigitnorupper@", "Password must contain at least one uppercase letter."),
+    ("NOLOWERCASE1@", "Password must contain at least one lower letter."),
+    ("NoSpecial123", "Password must contain at least one special character: @, $, !, %, *, ?, #, &."),
+])
+async def test_register_user_password_validation(client, seed_user_groups, invalid_password, expected_error):
+    """
+    Test password strength validation in the user registration endpoint.
+
+    Ensures that when an invalid password is provided, the endpoint returns the appropriate
+    error message and a 422 status code.
+
+    Args:
+        client: The asynchronous HTTP client fixture.
+        seed_user_groups: Fixture that seeds the default user groups.
+        invalid_password (str): The password to test.
+        expected_error (str): The expected error message substring.
+    """
+    payload = {
+        "email": "testuser@example.com",
+        "password": invalid_password
+    }
+
+    response = await client.post("/api/v1/accounts/register/", json=payload)
+    assert response.status_code == 422, "Expected status code 422 for invalid input."
+
+    response_data = response.json()
+    assert expected_error in str(response_data), f"Expected error message: {expected_error}"
