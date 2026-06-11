@@ -489,3 +489,47 @@ async def test_reset_password_invalid_email(client, db_session):
 
     assert response.status_code == 400, "Expected status code 400 for invalid email."
     assert response.json()["detail"] == "Invalid or expired password reset token.", "Unexpected error message."
+
+
+@pytest.mark.asyncio
+async def test_reset_password_invalid_token(client, db_session, seed_user_groups):
+    """
+    Test password reset with an incorrect token.
+
+    Validates that the endpoint returns a 400 status code and an appropriate error message when an invalid token is provided.
+    Also ensures that any invalid token is removed from the database.
+    """
+    registration_payload = {
+        "email": "invalid_token_testuser@example.com",
+        "password": "Test1234!"
+    }
+    response = await client.post("/api/v1/accounts/register/", json=registration_payload)
+    assert response.status_code == 201, "User registration failed."
+
+    query_user = select(User).where(User.email == registration_payload["email"])
+    result_user = await db_session.execute(query_user)
+    user = result_user.scalars().first()
+    assert user is not None, "User should exist in the database."
+
+    user_id = user.id
+
+    user.is_active = True
+    await db_session.commit()
+
+    reset_request_payload = {"email": registration_payload["email"]}
+    response = await client.post("/api/v1/accounts/forgot-password/", json=reset_request_payload)
+    assert response.status_code == 200, "Password reset request failed."
+
+    reset_complete_payload = {
+        "new_password": "NewTest1234!",
+        "confirm_password": "NewTest1234!"
+    }
+    invalid_token = "some_completely_wrong_token"
+    response = await client.post(f"/api/v1/accounts/reset-password/{invalid_token}/", json=reset_complete_payload)
+    assert response.status_code == 400, "Expected status code 400 for invalid token."
+    assert response.json()["detail"] == "Invalid or expired password reset token.", "Unexpected error message."
+
+    query_token = select(PasswordResetToken).where(PasswordResetToken.user_id == user_id)
+    result_token = await db_session.execute(query_token)
+    token_record = result_token.scalars().first()
+    assert token_record is None, "The original valid token should still exist in the DB."
