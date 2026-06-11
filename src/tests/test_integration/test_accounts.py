@@ -908,3 +908,54 @@ async def test_refresh_access_token_token_not_found(client, jwt_manager):
     assert refresh_response.status_code == 401, "Expected status code 401 for token not found."
     assert refresh_response.json()["detail"] == "Refresh token not found.", "Unexpected error message."
 
+
+@pytest.mark.asyncio
+async def test_refresh_access_token_user_not_found(client, db_session_commit, jwt_manager, seed_user_groups):
+    """
+    Test refresh token when user ID inside the token does not exist in the database.
+
+    Validates that a 404 status code and "User not found." message
+    are returned when the user ID embedded in the JWT payload is invalid.
+
+    Steps:
+    - Create a new active user.
+    - Generate a refresh token containing a non-existent user ID in its payload.
+    - Store this refresh token in the database, linked to the real user's ID to satisfy FK constraints.
+    - Attempt to refresh the access token using the generated refresh token.
+    - Verify that the endpoint decodes the invalid user ID, fails to find the user, and returns a 404 error.
+    """
+    user_payload = {
+        "email": "token_not_found_testuser@example.com",
+        "password": "Test1234!"
+    }
+
+    query = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
+    result = await db_session_commit.execute(query)
+    user_group = result.scalars().first()
+    assert user_group is not None, "Default user group should exist."
+
+    user = User.create(
+        email=user_payload["email"],
+        raw_password=user_payload["password"],
+        group_id=user_group.id
+    )
+    user.is_active = True
+    db_session_commit.add(user)
+    await db_session_commit.commit()
+
+    invalid_user_id = 12345
+    corrupted_refresh_token = jwt_manager.create_refresh_token({"user_id": invalid_user_id})
+
+    refresh_token_record = RefreshToken.create(
+        user_id=user.id,
+        days_valid=7,
+        token=corrupted_refresh_token
+    )
+    db_session_commit.add(refresh_token_record)
+    await db_session_commit.commit()
+
+    refresh_payload = {"refresh_token": corrupted_refresh_token}
+    refresh_response = await client.post("/api/v1/accounts/refresh/", json=refresh_payload)
+
+    assert refresh_response.status_code == 404, "Expected status code 404 for non-existent user."
+    assert refresh_response.json()["detail"] == "User not found.", "Unexpected error message."
