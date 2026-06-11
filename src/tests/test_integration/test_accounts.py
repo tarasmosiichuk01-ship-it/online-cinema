@@ -585,3 +585,59 @@ async def test_reset_password_expired_token(client, db_session_commit, seed_user
     result_token_check = await db_session_commit.execute(query_token_check)
     expired_token = result_token_check.scalars().first()
     assert expired_token is None, "Expired token was not removed."
+
+
+@pytest.mark.asyncio
+async def test_reset_password_sqlalchemy_error(client, db_session_commit, seed_user_groups):
+    """
+    Test password reset when a database commit raises SQLAlchemyError.
+
+    Validates that the endpoint returns a 500 Internal Server Error and the appropriate error message
+    when an error occurs during the password reset process.
+
+    Steps:
+    - Register a new user.
+    - Mark the user as active.
+    - Request a password reset token.
+    - Attempt to reset the password while simulating a database commit error.
+    - Verify that a 500 error is returned with the expected error message.
+    """
+    registration_payload = {
+        "email": "sqlalchemy_error_testuser@example.com",
+        "password": "Test1234!"
+    }
+    registration_response = await client.post("/api/v1/accounts/register/", json=registration_payload)
+    assert registration_response.status_code == 201, "User registration failed."
+
+    query_user = select(User).where(User.email == registration_payload["email"])
+    result_user = await db_session_commit.execute(query_user)
+    user = result_user.scalars().first()
+    assert user is not None, "User should exist in the database."
+    user_id = user.id
+
+    user.is_active = True
+    await db_session_commit.commit()
+
+    reset_request_payload = {"email": registration_payload["email"]}
+    reset_request_response = await client.post("/api/v1/accounts/forgot-password/", json=reset_request_payload)
+    assert reset_request_response.status_code == 200, "Password reset request failed."
+
+    query_token = select(PasswordResetToken).where(PasswordResetToken.user_id == user_id)
+    result_token = await db_session_commit.execute(query_token)
+    token_record = result_token.scalars().first()
+    assert token_record is not None, "Password reset token not created."
+
+    token_value = token_record.token
+
+    reset_complete_payload = {
+        "new_password": "NewTest1234!",
+        "confirm_password": "NewTest1234!"
+    }
+
+    with patch("routes.accounts.AsyncSession.commit", side_effect=SQLAlchemyError):
+        reset_response = await client.post(f"/api/v1/accounts/reset-password/{token_value}/", json=reset_complete_payload)
+
+    assert reset_response.status_code == 500, "Expected status code 500 for SQLAlchemyError."
+    assert reset_response.json()["detail"] == "An error occurred while resetting the password.", (
+        "Unexpected error message for SQLAlchemyError."
+    )
