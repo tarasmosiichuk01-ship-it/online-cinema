@@ -2,7 +2,7 @@ from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
@@ -219,10 +219,47 @@ async def test_activate_user_with_expired_token(client, db_session, seed_user_gr
     token_value = token.token
     await db_session.commit()
 
+    activation_response = await client.get(f"/api/v1/accounts/activate/{token_value}/")
 
-    activation_response = await client.get(
-        f"/api/v1/accounts/activate/{token_value}/"
+    assert activation_response.status_code == 400
+    assert activation_response.json()["detail"] == "Invalid or expired activation token."
+
+
+@pytest.mark.asyncio
+async def test_activate_user_with_deleted_token(client, db_session, seed_user_groups):
+    """
+    Test activation with a deleted token.
+
+    Ensures that the endpoint returns a 400 error when the activation token has been deleted.
+
+    Steps:
+    - Create a new inactive user directly in the database.
+    - Create an activation token for the user.
+    - Delete the activation token from the database.
+    - Attempt to activate the account using the deleted token.
+    - Verify that a 400 error is returned with the appropriate error message.
+    """
+    query = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
+    result = await db_session.execute(query)
+    user_group = result.scalars().first()
+
+    user = User.create(
+        email="deleted_token_testuser@example.com",
+        raw_password="Test1234!",
+        group_id=user_group.id
     )
+    db_session.add(user)
+    await db_session.flush()
+
+    token = ActivationToken(user_id=user.id)
+    db_session.add(token)
+    await db_session.flush()
+    token_value = token.token
+
+    await db_session.delete(token)
+    await db_session.commit()
+
+    activation_response = await client.get(f"/api/v1/accounts/activate/{token_value}/")
 
     assert activation_response.status_code == 400
     assert activation_response.json()["detail"] == "Invalid or expired activation token."
