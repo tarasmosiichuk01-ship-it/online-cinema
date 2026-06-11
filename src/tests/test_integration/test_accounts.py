@@ -2,7 +2,7 @@ from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
@@ -351,3 +351,25 @@ async def test_request_password_reset_token_success(client, db_session_commit, s
     assert expires_at > datetime.now(timezone.utc), "Password reset token should have a future expiration date."
 
 
+@pytest.mark.asyncio
+async def test_request_password_reset_token_nonexistent_user(client, db_session):
+    """
+    Test password reset token request for a non-existent user.
+
+    Ensures that the endpoint responds with a generic success message and that no password reset token is created
+    when the email does not exist in the database.
+    """
+    reset_payload = {"email": "nonexistent@example.com"}
+
+    reset_response = await client.post("/api/v1/accounts/forgot-password/", json=reset_payload)
+    assert reset_response.status_code == 200, "Expected status code 200 for non-existent user request."
+    assert reset_response.json()["message"] == "If you wish to reset your password, you will receive an email.", (
+        "Expected generic success message for non-existent user request."
+    )
+
+    query = select(func.count(PasswordResetToken.id)).join(User).where(
+        User.email == reset_payload["email"]
+    )
+    result = await db_session.execute(query)
+    reset_token_count = result.scalar_one()
+    assert reset_token_count == 0, "No password reset token should be created for non-existent user."
