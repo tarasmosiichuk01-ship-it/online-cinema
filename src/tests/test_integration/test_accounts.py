@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
-from models.accounts import User, ActivationToken
+from models.accounts import User, ActivationToken, UserGroup, UserGroupEnum
 
 
 @pytest.mark.asyncio
@@ -160,13 +160,13 @@ async def test_activate_account_success(client, db_session, seed_user_groups):
     registration_response = await client.post("/api/v1/accounts/register/", json=registration_payload)
     assert registration_response.status_code == 201, "Expected status code 201 for successful registration."
 
-    stmt = (
+    query_user = (
         select(User)
         .options(joinedload(User.activation_token))
         .where(User.email == registration_payload["email"])
     )
-    result = await db_session.execute(stmt)
-    user = result.scalars().first()
+    result_user = await db_session.execute(query_user)
+    user = result_user.scalars().first()
     assert user is not None, "User was not created in the database."
     assert not user.is_active, "Newly registered user should not be active."
 
@@ -177,13 +177,6 @@ async def test_activate_account_success(client, db_session, seed_user_groups):
     assert activation_response.status_code == 200, "Expected status code 200 for successful activation."
     assert activation_response.json()["message"] == "User account activated successfully."
 
-    stmt = (
-        select(User)
-        .options(joinedload(User.activation_token))
-        .where(User.email == registration_payload["email"])
-    )
-    result = await db_session.execute(stmt)
-    user = result.scalars().first()
     await db_session.refresh(user)
     assert user.is_active, "User should be active after successful activation."
 
@@ -191,3 +184,45 @@ async def test_activate_account_success(client, db_session, seed_user_groups):
     result_token = await db_session.execute(query_token)
     token = result_token.scalars().first()
     assert token is None, "Activation token should be deleted after successful activation."
+
+
+@pytest.mark.asyncio
+async def test_activate_user_with_expired_token(client, db_session, seed_user_groups):
+    """
+    Test activation with an expired token.
+
+    Ensures that the endpoint returns a 400 error when the activation token is expired.
+    Steps:
+    - Create a new inactive user directly in the database.
+    - Create an activation token with an expiration date in the past.
+    - Attempt to activate the account with the expired token.
+    - Verify that the response is a 400 error with the expected error message.
+    """
+    query = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
+    result = await db_session.execute(query)
+    user_group = result.scalars().first()
+
+    user = User.create(
+        email="expired_testuser@example.com",
+        raw_password="Test1234!",
+        group_id=user_group.id
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    token = ActivationToken(
+        user_id=user.id,
+        expires_at=datetime.now(timezone.utc) - timedelta(days=2)
+    )
+    db_session.add(token)
+    await db_session.flush()
+    token_value = token.token
+    await db_session.commit()
+
+
+    activation_response = await client.get(
+        f"/api/v1/accounts/activate/{token_value}/"
+    )
+
+    assert activation_response.status_code == 400
+    assert activation_response.json()["detail"] == "Invalid or expired activation token."
