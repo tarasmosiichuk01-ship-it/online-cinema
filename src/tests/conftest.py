@@ -92,3 +92,9 @@ async def client(seed_user_groups):
         yield async_client
 
     app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def db_session_commit():
+    async with AsyncPostgresqlSession() as session:
+        yield session
