@@ -6,7 +6,7 @@ from sqlalchemy import select, delete, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
-from models.accounts import User, ActivationToken, UserGroup, UserGroupEnum, PasswordResetToken
+from models.accounts import User, ActivationToken, UserGroup, UserGroupEnum, PasswordResetToken, RefreshToken
 
 
 @pytest.mark.asyncio
@@ -641,3 +641,61 @@ async def test_reset_password_sqlalchemy_error(client, db_session_commit, seed_u
     assert reset_response.json()["detail"] == "An error occurred while resetting the password.", (
         "Unexpected error message for SQLAlchemyError."
     )
+
+
+@pytest.mark.asyncio
+async def test_login_user_success(client, db_session_commit, jwt_manager, seed_user_groups):
+    """
+    Test successful login.
+
+    Validates that access and refresh tokens are returned upon successful login,
+    verifies the validity of the refresh token, and ensures that it is correctly
+    stored in the database with a valid expiration timestamp.
+    """
+    user_payload = {
+        "email": "login_testuser@example.com",
+        "password": "Test1234!"
+    }
+
+    stmt = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
+    result = await db_session_commit.execute(stmt)
+    user_group = result.scalars().first()
+    assert user_group is not None, "Default user group should exist."
+
+    user = User.create(
+        email=user_payload["email"],
+        raw_password=user_payload["password"],
+        group_id=user_group.id
+    )
+    user.is_active = True
+    db_session_commit.add(user)
+    await db_session_commit.commit()
+
+    user_id = user.id
+
+    login_payload = {
+        "email": user_payload["email"],
+        "password": user_payload["password"]
+    }
+    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+    assert response.status_code == 200, "Expected status code 200 for successful login."
+    response_data = response.json()
+    assert "access_token" in response_data, "Access token is missing in the response."
+    assert "refresh_token" in response_data, "Refresh token is missing in the response."
+    assert response_data["access_token"], "Access token is empty."
+    assert response_data["refresh_token"], "Refresh token is empty."
+
+    refresh_token_data = jwt_manager.decode_refresh_token(response_data["refresh_token"])
+    assert refresh_token_data["user_id"] == user_id, "Refresh token does not contain correct user ID."
+
+    stmt_refresh = select(RefreshToken).where(RefreshToken.user_id == user_id)
+    result_refresh = await db_session_commit.execute(stmt_refresh)
+    refresh_token_record = result_refresh.scalars().first()
+    assert refresh_token_record is not None, "Refresh token was not stored in the database."
+    assert refresh_token_record.token == response_data["refresh_token"], "Stored refresh token does not match."
+
+    expires_at = refresh_token_record.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    assert expires_at > datetime.now(timezone.utc), "Refresh token is already expired."
