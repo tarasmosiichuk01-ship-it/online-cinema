@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from models.accounts import User, ActivationToken
 
@@ -110,3 +112,29 @@ async def test_register_user_conflict(client, db_session, seed_user_groups):
     response_data = response_second.json()
     expected_message = f"A user with this email {payload['email']} already exists."
     assert response_data["detail"] == expected_message, f"Expected error message: {expected_message}"
+
+
+@pytest.mark.asyncio
+async def test_register_user_internal_server_error(client, seed_user_groups):
+    """
+    Test server error during user registration.
+
+    Ensures that a 500 Internal Server Error is returned when a database operation fails.
+
+    This test patches the commit method of the AsyncSession to simulate a SQLAlchemyError,
+    then verifies that the registration endpoint returns the appropriate HTTP 500 error
+    with the expected error message.
+    """
+    payload = {
+        "email": "erroruser@example.com",
+        "password": "Test1234!",
+    }
+
+    with patch("routes.accounts.AsyncSession.commit", side_effect=SQLAlchemyError):
+        response = await client.post("/api/v1/accounts/register/", json=payload)
+
+        assert response.status_code == 500, "Expected status code 500 for internal server error."
+
+        response_data = response.json()
+        expected_message = "An error occurred during user creation."
+        assert response_data["detail"] == expected_message, f"Expected error message: {expected_message}"
