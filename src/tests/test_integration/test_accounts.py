@@ -471,3 +471,21 @@ async def test_reset_password_success(client, db_session_commit, seed_user_group
 
     await db_session_commit.refresh(created_user)
     assert created_user.verify_password(new_password), "Password should be updated successfully in the database."
+
+
+@pytest.mark.asyncio
+async def test_reset_password_invalid_email(client, db_session):
+    """
+    Test password reset with an email that does not exist in the database.
+
+    Validates that the endpoint returns a 400 status code and appropriate error message.
+    """
+    reset_payload = {
+        "new_password": "NewTest1234!",
+        "confirm_password": "NewTest1234!"
+    }
+
+    response = await client.post("/api/v1/accounts/reset-password/random_token/", json=reset_payload)
+
+    assert response.status_code == 400, "Expected status code 400 for invalid email."
+    assert response.json()["detail"] == "Invalid or expired password reset token.", "Unexpected error message."
