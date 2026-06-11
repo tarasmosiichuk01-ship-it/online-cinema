@@ -409,3 +409,65 @@ async def test_request_password_reset_token_for_inactive_user(client, db_session
     result_tokens = await db_session.execute(query_tokens)
     reset_token_count = result_tokens.scalar_one()
     assert reset_token_count == 0, "No password reset token should be created for an inactive user."
+
+
+@pytest.mark.asyncio
+async def test_reset_password_success(client, db_session_commit, seed_user_groups):
+    """
+    Test the complete password reset flow.
+
+    Steps:
+    - Register a user.
+    - Activate the user.
+    - Request a password reset token.
+    - Use the token to reset the password.
+    - Verify the password is updated in the database.
+    """
+    registration_payload = {
+        "email": "reset_password_testuser@example.com",
+        "password": "Test1234!"
+    }
+    registration_response = await client.post("/api/v1/accounts/register/", json=registration_payload)
+    assert registration_response.status_code == 201, "Expected status code 201 for successful registration."
+
+    stmt = select(User).where(User.email == registration_payload["email"])
+    result = await db_session_commit.execute(stmt)
+    created_user = result.scalars().first()
+    assert created_user is not None, "User should be created in the database."
+
+    stmt_token = select(ActivationToken).where(ActivationToken.user_id == created_user.id)
+    result_token = await db_session_commit.execute(stmt_token)
+    activation_token = result_token.scalars().first()
+    assert activation_token is not None, "Activation token should be created in the database."
+
+    activation_response = await client.get(
+        f"/api/v1/accounts/activate/{activation_token.token}/"
+    )
+    assert activation_response.status_code == 200, "Expected status code 200 for successful activation."
+
+    await db_session_commit.refresh(created_user)
+    assert created_user.is_active, "User should be active after successful activation."
+
+    reset_request_response = await client.post(
+        "/api/v1/accounts/forgot-password/",
+        json={"email": registration_payload["email"]}
+    )
+    assert reset_request_response.status_code == 200, "Expected status code 200 for password reset token request."
+
+    stmt_reset = select(PasswordResetToken).where(PasswordResetToken.user_id == created_user.id)
+    result_reset = await db_session_commit.execute(stmt_reset)
+    reset_token_record = result_reset.scalars().first()
+    assert reset_token_record is not None, "Password reset token should be created in the database."
+
+    new_password = "NewTest1234!"
+    reset_response = await client.post(
+        f"/api/v1/accounts/reset-password/{reset_token_record.token}/",
+        json={"new_password": new_password, "confirm_password": new_password}
+    )
+    assert reset_response.status_code == 200, "Expected status code 200 for successful password reset."
+    assert reset_response.json()["message"] == "Password reset successfully.", (
+        "Unexpected response message for password reset."
+    )
+
+    await db_session_commit.refresh(created_user)
+    assert created_user.verify_password(new_password), "Password should be updated successfully in the database."
