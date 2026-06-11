@@ -745,3 +745,40 @@ async def test_login_user_invalid_cases(client, db_session, seed_user_groups):
         "Unexpected error message for incorrect password."
 
 
+@pytest.mark.asyncio
+async def test_login_user_inactive_account(client, db_session_commit, seed_user_groups):
+    """
+    Test login with an inactive user account.
+
+    Validates that the endpoint returns a 403 status code and an appropriate error message
+    when attempting to log in with a user whose account is not activated.
+    """
+    user_payload = {
+        "email": "inactive_testuser@example.com",
+        "password": "Test1234!"
+    }
+
+    query = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
+    result = await db_session_commit.execute(query)
+    user_group = result.scalars().first()
+    assert user_group is not None, "User group not found."
+
+    user = User.create(
+        email=user_payload["email"],
+        raw_password=user_payload["password"],
+        group_id=user_group.id
+    )
+    user.is_active = False
+    db_session_commit.add(user)
+    await db_session_commit.commit()
+
+    login_payload = {
+        "email": user_payload["email"],
+        "password": user_payload["password"]
+    }
+    response = await client.post("/api/v1/accounts/login/", json=login_payload)
+
+    assert response.status_code == 403, "Expected status code 403 for inactive user."
+    assert response.json()["detail"] == "User account is not activated.", \
+        "Unexpected error message for inactive user."
+
