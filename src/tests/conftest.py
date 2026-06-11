@@ -5,8 +5,10 @@ from unittest.mock import AsyncMock
 from dotenv import load_dotenv
 from sqlalchemy import select
 
-from config.dependencies import get_accounts_email_notificator
+from config.dependencies import get_accounts_email_notificator, get_settings
 from models.accounts import UserGroupEnum, UserGroup
+from security.interfaces import JWTAuthManagerInterface
+from security.token_manager import JWTAuthManager
 
 base_dir = Path(__file__).resolve().parent.parent.parent
 env_test_path = base_dir / ".env.test"
@@ -98,3 +100,13 @@ async def client(seed_user_groups):
 async def db_session_commit():
     async with AsyncPostgresqlSession() as session:
         yield session
+
+
+@pytest_asyncio.fixture(scope="session")
+async def jwt_manager() -> JWTAuthManagerInterface:
+    settings = get_settings()
+    return JWTAuthManager(
+        secret_key_access=settings.SECRET_KEY_ACCESS,
+        secret_key_refresh=settings.SECRET_KEY_REFRESH,
+        algorithm=settings.JWT_SIGNING_ALGORITHM
+    )
