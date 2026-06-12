@@ -247,3 +247,28 @@ async def test_reset_activation_token_user_not_active(client):
 
     assert response.status_code == 200
     assert response.json()["message"] == "If you are registered, you will receive an email with instructions."
+
+
+@pytest.mark.asyncio
+async def test_reset_activation_token_sqlalchemy_error(client):
+    """
+    Test reset activation token when a database error occurs.
+
+    Ensures that the endpoint returns a 500 status code and an appropriate
+    error message when a SQLAlchemyError is raised during the commit operation.
+    """
+    mock_user = MagicMock()
+    mock_user.is_active = False
+
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.first.return_value = mock_user
+
+    with patch("routes.accounts.AsyncSession.execute", return_value=mock_result):
+        with patch("routes.accounts.AsyncSession.commit", side_effect=SQLAlchemyError):
+            response = await client.post(
+                "/api/v1/accounts/reset-activation/",
+                json={"email": "sqlalchemy_error_testuser@example.com"}
+            )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "An error occurred. Please try again later."
