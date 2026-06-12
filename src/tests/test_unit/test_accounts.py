@@ -116,3 +116,29 @@ async def test_change_password_verify_password(authenticated_client):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Incorrect current password"
+
+
+@pytest.mark.asyncio
+async def test_change_password_same_as_old(authenticated_client):
+    """
+    Test change password when new password is the same as old password.
+
+    Ensures that the endpoint returns a 400 status code when
+    the new password matches the current password.
+    """
+    client, mock_user = authenticated_client
+    mock_user.verify_password.return_value = True
+
+    payload = {
+        "old_password": "Test1234!",
+        "new_password": "Test1234!",
+        "confirm_password": "Test1234!",
+    }
+
+    response = await client.post(
+        "/api/v1/accounts/change-password/",
+        json=payload
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "New password must be different from old password"
