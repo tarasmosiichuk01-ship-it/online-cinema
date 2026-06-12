@@ -1,7 +1,10 @@
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+
+from models.movies import Movie
 
 
 @pytest.mark.asyncio
@@ -125,4 +128,41 @@ async def test_create_movie_integrity_error(test_movie, moderator_client, db_ses
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid input data."
 
+
+@pytest.mark.asyncio
+async def test_create_movie_success(test_movie, moderator_client, db_session_commit):
+    """
+    Test successful movie creation by a moderator.
+
+    Ensures that the endpoint returns a 201 status code, the correct response
+    data, and that the movie is actually saved in the database.
+    """
+    payload = {
+        "name": "Super New Movie",
+        "year": test_movie.year,
+        "time": test_movie.time,
+        "imdb": 7.5,
+        "votes": 190,
+        "description": "Test description",
+        "price": 9.93,
+        "certification": "PG-22",
+        "genres": [],
+        "stars": [],
+        "directors": [],
+    }
+
+    response = await moderator_client.post("/api/v1/cinema/movies", json=payload)
+    assert response.status_code == 201
+
+    response_data = response.json()
+    assert response_data["name"] == payload["name"]
+    assert response_data["year"] == payload["year"]
+    assert response_data["price"] == str(payload["price"])
+    assert "id" in response_data
+
+    query = select(Movie).where(Movie.name == payload["name"])
+    result = await db_session_commit.execute(query)
+    created_movie = result.scalars().first()
+    assert created_movie is not None, "Movie was not created in the database."
+    assert created_movie.name == payload["name"]
 
