@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from sqlalchemy import select
 
 from config.dependencies import get_accounts_email_notificator, get_settings, get_current_user
-from models.accounts import UserGroupEnum, UserGroup
+from models.accounts import UserGroupEnum, UserGroup, User
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
 
@@ -117,3 +117,27 @@ async def authenticated_client(client):
     app.dependency_overrides[get_current_user] = lambda: mock_user
     yield client, mock_user
     app.dependency_overrides.pop(get_current_user)
+
+
+@pytest_asyncio.fixture
+async def moderator_client(client, db_session_commit, jwt_manager):
+    query = select(UserGroup).where(UserGroup.name == UserGroupEnum.MODERATOR)
+    result = await db_session_commit.execute(query)
+    moderator_group = result.scalars().first()
+
+    moderator = User.create(
+        email="moderator@example.com",
+        raw_password="Moderator1234!",
+        group_id=moderator_group.id
+    )
+    moderator.is_active = True
+    db_session_commit.add(moderator)
+    await db_session_commit.commit()
+
+    access_token = jwt_manager.create_access_token({"user_id": moderator.id})
+    client.headers.update({"Authorization": f"Bearer {access_token}"})
+
+    yield client
+
+    await db_session_commit.delete(moderator)
+    await db_session_commit.commit()
