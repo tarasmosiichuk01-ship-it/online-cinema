@@ -142,3 +142,31 @@ async def test_change_password_same_as_old(authenticated_client):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "New password must be different from old password"
+
+
+@pytest.mark.asyncio
+async def test_change_password_sqlalchemy_error(authenticated_client):
+    """
+    Test change password when a database error occurs.
+
+    Ensures that the endpoint returns a 500 status code and an appropriate
+    error message when a SQLAlchemyError is raised during the commit operation.
+    """
+    client, mock_user = authenticated_client
+    mock_user.verify_password.return_value = True
+
+    payload = {
+        "old_password": "Test1234!",
+        "new_password": "NewTest1234!",
+        "confirm_password": "NewTest1234!",
+    }
+
+    with patch("routes.accounts.AsyncSession.delete", new_callable=AsyncMock):
+        with patch("routes.accounts.AsyncSession.commit", side_effect=SQLAlchemyError):
+            response = await client.post(
+                "/api/v1/accounts/change-password/",
+                json=payload
+            )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "An error occurred while changing password."
