@@ -23,3 +23,27 @@ async def test_logout_user_unknown_token(client):
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid refresh token."
 
+
+@pytest.mark.asyncio
+async def test_logout_sqlalchemy_error(client):
+    """
+    Test logout when a database error occurs.
+
+    Ensures that the endpoint returns a 500 status code and an appropriate
+    error message when a SQLAlchemyError is raised during the commit operation.
+    """
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.first.return_value = MagicMock()
+
+    with patch("routes.accounts.AsyncSession.execute", return_value=mock_result):
+        with patch("routes.accounts.AsyncSession.delete", new_callable=AsyncMock):
+            with patch("routes.accounts.AsyncSession.commit", side_effect=SQLAlchemyError):
+                response = await client.post(
+                    "/api/v1/accounts/logout/",
+                    json={"refresh_token": "Test_token123!@#"}
+                )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "An error occurred while processing the request."
+
+
