@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from config.dependencies import get_accounts_email_notificator, get_settings, get_current_user
 from models.accounts import UserGroupEnum, UserGroup, User
-from models.movies import Movie
+from models.movies import Movie, Certification
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
 
@@ -170,6 +170,10 @@ async def authorized_client(client, db_session_commit, jwt_manager):
 
 @pytest_asyncio.fixture
 async def test_movie(db_session_commit):
+    certification = Certification(name="PG-13")
+    db_session_commit.add(certification)
+    await db_session_commit.flush()
+
     movie = Movie(
         name="Test Movie",
         year=2021,
@@ -178,6 +182,7 @@ async def test_movie(db_session_commit):
         votes=1000,
         description="Test description",
         price=9.99,
+        certification_id=certification.id,
     )
     db_session_commit.add(movie)
     await db_session_commit.commit()
@@ -186,4 +191,5 @@ async def test_movie(db_session_commit):
     yield movie
 
     await db_session_commit.delete(movie)
+    await db_session_commit.delete(certification)
     await db_session_commit.commit()
