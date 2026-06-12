@@ -1,4 +1,7 @@
+from unittest.mock import patch
+
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 
 @pytest.mark.asyncio
@@ -64,3 +67,27 @@ async def test_create_movie_not_moderator(test_movie, authorized_client, db_sess
     assert response.json()["detail"] == "Access forbidden. Moderator or Admin role required."
 
 
+@pytest.mark.asyncio
+async def test_create_movie_integrity_error(test_movie, moderator_client, db_session_commit):
+
+    payload = {
+        "name": "Super New Movie",
+        "year": test_movie.year,
+        "time": test_movie.time,
+        "imdb": 7.5,
+        "votes": 190,
+        "description": "Test description",
+        "price": 9.93,
+        "certification": "PG-22",
+        "genres": [],
+        "stars": [],
+        "directors": [],
+    }
+
+    simulated_error = IntegrityError(statement="INSERT INTO movies ...", params={}, orig=Exception())
+
+    with patch("routes.cinema.movies.AsyncSession.commit", side_effect=simulated_error):
+        response = await moderator_client.post("/api/v1/cinema/movies", json=payload)
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid input data."
