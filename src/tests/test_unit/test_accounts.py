@@ -47,3 +47,22 @@ async def test_logout_sqlalchemy_error(client):
     assert response.json()["detail"] == "An error occurred while processing the request."
 
 
+@pytest.mark.asyncio
+async def test_logout_success(client):
+    """
+    Test successful logout.
+
+    Ensures that the endpoint returns a 200 status code and a success message
+    when a valid refresh token is provided and all database operations succeed.
+    """
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.first.return_value = MagicMock()
+    with patch("routes.accounts.AsyncSession.execute", return_value=mock_result):
+        with patch("routes.accounts.AsyncSession.delete", new_callable=AsyncMock):
+            with patch("routes.accounts.AsyncSession.commit", new_callable=AsyncMock):
+                response = await client.post(
+                    "/api/v1/accounts/logout/",
+                    json={"refresh_token": "Test_token123!@#"}
+                )
+    assert response.status_code == 200
+    assert response.json()["message"] == "Successfully logged out."
