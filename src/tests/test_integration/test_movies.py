@@ -33,6 +33,34 @@ async def test_create_movie_if_existing_movie_is(test_movie, moderator_client, d
         f"A movie with the name '{test_movie.name}' and release year '{test_movie.year}' already exists."
     )
 
+
+@pytest.mark.asyncio
+async def test_create_movie_unauthorized_user(test_movie, client, db_session_commit):
+    """
+    Test creating a movie by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to create a movie.
+    """
+    payload = {
+        "name": "Super New Movie",
+        "year": test_movie.year,
+        "time": test_movie.time,
+        "imdb": 7.5,
+        "votes": 190,
+        "description": "Test description",
+        "price": 9.93,
+        "certification": "PG-22",
+        "genres": [],
+        "stars": [],
+        "directors": [],
+    }
+
+    response = await client.post("/api/v1/cinema/movies", json=payload)
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
+
+
 @pytest.mark.asyncio
 async def test_create_movie_not_moderator(test_movie, authorized_client, db_session_commit):
     """
@@ -69,7 +97,12 @@ async def test_create_movie_not_moderator(test_movie, authorized_client, db_sess
 
 @pytest.mark.asyncio
 async def test_create_movie_integrity_error(test_movie, moderator_client, db_session_commit):
+    """
+    Test creating a movie when a database integrity error occurs.
 
+    Ensures that the endpoint returns a 400 status code and an appropriate
+    error message when an IntegrityError is raised during the commit operation.
+    """
     payload = {
         "name": "Super New Movie",
         "year": test_movie.year,
@@ -91,3 +124,5 @@ async def test_create_movie_integrity_error(test_movie, moderator_client, db_ses
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid input data."
+
+
