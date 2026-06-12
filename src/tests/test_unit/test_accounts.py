@@ -1,7 +1,10 @@
 from unittest.mock import patch, MagicMock, AsyncMock
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
+
+from models.accounts import User
 
 
 @pytest.mark.asyncio
@@ -199,3 +202,24 @@ async def test_change_password_success(authenticated_client):
     assert response.status_code == 200
     assert response.json()["message"] == "Successfully changed password."
 
+
+
+@pytest.mark.asyncio
+async def test_reset_activation_token_user_not_found(client):
+    """
+    Test reset activation token when user does not exist.
+
+    Ensures that the endpoint returns a 200 status code with a generic
+    message when the provided email does not exist in the database.
+    """
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.first.return_value = None
+
+    with patch("routes.accounts.AsyncSession.execute", return_value=mock_result):
+        response = await client.post(
+            "/api/v1/accounts/reset-activation/",
+            json={"email": "user_not_found_testuser@example.com"}
+        )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "If you are registered, you will receive an email with instructions."
