@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from config.dependencies import get_accounts_email_notificator, get_settings, get_current_user
 from models.accounts import UserGroupEnum, UserGroup, User
+from models.movies import Movie
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
 
@@ -164,4 +165,25 @@ async def authorized_client(client, db_session_commit, jwt_manager):
     yield client, user
 
     await db_session_commit.delete(user)
+    await db_session_commit.commit()
+
+
+@pytest_asyncio.fixture
+async def test_movie(db_session_commit):
+    movie = Movie(
+        name="Test Movie",
+        year=2021,
+        time=120,
+        imdb=7.5,
+        votes=1000,
+        description="Test description",
+        price=9.99,
+    )
+    db_session_commit.add(movie)
+    await db_session_commit.commit()
+    await db_session_commit.refresh(movie)
+
+    yield movie
+
+    await db_session_commit.delete(movie)
     await db_session_commit.commit()
