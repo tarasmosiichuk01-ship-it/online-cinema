@@ -223,3 +223,27 @@ async def test_reset_activation_token_user_not_found(client):
 
     assert response.status_code == 200
     assert response.json()["message"] == "If you are registered, you will receive an email with instructions."
+
+
+@pytest.mark.asyncio
+async def test_reset_activation_token_user_not_active(client):
+    """
+    Test reset activation token when user is already active.
+
+    Ensures that the endpoint returns a 200 status code with a generic
+    message when the user account is already activated.
+    """
+    mock_user = MagicMock()
+    mock_user.is_active = True
+
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.first.return_value = mock_user
+
+    with patch("routes.accounts.AsyncSession.execute", return_value=mock_result):
+        response = await client.post(
+            "/api/v1/accounts/reset-activation/",
+            json={"email": "user_not_active@example.com"}
+        )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "If you are registered, you will receive an email with instructions."
