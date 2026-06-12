@@ -66,3 +66,28 @@ async def test_logout_success(client):
                 )
     assert response.status_code == 200
     assert response.json()["message"] == "Successfully logged out."
+
+
+@pytest.mark.asyncio
+async def test_change_password_with_unconfirmed_password(authenticated_client):
+    """
+    Test change password when new passwords do not match.
+
+    Ensures that the endpoint returns a 400 status code when
+    new_password and confirm_password fields are different.
+    """
+    client, mock_user = authenticated_client
+    payload = {
+        "old_password": "Test1234!",
+        "new_password": "NewTest1234!",
+        "confirm_password": "ConfirmTest1234!",
+    }
+
+    response = await client.post(
+        "/api/v1/accounts/change-password/",
+        json=payload
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "New passwords do not match"
+
