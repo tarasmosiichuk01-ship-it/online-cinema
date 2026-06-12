@@ -166,3 +166,17 @@ async def test_create_movie_success(test_movie, moderator_client, db_session_com
     assert created_movie is not None, "Movie was not created in the database."
     assert created_movie.name == payload["name"]
 
+
+@pytest.mark.asyncio
+async def test_get_movie_list_if_not_movies(client):
+    """
+    Test getting movie list when no movies are available.
+
+    Ensures that the endpoint returns a 404 status code and an appropriate
+    error message when there are no available movies in the database.
+    """
+    response = await client.get("/api/v1/cinema/movies")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "No movies found."
+
+
