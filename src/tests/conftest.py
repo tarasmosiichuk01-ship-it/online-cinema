@@ -1,11 +1,11 @@
 import os
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 from dotenv import load_dotenv
 from sqlalchemy import select
 
-from config.dependencies import get_accounts_email_notificator, get_settings
+from config.dependencies import get_accounts_email_notificator, get_settings, get_current_user
 from models.accounts import UserGroupEnum, UserGroup
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
@@ -110,3 +110,10 @@ async def jwt_manager() -> JWTAuthManagerInterface:
         secret_key_refresh=settings.SECRET_KEY_REFRESH,
         algorithm=settings.JWT_SIGNING_ALGORITHM
     )
+
+@pytest_asyncio.fixture
+async def authenticated_client(client):
+    mock_user = MagicMock()
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    yield client, mock_user
+    app.dependency_overrides.pop(get_current_user)
