@@ -333,3 +333,21 @@ async def test_get_movie_by_id_if_movie_not_available(client, test_movie, db_ses
 
     test_movie.is_available = True
     await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_get_movie_by_success(client, test_movie):
+    """
+    Test successful retrieval of a movie by ID.
+
+    Ensures that the endpoint returns a 200 status code and the correct
+    response structure with all required fields.
+    """
+    response = await client.get(f"/api/v1/cinema/movies/{test_movie.id}")
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert response_data["name"] == test_movie.name
+    assert response_data["year"] == test_movie.year
+    assert response_data["description"] == test_movie.description
+    assert response_data["price"] == str(test_movie.price)
