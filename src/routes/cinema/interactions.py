@@ -84,7 +84,7 @@ async def create_movie_comments(
     set_committed_value(new_comment, "replies", [])
 
     if parent_comment and parent_comment.user_id != current_user.id:
-        comments_link = f"http://127.0.0.1/movies/{movie_id}/comments"
+        comments_link = f"http://127.0.0.1:8000/api/v1/cinema/movies/{movie_id}/comments"
 
         await email_sender.send_reply_comment_email(
             email=parent_comment.user.email,
