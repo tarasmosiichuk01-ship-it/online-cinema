@@ -220,3 +220,18 @@ async def test_get_movie_list_filter_by_release_year(client, test_movie):
     assert all(movie["year"] == test_movie.year for movie in response_data["movies"])
 
 
+@pytest.mark.asyncio
+async def test_get_movie_list_filter_by_min_rating_imdb(client, test_movie):
+    """
+    Test filtering movie list by minimum IMDB rating.
+
+    Ensures that the endpoint returns a 200 status code and at least one movie
+    when filtering by the minimum IMDB rating of the test movie.
+    """
+    response = await client.get(f"/api/v1/cinema/movies?min_rating_imdb={test_movie.imdb}")
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert len(response_data["movies"]) > 0
+
+
