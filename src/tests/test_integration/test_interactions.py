@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy import select
 
-from models.movies import Movie, Certification, MovieComment
+from models.movies import Movie, Certification, MovieComment, MovieReaction, CommentReaction, ReactionTypeEnum
 
 
 @pytest.mark.asyncio
@@ -226,4 +226,40 @@ async def test_toggle_comment_reaction_unauthorized_user(client):
     response = await client.post("/api/v1/cinema/comments/999999/reactions", json=payload)
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_toggle_comment_reaction_with_existing_reaction(authorized_client, test_movie, db_session_commit):
+    """
+    Test toggling a comment reaction when the same reaction already exists.
+
+    Ensures that the endpoint returns a 200 status code and None
+    when the user toggles the same reaction type, effectively removing it.
+    """
+    client, user = authorized_client
+
+    comment = MovieComment(
+        user_id=user.id,
+        movie_id=test_movie.id,
+        text="Test comment for toggle reaction"
+    )
+    db_session_commit.add(comment)
+    await db_session_commit.flush()
+
+    existing_reaction = CommentReaction(
+        user_id=user.id,
+        comment_id=comment.id,
+        reaction_type=ReactionTypeEnum.LIKE
+    )
+    db_session_commit.add(existing_reaction)
+    await db_session_commit.commit()
+
+    payload = {"reaction_type": "like"}
+
+    response = await client.post(f"/api/v1/cinema/comments/{comment.id}/reactions", json=payload)
+    assert response.status_code == 200
+    assert response.json() is None
+
+    await db_session_commit.delete(comment)
+    await db_session_commit.commit()
 
