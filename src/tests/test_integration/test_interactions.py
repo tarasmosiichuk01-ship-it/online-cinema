@@ -194,3 +194,20 @@ async def test_get_movie_comments_success(authorized_client, test_movie, db_sess
     if comment:
         await db_session_commit.delete(comment)
         await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_toggle_comment_reaction_if_comment_not_found(authorized_client):
+    """
+    Test toggling a reaction on a non-existent comment.
+
+    Ensures that the endpoint returns a 404 status code and an appropriate
+    error message when the comment with the given ID does not exist.
+    """
+    client, user = authorized_client
+
+    payload = {"reaction_type": "like"}
+
+    response = await client.post("/api/v1/cinema/comments/999999/reactions", json=payload)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Comment with the given ID was not found."
