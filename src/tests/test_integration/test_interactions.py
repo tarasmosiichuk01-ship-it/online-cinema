@@ -115,3 +115,32 @@ async def test_create_movie_comments_when_parents_comment_belongs_to_another_mov
     await db_session_commit.delete(certification)
     await db_session_commit.commit()
 
+
+@pytest.mark.asyncio
+async def test_create_movie_comments_success(authorized_client, test_movie, db_session_commit):
+    """
+    Test successful comment creation for a movie.
+
+    Ensures that the endpoint returns a 201 status code and the correct
+    response data when an authorized user creates a comment for a movie.
+    """
+    client, user = authorized_client
+
+    payload = {"text": "Test comment success"}
+
+    response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/comments", json=payload)
+    assert response.status_code == 201
+
+    response_data = response.json()
+    comment_id = response_data["id"]
+    assert response_data["text"] == payload["text"]
+    assert "id" in response_data
+    assert response_data["user"] == user.email
+    assert response_data["replies"] == []
+
+    query = select(MovieComment).where(MovieComment.id == comment_id)
+    result = await db_session_commit.execute(query)
+    comment = result.scalars().first()
+    if comment:
+        await db_session_commit.delete(comment)
+        await db_session_commit.commit()
