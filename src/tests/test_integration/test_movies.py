@@ -602,3 +602,4 @@ async def test_delete_movie_success(moderator_client, db_session_commit):
 
     await db_session_commit.delete(certification)
     await db_session_commit.commit()
+    
