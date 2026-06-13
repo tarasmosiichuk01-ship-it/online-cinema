@@ -371,3 +371,24 @@ async def test_update_movie_if_not_movie(moderator_client):
     assert response.status_code == 404
     assert response.json()["detail"] == "Movie with the given ID was not found."
 
+
+@pytest.mark.asyncio
+async def test_update_movie_not_moderator(authorized_client, test_movie):
+    """
+    Test updating a movie by a user without moderator privileges.
+
+    Ensures that the endpoint returns a 403 status code and an appropriate
+    error message when a regular authorized user attempts to update a movie.
+    """
+    client, user = authorized_client
+
+    payload = {
+        "name": "New Movie Test",
+        "year": 2011,
+        "description": "Movie Test Test Movie",
+    }
+
+    response = await client.patch(f"/api/v1/cinema/movies/{test_movie.id}", json=payload)
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Access forbidden. Moderator or Admin role required."
