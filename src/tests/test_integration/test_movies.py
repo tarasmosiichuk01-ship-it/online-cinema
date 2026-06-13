@@ -3,8 +3,9 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 
-from models.movies import Movie
+from models.movies import Movie, Genre
 
 
 @pytest.mark.asyncio
@@ -203,3 +204,19 @@ async def test_get_movie_list_with_pagination_and_sorting(test_movie, client):
     assert "next_page" in response_data
     assert response_data["prev_page"] is None
     assert len(response_data["movies"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_get_movie_list_filter_by_release_year(client, test_movie):
+    """
+    Test filtering movie list by release year.
+
+    Ensures that the endpoint returns only movies matching the specified release year.
+    """
+    response = await client.get(f"/api/v1/cinema/movies?release_year={test_movie.year}")
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert all(movie["year"] == test_movie.year for movie in response_data["movies"])
+
+
