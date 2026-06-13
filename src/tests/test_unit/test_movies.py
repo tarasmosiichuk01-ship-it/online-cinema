@@ -28,3 +28,29 @@ async def test_get_movie_list_prev_page_not_none(client, test_movie):
     response_data = response.json()
     assert response_data["prev_page"] is not None
     assert "page=1" in response_data["prev_page"]
+
+
+@pytest.mark.asyncio
+async def test_get_movie_list_next_page_not_none(client, test_movie):
+    """
+    Test that next_page is not None when there is a next page.
+
+    Ensures that the pagination returns a valid next_page link
+    when the current page is less than total pages.
+    """
+    mock_count_result = MagicMock()
+    mock_count_result.scalar.return_value = 15
+
+    mock_movies_result = MagicMock()
+    mock_movies_result.scalars.return_value.all.return_value = [test_movie]
+
+    with patch(
+        "routes.cinema.movies.AsyncSession.execute",
+        side_effect=[mock_count_result, mock_movies_result]
+    ):
+        response = await client.get("/api/v1/cinema/movies?page=1&per_page=10")
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert response_data["next_page"] is not None
+    assert "page=2" in response_data["next_page"]
