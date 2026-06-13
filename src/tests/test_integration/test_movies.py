@@ -300,3 +300,17 @@ async def test_get_movie_list_success(test_movie, client):
     assert len(response_data["movies"]) > 0
     assert response_data["total_items"] > 0
     assert response_data["prev_page"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_movie_by_id_if_not_movie(client):
+    """
+    Test getting a movie by ID when the movie does not exist.
+
+    Ensures that the endpoint returns a 404 status code and an appropriate
+    error message when no movie with the given ID exists in the database.
+    """
+    response = await client.get("/api/v1/cinema/movies/99999999")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Movie with the given ID was not found."
+
