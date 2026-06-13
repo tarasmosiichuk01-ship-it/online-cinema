@@ -166,6 +166,10 @@ async def test_create_movie_success(test_movie, moderator_client, db_session_com
     assert created_movie is not None, "Movie was not created in the database."
     assert created_movie.name == payload["name"]
 
+    if created_movie:
+        await db_session_commit.delete(created_movie)
+        await db_session_commit.commit()
+
 
 @pytest.mark.asyncio
 async def test_get_movie_list_if_not_movies(client):
