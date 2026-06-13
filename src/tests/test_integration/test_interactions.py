@@ -311,3 +311,46 @@ async def test_toggle_comment_reaction_with_another_reaction(authorized_client, 
 
     await db_session_commit.delete(comment)
     await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_toggle_comment_reaction_success(authorized_client, test_movie, db_session_commit):
+    """
+    Test successful creation of a new comment reaction.
+
+    Ensures that the endpoint returns a 200 status code and the correct
+    reaction data when an authorized user adds a reaction to a comment
+    for the first time.
+    """
+    client, user = authorized_client
+
+    comment = MovieComment(
+        user_id=user.id,
+        movie_id=test_movie.id,
+        text="Test comment for toggle reaction"
+    )
+    db_session_commit.add(comment)
+    await db_session_commit.commit()
+    await db_session_commit.refresh(comment)
+
+    payload = {"reaction_type": "like"}
+
+    response = await client.post(f"/api/v1/cinema/comments/{comment.id}/reactions", json=payload)
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert response_data["reaction_type"] == "like"
+    assert response_data["comment_id"] == comment.id
+
+    query_reaction = select(CommentReaction).where(
+        CommentReaction.comment_id == comment.id,
+        CommentReaction.user_id == user.id
+    )
+    result_reaction = await db_session_commit.execute(query_reaction)
+    reaction = result_reaction.scalars().first()
+    if reaction:
+        await db_session_commit.delete(reaction)
+        await db_session_commit.flush()
+
+    await db_session_commit.delete(comment)
+    await db_session_commit.commit()
