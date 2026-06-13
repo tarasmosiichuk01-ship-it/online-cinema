@@ -145,8 +145,8 @@ async def get_movie_list(
     total_items = total_items_result.scalar() or 0
 
     total_pages = 1 if total_items == 0 else math.ceil(total_items / per_page)
-    prev_page = f"/movies/?page={page - 1}&per_page={per_page}" if page > 1 else None
-    next_page = f"/movies/?page={page + 1}&per_page={per_page}" if page < total_pages else None
+    prev_page = f"http://127.0.0.1:8000/api/v1/cinema/movies?page={page - 1}&per_page={per_page}" if page > 1 else None
+    next_page = f"http://127.0.0.1:8000/api/v1/cinema/movies?page={page + 1}&per_page={per_page}" if page < total_pages else None
 
     queryset = (
         base_query
