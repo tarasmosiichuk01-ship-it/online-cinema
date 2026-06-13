@@ -415,3 +415,27 @@ async def test_update_movie_integrity_error(moderator_client, test_movie):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid input data."
+
+
+@pytest.mark.asyncio
+async def test_update_movie_success(moderator_client, test_movie):
+    """
+    Test successful movie update by a moderator.
+
+    Ensures that the endpoint returns a 200 status code and the updated
+    movie data in the response.
+    """
+    payload = {
+        "name": "New Movie Test",
+        "year": 2011,
+        "description": "Movie Test Test Movie",
+    }
+
+    response = await moderator_client.patch(f"/api/v1/cinema/movies/{test_movie.id}", json=payload)
+
+    assert response.status_code == 200
+    response_data = response.json()
+
+    assert response_data["name"] == payload["name"]
+    assert response_data["year"] == payload["year"]
+    assert response_data["description"] == payload["description"]
