@@ -459,6 +459,22 @@ async def test_delete_movie_if_not_movie(moderator_client):
 
 
 @pytest.mark.asyncio
+async def test_delete_movie_not_moderator(authorized_client, test_movie):
+    """
+    Test deleting a movie by a user without moderator privileges.
+
+    Ensures that the endpoint returns a 403 status code and an appropriate
+    error message when a regular authorized user attempts to delete a movie.
+    """
+    client, user = authorized_client
+
+    response = await client.delete(f"/api/v1/cinema/movies/{test_movie.id}")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Access forbidden. Moderator or Admin role required."
+
+
+@pytest.mark.asyncio
 async def test_delete_movie_if_movie_in_cart(moderator_client, test_movie, db_session_commit, seed_user_groups):
     """
     Test deleting a movie that is currently in a user's shopping cart.
