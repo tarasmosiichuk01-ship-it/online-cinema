@@ -339,7 +339,7 @@ async def test_get_movie_by_id_if_movie_not_available(client, test_movie, db_ses
 
 
 @pytest.mark.asyncio
-async def test_get_movie_by_success(client, test_movie):
+async def test_get_movie_by_id_success(client, test_movie):
     """
     Test successful retrieval of a movie by ID.
 
@@ -602,4 +602,3 @@ async def test_delete_movie_success(moderator_client, db_session_commit):
 
     await db_session_commit.delete(certification)
     await db_session_commit.commit()
-    
