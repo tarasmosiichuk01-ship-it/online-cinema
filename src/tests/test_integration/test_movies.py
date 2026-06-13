@@ -392,3 +392,26 @@ async def test_update_movie_not_moderator(authorized_client, test_movie):
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Access forbidden. Moderator or Admin role required."
+
+
+@pytest.mark.asyncio
+async def test_update_movie_integrity_error(moderator_client, test_movie):
+    """
+    Test updating a movie when a database integrity error occurs.
+
+    Ensures that the endpoint returns a 400 status code and an appropriate
+    error message when an IntegrityError is raised during the commit operation.
+    """
+    payload = {
+        "name": "New Movie Test",
+        "year": 2011,
+        "description": "Movie Test Test Movie",
+    }
+
+    simulated_error = IntegrityError(statement="INSERT INTO movies ...", params={}, orig=Exception())
+
+    with patch("routes.cinema.movies.AsyncSession.commit", side_effect=simulated_error):
+        response = await moderator_client.patch(f"/api/v1/cinema/movies/{test_movie.id}", json=payload)
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid input data."
