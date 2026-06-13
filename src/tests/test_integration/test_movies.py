@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from models.accounts import UserGroup, UserGroupEnum, User
-from models.movies import Movie, Genre
+from models.movies import Movie, Genre, Certification
 from models.orders import Order, OrderStatusEnum, OrderItem
 from models.shopping_carts import Cart, CartItem
 
@@ -559,4 +559,46 @@ async def test_delete_movie_if_movie_is_purchased(moderator_client, test_movie, 
     await db_session_commit.delete(order_item)
     await db_session_commit.delete(order)
     await db_session_commit.delete(user)
+    await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_delete_movie_success(moderator_client, db_session_commit):
+    """
+    Test successful movie deletion by a moderator.
+
+    Ensures that the endpoint returns a 200 status code and a success message
+    when a valid movie ID is provided and the movie is not in any cart or order.
+    """
+    certification = Certification(name="PG-delete-test")
+    db_session_commit.add(certification)
+    await db_session_commit.flush()
+
+    movie = Movie(
+        name="Movie To Delete",
+        year=2020,
+        time=90,
+        imdb=6.0,
+        votes=500,
+        description="This movie will be deleted.",
+        price=4.99,
+        certification_id=certification.id,
+    )
+    db_session_commit.add(movie)
+    await db_session_commit.commit()
+    await db_session_commit.refresh(movie)
+
+    movie_id = movie.id
+
+    response = await moderator_client.delete(f"/api/v1/cinema/movies/{movie_id}")
+
+    assert response.status_code == 200
+    assert response.json()["detail"] == "Movie deleted successfully."
+
+    query = select(Movie).where(Movie.id == movie_id)
+    result = await db_session_commit.execute(query)
+    deleted_movie = result.scalars().first()
+    assert deleted_movie is None, "Movie should be deleted from the database."
+
+    await db_session_commit.delete(certification)
     await db_session_commit.commit()
