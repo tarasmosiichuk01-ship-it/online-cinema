@@ -3,6 +3,7 @@ from sqlalchemy import select
 
 from models.accounts import User, UserGroup, UserGroupEnum
 from models.movies import Movie
+from models.orders import Order, OrderStatusEnum, OrderItem
 from models.shopping_carts import Cart, CartItem
 
 
@@ -147,3 +148,75 @@ async def test_create_add_to_cart_and_try_delete_movie(
     await db_session_commit.commit()
 
 
+@pytest.mark.asyncio
+async def test_create_buy_and_try_delete_movie(moderator_client, db_session_commit, seed_user_groups):
+    """
+    Test that a movie cannot be deleted after it has been purchased.
+
+    Ensures that the endpoint returns a 400 status code and an appropriate
+    error message when attempting to delete a movie that has already been
+    purchased by at least one user.
+    """
+    create_payload = {
+        "name": "Bought Movie",
+        "year": 2015,
+        "time": 162,
+        "imdb": 7.9,
+        "votes": 198,
+        "description": "Bought Movie description",
+        "price": 5.83,
+        "certification": "PG-91",
+        "genres": [],
+        "stars": [],
+        "directors": [],
+    }
+
+    create_response = await moderator_client.post("/api/v1/cinema/movies", json=create_payload)
+    create_response_data = create_response.json()
+    assert create_response.status_code == 201
+    movie_id = create_response_data["id"]
+
+    query_user = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
+    result_user = await db_session_commit.execute(query_user)
+    user_group = result_user.scalars().first()
+
+    user = User.create(
+        email="testuser1234@example.com",
+        raw_password="Test1234!",
+        group_id=user_group.id
+    )
+    user.is_active = True
+    db_session_commit.add(user)
+    await db_session_commit.flush()
+
+    order = Order(
+        user_id=user.id,
+        status=OrderStatusEnum.PAID,
+        total_amount=create_payload["price"],
+    )
+    db_session_commit.add(order)
+    await db_session_commit.flush()
+
+    order_item = OrderItem(
+        order_id=order.id,
+        movie_id=movie_id,
+        price_at_order=create_payload["price"],
+    )
+    db_session_commit.add(order_item)
+    await db_session_commit.commit()
+
+    delete_response = await moderator_client.delete(f"/api/v1/cinema/movies/{movie_id}")
+    assert delete_response.status_code == 400
+    assert delete_response.json()["detail"] == (
+        "This movie cannot be deleted because it has already been purchased by at least one user."
+    )
+
+    await db_session_commit.delete(order_item)
+    await db_session_commit.delete(order)
+    await db_session_commit.delete(user)
+    query_movie = select(Movie).where(Movie.id == movie_id)
+    result_movie = await db_session_commit.execute(query_movie)
+    movie = result_movie.scalars().first()
+    if movie:
+        await db_session_commit.delete(movie)
+    await db_session_commit.commit()
