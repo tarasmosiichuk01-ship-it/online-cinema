@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 from sqlalchemy import select
@@ -314,3 +314,22 @@ async def test_get_movie_by_id_if_not_movie(client):
     assert response.status_code == 404
     assert response.json()["detail"] == "Movie with the given ID was not found."
 
+
+@pytest.mark.asyncio
+async def test_get_movie_by_id_if_movie_not_available(client, test_movie, db_session_commit):
+    """
+    Test getting a movie by ID when the movie is not available.
+
+    Ensures that the endpoint returns a 404 status code and an appropriate
+    error message when the movie exists but is marked as unavailable.
+    """
+    test_movie.is_available = False
+    await db_session_commit.commit()
+
+    response = await client.get(f"/api/v1/cinema/movies/{test_movie.id}")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Movie with the given ID was not found."
+
+    test_movie.is_available = True
+    await db_session_commit.commit()
