@@ -143,7 +143,7 @@ class MovieListItemSchema(BaseModel):
     uuid: UUID
     name: str
     year: int
-    meta_score: float
+    meta_score: Optional[float] = None
     description: str
 
     model_config = ConfigDict(from_attributes=True)
