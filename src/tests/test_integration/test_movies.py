@@ -278,3 +278,25 @@ async def test_get_movie_list_filter_by_genre(client, test_movie, db_session_com
     movie.genres.remove(genre)
     await db_session_commit.delete(genre)
     await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_get_movie_list_success(test_movie, client):
+    """
+    Test successful retrieval of movie list.
+
+    Ensures that the endpoint returns a 200 status code and correct
+    response structure with all required pagination fields.
+    """
+    response = await client.get("/api/v1/cinema/movies")
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert "movies" in response_data
+    assert "total_items" in response_data
+    assert "total_pages" in response_data
+    assert "prev_page" in response_data
+    assert "next_page" in response_data
+    assert len(response_data["movies"]) > 0
+    assert response_data["total_items"] > 0
+    assert response_data["prev_page"] is None
