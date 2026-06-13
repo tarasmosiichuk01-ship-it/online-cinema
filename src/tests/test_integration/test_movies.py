@@ -184,3 +184,22 @@ async def test_get_movie_list_if_not_movies(client):
     assert response.json()["detail"] == "No movies found."
 
 
+@pytest.mark.asyncio
+async def test_get_movie_list_with_pagination_and_sorting(test_movie, client):
+    """
+    Test getting movie list with pagination and sorting parameters.
+
+    Ensures that the endpoint returns a 200 status code and correct
+    pagination fields when valid pagination and sorting parameters are provided.
+    """
+    response = await client.get("/api/v1/cinema/movies?page=1&per_page=10&sort_by=id&order=desc")
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert "movies" in response_data
+    assert "total_items" in response_data
+    assert "total_pages" in response_data
+    assert "prev_page" in response_data
+    assert "next_page" in response_data
+    assert response_data["prev_page"] is None
+    assert len(response_data["movies"]) > 0
