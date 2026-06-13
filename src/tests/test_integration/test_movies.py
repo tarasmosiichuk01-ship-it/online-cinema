@@ -251,3 +251,30 @@ async def test_get_movie_list_filter_by_search(client, test_movie):
     assert any(movie["name"] == test_movie.name for movie in response_data["movies"])
 
 
+@pytest.mark.asyncio
+async def test_get_movie_list_filter_by_genre(client, test_movie, db_session_commit):
+    """
+    Test filtering movie list by genre.
+
+    Ensures that the endpoint returns only movies belonging to the specified genre.
+    """
+    genre = Genre(name="Test Genre")
+    db_session_commit.add(genre)
+    await db_session_commit.flush()
+
+    query = select(Movie).options(selectinload(Movie.genres)).where(Movie.id == test_movie.id)
+    result = await db_session_commit.execute(query)
+    movie = result.scalars().first()
+
+    movie.genres.append(genre)
+    await db_session_commit.commit()
+
+    response = await client.get("/api/v1/cinema/movies?genre=Test Genre")
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert len(response_data["movies"]) > 0
+
+    movie.genres.remove(genre)
+    await db_session_commit.delete(genre)
+    await db_session_commit.commit()
