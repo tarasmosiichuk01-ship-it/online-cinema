@@ -290,10 +290,15 @@ async def delete_movie(
         )
 
     query_purchased = (
-        select(exists())
-        .where(OrderItem.movie_id == movie_id)
-        .join(Order)
-        .where(Order.status == OrderStatusEnum.PAID)
+        select(
+            exists(
+                select(OrderItem.id)
+                .select_from(OrderItem)
+                .join(Order, Order.id == OrderItem.order_id)
+                .where(OrderItem.movie_id == movie_id)
+                .where(Order.status == OrderStatusEnum.PAID)
+            )
+        )
     )
     result_purchased = await db.execute(query_purchased)
     has_been_purchased = result_purchased.scalar()
