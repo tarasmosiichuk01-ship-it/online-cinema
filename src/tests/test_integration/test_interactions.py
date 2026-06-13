@@ -211,3 +211,19 @@ async def test_toggle_comment_reaction_if_comment_not_found(authorized_client):
     response = await client.post("/api/v1/cinema/comments/999999/reactions", json=payload)
     assert response.status_code == 404
     assert response.json()["detail"] == "Comment with the given ID was not found."
+
+
+@pytest.mark.asyncio
+async def test_toggle_comment_reaction_unauthorized_user(client):
+    """
+    Test toggling a comment reaction by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to toggle a reaction.
+    """
+    payload = {"reaction_type": "like"}
+
+    response = await client.post("/api/v1/cinema/comments/999999/reactions", json=payload)
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
+
