@@ -193,7 +193,7 @@ async def toggle_comment_reaction(
         await db.commit()
         await db.refresh(new_reaction)
 
-        comments_link = f"http://127.0.0.1/movies/{comment.movie.id}/comments"
+        comments_link = f"http://127.0.0.1:8000/movies/{comment.movie.id}/comments"
 
         await email_sender.send_reaction_comment_email(
             email=comment.user.email,
