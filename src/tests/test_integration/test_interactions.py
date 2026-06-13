@@ -156,6 +156,41 @@ async def test_get_movie_comments_if_movie_not_found(authorized_client):
     """
     client, user = authorized_client
 
-    response = await client.get(f"/api/v1/cinema/movies/99999/comments")
+    response = await client.get("/api/v1/cinema/movies/99999/comments")
     assert response.status_code == 404
     assert response.json()["detail"] == "Movie not found."
+
+
+@pytest.mark.asyncio
+async def test_get_movie_comments_success(authorized_client, test_movie, db_session_commit):
+    """
+    Test successful retrieval of comments for a movie.
+
+    Ensures that the endpoint returns a 200 status code and a list
+    of comments when a valid movie ID is provided.
+    """
+    client, user = authorized_client
+
+    payload = {"text": "Test comment for get"}
+    create_response = await client.post(
+        f"/api/v1/cinema/movies/{test_movie.id}/comments",
+        json=payload
+    )
+    assert create_response.status_code == 201
+    comment_id = create_response.json()["id"]
+
+    response = await client.get(f"/api/v1/cinema/movies/{test_movie.id}/comments")
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert isinstance(response_data, list)
+    assert len(response_data) > 0
+    assert response_data[0]["text"] == payload["text"]
+    assert response_data[0]["replies"] == []
+
+    query = select(MovieComment).where(MovieComment.id == comment_id)
+    result = await db_session_commit.execute(query)
+    comment = result.scalars().first()
+    if comment:
+        await db_session_commit.delete(comment)
+        await db_session_commit.commit()
