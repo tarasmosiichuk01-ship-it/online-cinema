@@ -229,7 +229,7 @@ async def test_toggle_comment_reaction_unauthorized_user(client):
 
 
 @pytest.mark.asyncio
-async def test_toggle_comment_reaction_with_existing_reaction(authorized_client, test_movie, db_session_commit):
+async def test_toggle_comment_reaction_with_repeated_reaction(authorized_client, test_movie, db_session_commit):
     """
     Test toggling a comment reaction when the same reaction already exists.
 
@@ -263,3 +263,51 @@ async def test_toggle_comment_reaction_with_existing_reaction(authorized_client,
     await db_session_commit.delete(comment)
     await db_session_commit.commit()
 
+
+@pytest.mark.asyncio
+async def test_toggle_comment_reaction_with_another_reaction(authorized_client, test_movie, db_session_commit):
+    """
+    Test toggling a comment reaction when a different reaction already exists.
+
+    Ensures that the endpoint returns a 200 status code and updates
+    the reaction type when the user toggles a different reaction.
+    """
+    client, user = authorized_client
+
+    comment = MovieComment(
+        user_id=user.id,
+        movie_id=test_movie.id,
+        text="Test comment for toggle reaction"
+    )
+    db_session_commit.add(comment)
+    await db_session_commit.flush()
+
+    existing_reaction = CommentReaction(
+        user_id=user.id,
+        comment_id=comment.id,
+        reaction_type=ReactionTypeEnum.DISLIKE
+    )
+    db_session_commit.add(existing_reaction)
+    await db_session_commit.commit()
+
+    payload = {"reaction_type": "like"}
+
+    response = await client.post(f"/api/v1/cinema/comments/{comment.id}/reactions", json=payload)
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert response_data["reaction_type"] == "like"
+    assert response_data["comment_id"] == comment.id
+
+    query_reaction = select(CommentReaction).where(
+        CommentReaction.comment_id == comment.id,
+        CommentReaction.user_id == user.id
+    )
+    result_reaction = await db_session_commit.execute(query_reaction)
+    reaction = result_reaction.scalars().first()
+    if reaction:
+        await db_session_commit.delete(reaction)
+        await db_session_commit.flush()
+
+    await db_session_commit.delete(comment)
+    await db_session_commit.commit()
