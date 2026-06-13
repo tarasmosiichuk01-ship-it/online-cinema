@@ -5,7 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
+from models.accounts import UserGroup, UserGroupEnum, User
 from models.movies import Movie, Genre
+from models.shopping_carts import Cart, CartItem
 
 
 @pytest.mark.asyncio
@@ -454,3 +456,42 @@ async def test_delete_movie_if_not_movie(moderator_client):
     assert response.status_code == 404
     assert response.json()["detail"] == "Movie with the given ID was not found."
 
+
+@pytest.mark.asyncio
+async def test_delete_movie_if_movie_in_cart(moderator_client, test_movie, db_session_commit, seed_user_groups):
+    """
+    Test deleting a movie that is currently in a user's shopping cart.
+
+    Ensures that the endpoint returns a 400 status code and an appropriate
+    error message when the movie cannot be deleted because it exists in
+    at least one user's cart.
+    """
+    query = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
+    result = await db_session_commit.execute(query)
+    user_group = result.scalars().first()
+
+    user = User.create(
+        email="cart_user@example.com",
+        raw_password="Test1234!",
+        group_id=user_group.id
+    )
+    user.is_active = True
+    db_session_commit.add(user)
+    await db_session_commit.flush()
+
+    cart = Cart(user_id=user.id)
+    db_session_commit.add(cart)
+    await db_session_commit.flush()
+
+    cart_item = CartItem(cart_id=cart.id, movie_id=test_movie.id)
+    db_session_commit.add(cart_item)
+    await db_session_commit.commit()
+
+    response = await moderator_client.delete(f"/api/v1/cinema/movies/{test_movie.id}")
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Warning to Moderator: This movie cannot be deleted because it is currently in users' shopping carts."
+
+    await db_session_commit.delete(cart_item)
+    await db_session_commit.delete(cart)
+    await db_session_commit.delete(user)
+    await db_session_commit.commit()
