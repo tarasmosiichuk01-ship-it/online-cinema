@@ -1,4 +1,7 @@
 import pytest
+from sqlalchemy import select
+
+from models.movies import Movie, Certification, MovieComment
 
 
 @pytest.mark.asyncio
@@ -48,4 +51,67 @@ async def test_create_movie_comments_if_parent_comment_not_found(authorized_clie
     response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/comments", json=payload)
     assert response.status_code == 404
     assert response.json()["detail"] == "Parent comment not found."
+
+
+@pytest.mark.asyncio
+async def test_create_movie_comments_when_parents_comment_belongs_to_another_movie(
+    authorized_client,
+    test_movie,
+    db_session_commit
+):
+    """
+    Test creating a comment with a parent comment that belongs to another movie.
+
+    Ensures that the endpoint returns a 400 status code and an appropriate
+    error message when the parent comment belongs to a different movie.
+    """
+    client, user = authorized_client
+
+    certification = Certification(name="PG-comment-test")
+    db_session_commit.add(certification)
+    await db_session_commit.flush()
+
+    movie = Movie(
+        name="Movie To Comment",
+        year=2021,
+        time=60,
+        imdb=6.9,
+        votes=587,
+        description="This movie for comments.",
+        price=4.36,
+        certification_id=certification.id
+    )
+    db_session_commit.add(movie)
+    await db_session_commit.commit()
+    await db_session_commit.refresh(movie)
+
+    test_movie_payload = {"text": "Test comment"}
+
+    test_movie_response = await client.post(
+        f"/api/v1/cinema/movies/{test_movie.id}/comments",
+        json=test_movie_payload
+    )
+    assert test_movie_response.status_code == 201
+    test_movie_comment_id = test_movie_response.json()["id"]
+
+    movie_payload = {"text": "Test comment fo test movie", "parent_id": test_movie_comment_id}
+
+    movie_response = await client.post(
+        f"/api/v1/cinema/movies/{movie.id}/comments",
+        json=movie_payload
+    )
+
+    assert movie_response.status_code == 400
+    assert movie_response.json()["detail"] == "Parent comment does not belong to this movie."
+
+    query_comment = select(MovieComment).where(MovieComment.movie_id == test_movie.id)
+    result_comment = await db_session_commit.execute(query_comment)
+    comment = result_comment.scalars().first()
+    if comment:
+        await db_session_commit.delete(comment)
+        await db_session_commit.flush()
+
+    await db_session_commit.delete(movie)
+    await db_session_commit.delete(certification)
+    await db_session_commit.commit()
 
