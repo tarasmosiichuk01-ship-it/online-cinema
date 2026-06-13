@@ -235,3 +235,19 @@ async def test_get_movie_list_filter_by_min_rating_imdb(client, test_movie):
     assert len(response_data["movies"]) > 0
 
 
+@pytest.mark.asyncio
+async def test_get_movie_list_filter_by_search(client, test_movie):
+    """
+    Test filtering movie list by search term.
+
+    Ensures that the endpoint returns only movies matching the search term
+    in name, description, stars, or directors.
+    """
+    response = await client.get(f"/api/v1/cinema/movies?search={test_movie.name}")
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert len(response_data["movies"]) > 0
+    assert any(movie["name"] == test_movie.name for movie in response_data["movies"])
+
+
