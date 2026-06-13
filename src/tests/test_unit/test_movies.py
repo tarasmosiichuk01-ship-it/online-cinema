@@ -84,3 +84,30 @@ async def test_get_movie_list_next_page_and_prev_page_not_none(client, test_movi
     assert "page=3" in response_data["next_page"]
 
 
+@pytest.mark.asyncio
+async def test_get_movie_list_total_pages_is_right(client, test_movie):
+    """
+    Test that total_pages is calculated correctly.
+
+    Ensures that total_pages equals 2 when total_items=11 and per_page=10,
+    verifying that math.ceil is applied correctly.
+    """
+    mock_count_result = MagicMock()
+    mock_count_result.scalar.return_value = 11
+
+    mock_movies_result = MagicMock()
+    mock_movies_result.scalars.return_value.all.return_value = [test_movie]
+
+    with patch(
+        "routes.cinema.movies.AsyncSession.execute",
+        side_effect=[mock_count_result, mock_movies_result]
+    ):
+        response = await client.get("/api/v1/cinema/movies?page=1&per_page=10")
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert response_data["total_pages"] is not None
+    assert response_data["total_pages"] == 2
+
+
+
