@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from models.accounts import UserGroup, UserGroupEnum, User
 from models.movies import Movie, Genre
+from models.orders import Order, OrderStatusEnum, OrderItem
 from models.shopping_carts import Cart, CartItem
 
 
@@ -493,5 +494,53 @@ async def test_delete_movie_if_movie_in_cart(moderator_client, test_movie, db_se
 
     await db_session_commit.delete(cart_item)
     await db_session_commit.delete(cart)
+    await db_session_commit.delete(user)
+    await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_delete_movie_if_movie_is_purchased(moderator_client, test_movie, db_session_commit, seed_user_groups):
+    """
+    Test deleting a movie that has already been purchased by a user.
+
+    Ensures that the endpoint returns a 400 status code and an appropriate
+    error message when the movie cannot be deleted because it has already
+    been purchased by at least one user.
+    """
+    query = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
+    result = await db_session_commit.execute(query)
+    user_group = result.scalars().first()
+
+    user = User.create(
+        email="purchased_user@example.com",
+        raw_password="Test1234!",
+        group_id=user_group.id
+    )
+    user.is_active = True
+    db_session_commit.add(user)
+    await db_session_commit.flush()
+
+    order = Order(
+        user_id=user.id,
+        status=OrderStatusEnum.PAID,
+        total_amount=test_movie.price
+    )
+    db_session_commit.add(order)
+    await db_session_commit.flush()
+
+    order_item = OrderItem(
+        order_id=order.id,
+        movie_id=test_movie.id,
+        price_at_order=test_movie.price
+    )
+    db_session_commit.add(order_item)
+    await db_session_commit.commit()
+
+    response = await moderator_client.delete(f"/api/v1/cinema/movies/{test_movie.id}")
+    assert response.status_code == 400
+    assert response.json()["detail"] == "This movie cannot be deleted because it has already been purchased by at least one user."
+
+    await db_session_commit.delete(order_item)
+    await db_session_commit.delete(order)
     await db_session_commit.delete(user)
     await db_session_commit.commit()
