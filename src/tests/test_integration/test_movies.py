@@ -351,3 +351,23 @@ async def test_get_movie_by_success(client, test_movie):
     assert response_data["year"] == test_movie.year
     assert response_data["description"] == test_movie.description
     assert response_data["price"] == str(test_movie.price)
+
+
+@pytest.mark.asyncio
+async def test_update_movie_if_not_movie(moderator_client):
+    """
+    Test updating a movie that does not exist.
+
+    Ensures that the endpoint returns a 404 status code and an appropriate
+    error message when no movie with the given ID exists in the database.
+    """
+    payload = {
+        "name": "New Movie Test",
+        "year": 2011,
+        "description": "Movie Test Test Movie",
+    }
+
+    response = await moderator_client.patch(f"/api/v1/cinema/movies/9999999", json=payload)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Movie with the given ID was not found."
+
