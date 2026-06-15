@@ -804,3 +804,19 @@ async def test_delete_movie_favorites_unauthorized_user(client, test_movie):
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
 
+
+@pytest.mark.asyncio
+async def test_delete_movie_favorites_if_not_movie_favorite(authorized_client):
+    """
+    Test deleting a movie from favorites when it is not in favorites.
+
+    Ensures that the endpoint returns a 404 status code and an appropriate
+    error message when the movie does not exist in the user's favorites.
+    """
+    client, user = authorized_client
+
+    response = await client.delete(f"/api/v1/cinema/movies/my/favorites/99999999")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Movie is not found in your favorites."
+
