@@ -1,7 +1,8 @@
 import pytest
 from sqlalchemy import select
 
-from models.movies import Movie, Certification, MovieComment, MovieReaction, CommentReaction, ReactionTypeEnum
+from models.movies import Movie, Certification, MovieComment, MovieReaction, CommentReaction, ReactionTypeEnum, \
+    MovieRating
 
 
 @pytest.mark.asyncio
@@ -516,7 +517,43 @@ async def test_rate_movie_if_movie_not_found(authorized_client):
 
     payload = {"rating": 10}
 
-    response = await client.post(f"/api/v1/cinema/movies/999999999/rate", json=payload)
+    response = await client.post("/api/v1/cinema/movies/999999999/rate", json=payload)
     assert response.status_code == 404
     assert response.json()["detail"] == "Movie with the given ID was not found."
 
+
+@pytest.mark.asyncio
+async def test_rate_movie_with_existing_rating(authorized_client, test_movie, db_session_commit):
+    """
+    Test rating a movie when a rating already exists.
+
+    Ensures that the endpoint returns a 200 status code and updates
+    the existing rating when the user rates the same movie again.
+    """
+    client, user = authorized_client
+
+    existing_rating = MovieRating(
+        user_id=user.id,
+        movie_id=test_movie.id,
+        rating=5
+    )
+    db_session_commit.add(existing_rating)
+    await db_session_commit.commit()
+
+    payload = {"rating": 10}
+
+    response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/rate", json=payload)
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert response_data["rating"] == 10
+
+    query = select(MovieRating).where(
+        MovieRating.movie_id == test_movie.id,
+        MovieRating.user_id == user.id
+    )
+    result = await db_session_commit.execute(query)
+    rating = result.scalars().first()
+    if rating:
+        await db_session_commit.delete(rating)
+        await db_session_commit.commit()
