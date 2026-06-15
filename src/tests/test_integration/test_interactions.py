@@ -713,3 +713,40 @@ async def test_get_movie_favorites_if_movies_not_found(authorized_client):
     assert response.json()["detail"] == "No movies found."
 
 
+@pytest.mark.asyncio
+async def test_get_movie_favorites_with_filtration_sorting_pagination(authorized_client, test_movie, db_session_commit):
+
+    client, user = authorized_client
+
+    favourite = MovieFavourite(
+        user_id=user.id,
+        movie_id=test_movie.id,
+    )
+    db_session_commit.add(favourite)
+    await db_session_commit.commit()
+
+    response = await client.get(
+        f"/api/v1/cinema/movies/my/favorites?page=1&per_page=10&search={test_movie.name}&release_year={test_movie.year}&sort_by=id&order=desc"
+    )
+
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert "movies_favourite" in response_data
+    assert "total_items" in response_data
+    assert "total_pages" in response_data
+    assert len(response_data["movies_favourite"]) > 0
+
+    query = select(MovieFavourite).where(
+        MovieFavourite.movie_id == test_movie.id,
+        MovieFavourite.user_id == user.id
+    )
+    result = await db_session_commit.execute(query)
+    fav = result.scalars().first()
+    if fav:
+        await db_session_commit.delete(fav)
+        await db_session_commit.commit()
+
+
+
+
