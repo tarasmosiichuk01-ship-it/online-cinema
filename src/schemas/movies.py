@@ -212,6 +212,7 @@ class MovieCommentResponseSchema(BaseModel):
     text: str
     created_at: datetime
     replies: List["MovieCommentResponseSchema"] = []
+    parent_id: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 
