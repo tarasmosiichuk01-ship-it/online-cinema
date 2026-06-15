@@ -172,3 +172,62 @@ async def test_create_movie_toggle_movie_reaction_and_toggle_to_opposite_reactio
     await db_session_commit.delete(certification)
     await db_session_commit.commit()
 
+
+@pytest.mark.asyncio
+async def test_create_movie_add_to_favorite_get_and_delete_favorite(authorized_client, db_session_commit):
+    """
+    Test full favorites lifecycle: add movie to favorites, get favorites list, delete from favorites.
+
+    Ensures that a user can add a movie to favorites, retrieve the favorites list
+    with correct pagination fields, and successfully delete the movie from favorites.
+    """
+    certification = Certification(name="AA-reaction-same-test")
+    db_session_commit.add(certification)
+    await db_session_commit.flush()
+
+    movie = Movie(
+        name="New Test Movie1234",
+        year=2009,
+        time=122,
+        imdb=9.1,
+        votes=210,
+        description="DescriptionTest123",
+        price=22.70,
+        certification_id=certification.id,
+    )
+    db_session_commit.add(movie)
+    await db_session_commit.commit()
+    await db_session_commit.refresh(movie)
+    movie_id = movie.id
+
+    client, user = authorized_client
+
+    add_to_favorite_payload = {"movie_id": movie_id}
+
+    add_to_favorite_response = await client.post("/api/v1/cinema/movies/my/favorites", json=add_to_favorite_payload)
+    assert add_to_favorite_response.status_code == 200
+    assert add_to_favorite_response.json()["movie"]["id"] == movie_id
+
+    get_favorites_response = await client.get("/api/v1/cinema/movies/my/favorites")
+
+    assert get_favorites_response.status_code == 200
+
+    get_response_data = get_favorites_response.json()
+    assert "movies_favourite" in get_response_data
+    assert "total_items" in get_response_data
+    assert "total_pages" in get_response_data
+    assert "prev_page" in get_response_data
+    assert "next_page" in get_response_data
+    assert len(get_response_data["movies_favourite"]) > 0
+    assert get_response_data["total_items"] > 0
+    assert get_response_data["prev_page"] is None
+
+    deleted_response = await client.delete(f"/api/v1/cinema/movies/my/favorites/{movie_id}")
+
+    assert deleted_response.status_code == 200
+    assert deleted_response.json()["detail"] == "Favourite Movie deleted successfully."
+
+
+    await db_session_commit.delete(movie)
+    await db_session_commit.delete(certification)
+    await db_session_commit.commit()
