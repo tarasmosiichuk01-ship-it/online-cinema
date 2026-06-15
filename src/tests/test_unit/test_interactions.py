@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from models.movies import MovieComment, MovieReaction, MovieRating
+from models.movies import MovieComment, MovieReaction, MovieRating, MovieFavourite
 
 
 @pytest.mark.asyncio
@@ -122,3 +122,33 @@ async def test_rate_movie_integrity_error(authorized_client, test_movie, db_sess
         await db_session_commit.delete(rating)
         await db_session_commit.commit()
 
+
+@pytest.mark.asyncio
+async def test_add_movie_favorites_integrity_error(authorized_client, test_movie, db_session_commit):
+    """
+    Test adding a movie to favorites when a database integrity error occurs.
+
+    Ensures that the endpoint returns a 400 status code and an appropriate
+    error message when an IntegrityError is raised during the commit operation.
+    """
+    client, user = authorized_client
+
+    payload = {"movie_id": test_movie.id}
+
+    simulated_error = IntegrityError(statement="INSERT INTO movies ...", params={}, orig=Exception())
+
+    with patch("routes.cinema.interactions.AsyncSession.commit", side_effect=simulated_error):
+        response = await client.post("/api/v1/cinema/movies/my/favorites", json=payload)
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid input data."
+
+    query = select(MovieFavourite).where(
+        MovieFavourite.movie_id == test_movie.id,
+        MovieFavourite.user_id == user.id
+    )
+    result = await db_session_commit.execute(query)
+    favorite = result.scalars().first()
+    if favorite:
+        await db_session_commit.delete(favorite)
+        await db_session_commit.commit()
