@@ -201,3 +201,20 @@ async def test_delete_cart_item_unauthorized_user(client, test_movie):
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
 
+
+@pytest.mark.asyncio
+async def test_delete_cart_item_if_movie_not_in_cart(authorized_client):
+    """
+    Test deleting a cart item when the movie is not in the cart.
+
+    Ensures that the endpoint returns a 404 status code and an appropriate
+    error message when the movie does not exist in the user's cart.
+    """
+    client, user = authorized_client
+
+    response = await client.delete(f"/api/v1/shopping_carts/carts/items/99999999")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "This movie is not in your cart."
+
+
