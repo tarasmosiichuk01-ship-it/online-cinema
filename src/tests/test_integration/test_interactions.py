@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import select
 
 from models.movies import Movie, Certification, MovieComment, MovieReaction, CommentReaction, ReactionTypeEnum, \
-    MovieRating
+    MovieRating, MovieFavourite
 
 
 @pytest.mark.asyncio
@@ -602,4 +602,22 @@ async def test_add_movie_favorites_unauthorized_user(client, test_movie):
     response = await client.post("/api/v1/cinema/movies/my/favorites", json=payload)
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_add_movie_favorites_if_movie_not_found(authorized_client):
+    """
+    Test adding a non-existent movie to favorites.
+
+    Ensures that the endpoint returns a 404 status code and an appropriate
+    error message when the movie with the given ID does not exist.
+    """
+    client, user = authorized_client
+
+    payload = {"movie_id": 999999}
+
+    response = await client.post("/api/v1/cinema/movies/my/favorites", json=payload)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Movie with the given name was not found."
+
 
