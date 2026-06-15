@@ -1,9 +1,10 @@
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from models.movies import MovieComment
+from models.movies import MovieComment, MovieReaction
 
 
 @pytest.mark.asyncio
@@ -58,3 +59,35 @@ async def test_toggle_comment_reaction_integrity_error(authorized_client, test_m
 
     await db_session_commit.delete(comment)
     await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_toggle_movie_reaction_integrity_error(authorized_client, test_movie, db_session_commit):
+    """
+    Test toggling a movie reaction when a database integrity error occurs.
+
+    Ensures that the endpoint returns a 400 status code and an appropriate
+    error message when an IntegrityError is raised during the commit operation.
+    """
+    client, user = authorized_client
+
+    payload = {"reaction_type": "like"}
+
+    simulated_error = IntegrityError(statement="INSERT INTO movies ...", params={}, orig=Exception())
+
+    with patch("routes.cinema.interactions.AsyncSession.commit", side_effect=simulated_error):
+        response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/reactions", json=payload)
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid input data or race condition."
+
+    query = select(MovieReaction).where(
+        MovieReaction.movie_id == test_movie.id,
+        MovieReaction.user_id == user.id
+    )
+    result = await db_session_commit.execute(query)
+    reaction = result.scalars().first()
+    if reaction:
+        await db_session_commit.delete(reaction)
+        await db_session_commit.commit()
+
