@@ -653,3 +653,30 @@ async def test_add_movie_favorites_if_movie_in_favourites_is(authorized_client, 
     if favourite:
         await db_session_commit.delete(favourite)
         await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_add_movie_favorites_success(authorized_client, test_movie, db_session_commit):
+    """
+    Test successful addition of a movie to favorites.
+
+    Ensures that the endpoint returns a 200 status code and the correct
+    movie data when an authorized user adds a movie to favorites.
+    """
+    client, user = authorized_client
+
+    payload = {"movie_id": test_movie.id}
+
+    response = await client.post("/api/v1/cinema/movies/my/favorites", json=payload)
+    assert response.status_code == 200
+    assert response.json()["movie"]["name"] == test_movie.name
+
+    query = select(MovieFavourite).where(
+        MovieFavourite.movie_id == test_movie.id,
+        MovieFavourite.user_id == user.id
+    )
+    result = await db_session_commit.execute(query)
+    favourite = result.scalars().first()
+    if favourite:
+        await db_session_commit.delete(favourite)
+        await db_session_commit.commit()
