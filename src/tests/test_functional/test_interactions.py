@@ -111,4 +111,64 @@ async def test_toggle_same_movie_reaction_removes_it(authorized_client, db_sessi
     await db_session_commit.commit()
 
 
+@pytest.mark.asyncio
+async def test_create_movie_toggle_movie_reaction_and_toggle_to_opposite_reaction(authorized_client, db_session_commit):
+    """
+    Test toggling a movie reaction to an opposite reaction.
+
+    Ensures that when a user toggles a different reaction type,
+    the existing reaction is updated and the new reaction type is returned.
+    """
+    certification = Certification(name="AA-reaction-same-test")
+    db_session_commit.add(certification)
+    await db_session_commit.flush()
+
+    movie = Movie(
+        name="Test Film 312",
+        year=2019,
+        time=172,
+        imdb=6.8,
+        votes=110,
+        description="Description321",
+        price=16.50,
+        certification_id=certification.id,
+    )
+    db_session_commit.add(movie)
+    await db_session_commit.commit()
+    await db_session_commit.refresh(movie)
+    movie_id = movie.id
+
+    client, user = authorized_client
+
+    first_payload = {"reaction_type": "like"}
+
+    first_response = await client.post(f"/api/v1/cinema/movies/{movie_id}/reactions", json=first_payload)
+    assert first_response.status_code == 200
+
+    first_response_data = first_response.json()
+    assert first_response_data["reaction_type"] == "like"
+    assert first_response_data["movie_id"] == movie_id
+
+    second_payload = {"reaction_type": "dislike"}
+
+    second_response = await client.post(f"/api/v1/cinema/movies/{movie_id}/reactions", json=second_payload)
+    assert second_response.status_code == 200
+
+    second_response_data = second_response.json()
+    assert second_response_data["reaction_type"] == "dislike"
+    assert second_response_data["movie_id"] == movie_id
+
+    query = select(MovieReaction).where(
+        MovieReaction.movie_id == movie_id,
+        MovieReaction.user_id == user.id
+    )
+    result = await db_session_commit.execute(query)
+    reaction = result.scalars().first()
+    assert reaction.reaction_type == second_payload["reaction_type"]
+
+    if reaction:
+        await db_session_commit.delete(reaction)
+    await db_session_commit.delete(movie)
+    await db_session_commit.delete(certification)
+    await db_session_commit.commit()
 
