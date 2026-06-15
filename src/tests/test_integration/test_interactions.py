@@ -696,3 +696,20 @@ async def test_get_movie_favorites_unauthorized_user(client):
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
 
+
+@pytest.mark.asyncio
+async def test_get_movie_favorites_if_movies_not_found(authorized_client):
+    """
+    Test getting favorite movies when there are no favorites.
+
+    Ensures that the endpoint returns a 404 status code and an appropriate
+    error message when the user has no favorite movies.
+    """
+    client, user = authorized_client
+
+    response = await client.get("/api/v1/cinema/movies/my/favorites")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "No movies found."
+
+
