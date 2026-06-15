@@ -370,3 +370,22 @@ async def test_toggle_movie_reaction_unauthorized_user(client, test_movie):
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_toggle_movie_reaction_if_movie_not_found(authorized_client):
+    """
+    Test toggling a movie reaction when the movie does not exist.
+
+    Ensures that the endpoint returns a 404 status code and an appropriate
+    error message when the movie with the given ID does not exist.
+    """
+    client, user = authorized_client
+
+    payload = {"reaction_type": "like"}
+
+    response = await client.post("/api/v1/cinema/movies/999999999/reactions", json=payload)
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Movie with the given ID was not found."
+
