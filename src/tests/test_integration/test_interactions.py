@@ -557,3 +557,32 @@ async def test_rate_movie_with_existing_rating(authorized_client, test_movie, db
     if rating:
         await db_session_commit.delete(rating)
         await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_rate_movie_success(authorized_client, test_movie, db_session_commit):
+    """
+    Test successful movie rating.
+
+    Ensures that the endpoint returns a 200 status code and the correct
+    rating data when an authorized user rates a movie for the first time.
+    """
+    client, user = authorized_client
+
+    payload = {"rating": 10}
+
+    response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/rate", json=payload)
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert response_data["rating"] == 10
+
+    query = select(MovieRating).where(
+        MovieRating.movie_id == test_movie.id,
+        MovieRating.user_id == user.id
+    )
+    result = await db_session_commit.execute(query)
+    rating = result.scalars().first()
+    if rating:
+        await db_session_commit.delete(rating)
+        await db_session_commit.commit()
