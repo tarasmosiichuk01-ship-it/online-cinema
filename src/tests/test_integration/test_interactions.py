@@ -748,5 +748,43 @@ async def test_get_movie_favorites_with_filtration_sorting_pagination(authorized
         await db_session_commit.commit()
 
 
+@pytest.mark.asyncio
+async def test_get_movie_favorites_success(authorized_client, test_movie, db_session_commit):
+    """
+    Test successful retrieval of favorite movies.
 
+    Ensures that the endpoint returns a 200 status code and correct
+    response structure with all required pagination fields.
+    """
+    client, user = authorized_client
 
+    favourite = MovieFavourite(
+        user_id=user.id,
+        movie_id=test_movie.id,
+    )
+    db_session_commit.add(favourite)
+    await db_session_commit.commit()
+
+    response = await client.get("/api/v1/cinema/movies/my/favorites")
+
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert "movies_favourite" in response_data
+    assert "total_items" in response_data
+    assert "total_pages" in response_data
+    assert "prev_page" in response_data
+    assert "next_page" in response_data
+    assert len(response_data["movies_favourite"]) > 0
+    assert response_data["total_items"] > 0
+    assert response_data["prev_page"] is None
+
+    query = select(MovieFavourite).where(
+        MovieFavourite.movie_id == test_movie.id,
+        MovieFavourite.user_id == user.id
+    )
+    result = await db_session_commit.execute(query)
+    fav = result.scalars().first()
+    if fav:
+        await db_session_commit.delete(fav)
+        await db_session_commit.commit()
