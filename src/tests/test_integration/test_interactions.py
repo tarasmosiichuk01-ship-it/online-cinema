@@ -456,3 +456,34 @@ async def test_toggle_movie_reaction_with_another_reaction(authorized_client, te
     if reaction:
         await db_session_commit.delete(reaction)
         await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_toggle_movie_reaction_success(authorized_client, test_movie, db_session_commit):
+    """
+    Test successful creation of a new movie reaction.
+
+    Ensures that the endpoint returns a 200 status code and the correct
+    reaction data when an authorized user adds a reaction to a movie
+    for the first time.
+    """
+    client, user = authorized_client
+
+    payload = {"reaction_type": "like"}
+
+    response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/reactions", json=payload)
+    assert response.status_code == 200
+
+    response_data = response.json()
+    assert response_data["reaction_type"] == "like"
+    assert response_data["movie_id"] == test_movie.id
+
+    query = select(MovieReaction).where(
+        MovieReaction.movie_id == test_movie.id,
+        MovieReaction.user_id == user.id
+    )
+    result = await db_session_commit.execute(query)
+    reaction = result.scalars().first()
+    if reaction:
+        await db_session_commit.delete(reaction)
+        await db_session_commit.commit()
