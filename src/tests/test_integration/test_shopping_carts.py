@@ -171,7 +171,6 @@ async def test_get_current_user_cart_success(authorized_client, test_movie, db_s
 
     await db_session_commit.rollback()
 
-    from sqlalchemy import select
     query_item = select(CartItem).where(CartItem.cart_id == cart.id)
     result_item = await db_session_commit.execute(query_item)
     item = result_item.scalars().first()
@@ -185,4 +184,20 @@ async def test_get_current_user_cart_success(authorized_client, test_movie, db_s
     if existing_cart:
         await db_session_commit.delete(existing_cart)
     await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_delete_cart_item_unauthorized_user(client, test_movie):
+    """
+    Test deleting a cart item by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to delete
+    a cart item.
+    """
+
+    response = await client.delete(f"/api/v1/shopping_carts/carts/items/{test_movie.id}")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
 
