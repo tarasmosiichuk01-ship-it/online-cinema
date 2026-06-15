@@ -389,3 +389,36 @@ async def test_toggle_movie_reaction_if_movie_not_found(authorized_client):
     assert response.status_code == 404
     assert response.json()["detail"] == "Movie with the given ID was not found."
 
+
+
+@pytest.mark.asyncio
+async def test_toggle_movie_reaction_with_repeated_reaction(authorized_client, test_movie, db_session_commit):
+    """
+    Test toggling a movie reaction when the same reaction already exists.
+
+    Ensures that the endpoint returns a 200 status code and None
+    when the user toggles the same reaction type, effectively removing it.
+    """
+    client, user = authorized_client
+
+    existing_reaction = MovieReaction(
+        user_id=user.id,
+        movie_id=test_movie.id,
+        reaction_type=ReactionTypeEnum.LIKE
+    )
+    db_session_commit.add(existing_reaction)
+    await db_session_commit.commit()
+
+    payload = {"reaction_type": "like"}
+
+    response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/reactions", json=payload)
+    assert response.status_code == 200
+    assert response.json() is None
+
+    query = select(MovieReaction).where(MovieReaction.id == existing_reaction.id)
+    result = await db_session_commit.execute(query)
+    reaction = result.scalars().first()
+    if reaction:
+        await db_session_commit.delete(reaction)
+        await db_session_commit.commit()
+
