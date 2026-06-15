@@ -680,3 +680,19 @@ async def test_add_movie_favorites_success(authorized_client, test_movie, db_ses
     if favourite:
         await db_session_commit.delete(favourite)
         await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_get_movie_favorites_unauthorized_user(client):
+    """
+    Test getting favorite movies by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to get their
+    favorite movies.
+    """
+    response = await client.get("/api/v1/cinema/movies/my/favorites")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
+
