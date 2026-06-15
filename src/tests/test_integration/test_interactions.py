@@ -487,3 +487,19 @@ async def test_toggle_movie_reaction_success(authorized_client, test_movie, db_s
     if reaction:
         await db_session_commit.delete(reaction)
         await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_rate_movie_unauthorized_user(client, test_movie):
+    """
+    Test rating a movie by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to rate a movie.
+    """
+    payload = {"rating": 10}
+
+    response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/rate", json=payload)
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
+
