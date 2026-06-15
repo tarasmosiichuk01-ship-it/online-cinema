@@ -212,9 +212,40 @@ async def test_delete_cart_item_if_movie_not_in_cart(authorized_client):
     """
     client, user = authorized_client
 
-    response = await client.delete(f"/api/v1/shopping_carts/carts/items/99999999")
+    response = await client.delete("/api/v1/shopping_carts/carts/items/99999999")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "This movie is not in your cart."
 
+
+@pytest.mark.asyncio
+async def test_delete_cart_item_success(authorized_client, test_movie, db_session_commit):
+    """
+    Test successful deletion of a cart item.
+
+    Ensures that the endpoint returns a 204 status code when an authorized
+    user successfully removes a movie from their cart.
+    """
+    client, user = authorized_client
+
+    cart = Cart(user_id=user.id)
+    db_session_commit.add(cart)
+    await db_session_commit.flush()
+
+    cart_item = CartItem(
+        cart_id=cart.id,
+        movie_id=test_movie.id,
+    )
+    db_session_commit.add(cart_item)
+    await db_session_commit.commit()
+
+    response = await client.delete(f"/api/v1/shopping_carts/carts/items/{test_movie.id}")
+    assert response.status_code == 204
+
+    query_cart = select(Cart).where(Cart.id == cart.id)
+    result_cart = await db_session_commit.execute(query_cart)
+    existing_cart = result_cart.scalars().first()
+    if existing_cart:
+        await db_session_commit.delete(existing_cart)
+        await db_session_commit.commit()
 
