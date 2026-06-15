@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy import select, delete
 
-from models.movies import Movie, MovieComment, Certification, MovieReaction
+from models.movies import Movie, MovieComment, Certification, MovieReaction, MovieRating
 
 
 @pytest.mark.asyncio
@@ -227,7 +227,63 @@ async def test_create_movie_add_to_favorite_get_and_delete_favorite(authorized_c
     assert deleted_response.status_code == 200
     assert deleted_response.json()["detail"] == "Favourite Movie deleted successfully."
 
+    await db_session_commit.delete(movie)
+    await db_session_commit.delete(certification)
+    await db_session_commit.commit()
 
+
+@pytest.mark.asyncio
+async def test_create_movie_rate_movie_check_rating(authorized_client, db_session_commit):
+    """
+    Test rating a movie twice and verifying the rating is updated.
+
+    Ensures that when a user rates the same movie twice, the second
+    rating overwrites the first one in the database.
+    """
+    certification = Certification(name="DD-rate-same-test")
+    db_session_commit.add(certification)
+    await db_session_commit.flush()
+
+    movie = Movie(
+        name="Test New Movie11",
+        year=2008,
+        time=134,
+        imdb=8.5,
+        votes=220,
+        description="DescriptionTest11123",
+        price=62.80,
+        certification_id=certification.id,
+    )
+    db_session_commit.add(movie)
+    await db_session_commit.commit()
+    await db_session_commit.refresh(movie)
+    movie_id = movie.id
+
+    client, user = authorized_client
+
+    first_payload = {"rating": 5}
+
+    first_response = await client.post(f"/api/v1/cinema/movies/{movie_id}/rate", json=first_payload)
+    assert first_response.status_code == 200
+
+    first_response_data = first_response.json()
+    assert first_response_data["rating"] == 5
+
+    second_payload = {"rating": 10}
+
+    second_response = await client.post(f"/api/v1/cinema/movies/{movie_id}/rate", json=second_payload)
+    assert second_response.status_code == 200
+
+    query = select(MovieRating).where(
+        MovieRating.movie_id == movie_id,
+        MovieRating.user_id == user.id
+    )
+    result = await db_session_commit.execute(query)
+    rating = result.scalars().first()
+    assert rating.rating == second_payload["rating"]
+
+    if rating:
+        await db_session_commit.delete(rating)
     await db_session_commit.delete(movie)
     await db_session_commit.delete(certification)
     await db_session_commit.commit()
