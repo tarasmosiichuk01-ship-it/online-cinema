@@ -142,3 +142,47 @@ async def test_get_current_user_cart_if_not_carts(authorized_client):
     assert response.status_code == 200
     assert response.json()["cart_items"] == []
 
+
+@pytest.mark.asyncio
+async def test_get_current_user_cart_success(authorized_client, test_movie, db_session_commit):
+    """
+    Test successful retrieval of the current user's cart.
+
+    Ensures that the endpoint returns a 200 status code and the correct
+    cart data when the user has items in their cart.
+    """
+    client, user = authorized_client
+
+    cart = Cart(user_id=user.id)
+    db_session_commit.add(cart)
+    await db_session_commit.flush()
+
+    cart_item = CartItem(
+        cart_id=cart.id,
+        movie_id=test_movie.id,
+    )
+    db_session_commit.add(cart_item)
+    await db_session_commit.commit()
+
+    response = await client.get("/api/v1/shopping_carts/carts")
+
+    assert response.status_code == 200
+    assert response.json()["cart_items"][0]["movie"]["name"] == test_movie.name
+
+    await db_session_commit.rollback()
+
+    from sqlalchemy import select
+    query_item = select(CartItem).where(CartItem.cart_id == cart.id)
+    result_item = await db_session_commit.execute(query_item)
+    item = result_item.scalars().first()
+    if item:
+        await db_session_commit.delete(item)
+        await db_session_commit.flush()
+
+    query_cart = select(Cart).where(Cart.id == cart.id)
+    result_cart = await db_session_commit.execute(query_cart)
+    existing_cart = result_cart.scalars().first()
+    if existing_cart:
+        await db_session_commit.delete(existing_cart)
+    await db_session_commit.commit()
+
