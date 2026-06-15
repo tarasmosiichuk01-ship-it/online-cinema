@@ -815,8 +815,39 @@ async def test_delete_movie_favorites_if_not_movie_favorite(authorized_client):
     """
     client, user = authorized_client
 
-    response = await client.delete(f"/api/v1/cinema/movies/my/favorites/99999999")
+    response = await client.delete("/api/v1/cinema/movies/my/favorites/99999999")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Movie is not found in your favorites."
+
+
+@pytest.mark.asyncio
+async def test_delete_movie_favorites_success(authorized_client, test_movie, db_session_commit):
+    """
+    Test successful deletion of a movie from favorites.
+
+    Ensures that the endpoint returns a 200 status code and a success message
+    when an authorized user removes a movie from their favorites.
+    """
+    client, user = authorized_client
+
+    favourite = MovieFavourite(
+        user_id=user.id,
+        movie_id=test_movie.id,
+    )
+    db_session_commit.add(favourite)
+    await db_session_commit.commit()
+
+    response = await client.delete(f"/api/v1/cinema/movies/my/favorites/{test_movie.id}")
+
+    assert response.status_code == 200
+    assert response.json()["detail"] == "Favourite Movie deleted successfully."
+
+    query = select(MovieFavourite).where(
+        MovieFavourite.movie_id == test_movie.id,
+        MovieFavourite.user_id == user.id
+    )
+    result = await db_session_commit.execute(query)
+    deleted_favourite = result.scalars().first()
+    assert deleted_favourite is None, "Favourite should be deleted from the database."
 
