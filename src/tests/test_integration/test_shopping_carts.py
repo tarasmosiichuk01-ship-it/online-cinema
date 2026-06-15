@@ -126,3 +126,19 @@ async def test_get_current_user_cart_unauthorized_user(client):
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
 
+
+@pytest.mark.asyncio
+async def test_get_current_user_cart_if_not_carts(authorized_client):
+    """
+    Test getting the current user's cart when it is empty.
+
+    Ensures that the endpoint returns a 200 status code and an empty
+    cart_items list when the user has no items in their cart.
+    """
+    client, user = authorized_client
+
+    response = await client.get("/api/v1/shopping_carts/carts")
+
+    assert response.status_code == 200
+    assert response.json()["cart_items"] == []
+
