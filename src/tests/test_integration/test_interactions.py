@@ -621,3 +621,35 @@ async def test_add_movie_favorites_if_movie_not_found(authorized_client):
     assert response.json()["detail"] == "Movie with the given name was not found."
 
 
+@pytest.mark.asyncio
+async def test_add_movie_favorites_if_movie_in_favourites_is(authorized_client, test_movie, db_session_commit):
+    """
+    Test adding a movie to favorites when it is already in favorites.
+
+    Ensures that the endpoint returns a 200 status code and the existing
+    favourite record when the movie is already in the user's favorites.
+    """
+    client, user = authorized_client
+
+    existing_favourite = MovieFavourite(
+        user_id=user.id,
+        movie_id=test_movie.id,
+    )
+    db_session_commit.add(existing_favourite)
+    await db_session_commit.commit()
+
+    payload = {"movie_id": test_movie.id}
+
+    response = await client.post("/api/v1/cinema/movies/my/favorites", json=payload)
+    assert response.status_code == 200
+    assert response.json()["movie"]["name"] == test_movie.name
+
+    query = select(MovieFavourite).where(
+        MovieFavourite.movie_id == test_movie.id,
+        MovieFavourite.user_id == user.id
+    )
+    result = await db_session_commit.execute(query)
+    favourite = result.scalars().first()
+    if favourite:
+        await db_session_commit.delete(favourite)
+        await db_session_commit.commit()
