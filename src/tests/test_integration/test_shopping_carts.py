@@ -264,5 +264,35 @@ async def test_delete_cart_items_unauthorized_user(client):
     assert response.json()["detail"] == "Not authenticated"
 
 
+@pytest.mark.asyncio
+async def test_delete_cart_items_success(authorized_client, test_movie, db_session_commit):
+    """
+    Test successful clearing of the cart.
 
+    Ensures that the endpoint returns a 204 status code when an authorized
+    user successfully clears all items from their cart.
+    """
+    client, user = authorized_client
+
+    cart = Cart(user_id=user.id)
+    db_session_commit.add(cart)
+    await db_session_commit.flush()
+
+    cart_item = CartItem(
+        cart_id=cart.id,
+        movie_id=test_movie.id,
+    )
+    db_session_commit.add(cart_item)
+    await db_session_commit.commit()
+
+    response = await client.delete(f"/api/v1/shopping_carts/carts/clear")
+    assert response.status_code == 204
+
+    query = select(CartItem).where(CartItem.cart_id == cart.id)
+    result = await db_session_commit.execute(query)
+    remaining_items = result.scalars().all()
+    assert remaining_items == []
+
+    await db_session_commit.delete(cart)
+    await db_session_commit.commit()
 
