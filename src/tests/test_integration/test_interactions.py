@@ -788,3 +788,19 @@ async def test_get_movie_favorites_success(authorized_client, test_movie, db_ses
     if fav:
         await db_session_commit.delete(fav)
         await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_delete_movie_favorites_unauthorized_user(client, test_movie):
+    """
+    Test deleting a movie from favorites by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to delete a movie
+    from favorites.
+    """
+    response = await client.delete(f"/api/v1/cinema/movies/my/favorites/{test_movie.id}")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
+
