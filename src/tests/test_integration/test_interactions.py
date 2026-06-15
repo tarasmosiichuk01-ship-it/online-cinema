@@ -354,3 +354,19 @@ async def test_toggle_comment_reaction_success(authorized_client, test_movie, db
 
     await db_session_commit.delete(comment)
     await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_toggle_movie_reaction_unauthorized_user(client, test_movie):
+    """
+    Test toggling a movie reaction by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to toggle a reaction.
+    """
+    payload = {"reaction_type": "like"}
+
+    response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/reactions", json=payload)
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
