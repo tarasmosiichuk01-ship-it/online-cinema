@@ -205,3 +205,17 @@ async def test_create_order_success(authorized_client, test_movie, db_session_co
     await db_session_commit.delete(created_order)
     await db_session_commit.delete(cart)
     await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_get_orders_unauthorized_user(client):
+    """
+    Test getting orders by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to get their orders.
+    """
+    response = await client.get("/api/v1/orders/orders")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
