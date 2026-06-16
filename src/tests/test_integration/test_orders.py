@@ -219,3 +219,16 @@ async def test_get_orders_unauthorized_user(client):
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_get_orders_if_orders_is_empty(authorized_client):
+
+    client, user = authorized_client
+
+    response = await client.get("/api/v1/orders/orders")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
