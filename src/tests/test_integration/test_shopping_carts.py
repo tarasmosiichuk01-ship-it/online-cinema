@@ -296,3 +296,16 @@ async def test_delete_cart_items_success(authorized_client, test_movie, db_sessi
     await db_session_commit.delete(cart)
     await db_session_commit.commit()
 
+
+@pytest.mark.asyncio
+async def test_get_cart_by_user_id_unauthorized_user(client):
+    """
+    Test getting a user's cart by ID by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to get a cart.
+    """
+    response = await client.get(f"/api/v1/shopping_carts/admin/carts/1")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
