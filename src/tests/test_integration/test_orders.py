@@ -297,3 +297,21 @@ async def test_cancel_order_unauthorized_user(client):
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
 
+
+@pytest.mark.asyncio
+async def test_cancel_order_if_order_not_found(authorized_client):
+    """
+    Test canceling an order that does not exist.
+
+    Ensures that the endpoint returns a 404 status code and an appropriate
+    error message when no order with the given ID exists for the current user.
+    """
+    client, user = authorized_client
+
+    response = await client.patch("/api/v1/orders/orders/9999999/cancel")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Order not found"
+
+
+
