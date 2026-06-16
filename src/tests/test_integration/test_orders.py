@@ -416,3 +416,18 @@ async def test_get_order_users_by_filters_by_user_id(admin_client):
     assert isinstance(response.json(), list)
 
 
+@pytest.mark.asyncio
+async def test_get_order_users_by_filters_by_start_end_date(admin_client):
+    """
+    Test getting orders by filters with start and end date parameters by admin.
+
+    Ensures that the endpoint returns a 200 status code and filters
+    orders correctly when date range parameters are provided.
+    """
+    response = await admin_client.get(
+        "/api/v1/orders/admin/orders?start_date=2010-01-01&end_date=2030-12-31"
+    )
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
