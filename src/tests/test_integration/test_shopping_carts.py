@@ -326,3 +326,18 @@ async def test_get_cart_by_user_id_not_admin(authorized_client):
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Access forbidden. Admin role required."
+
+
+@pytest.mark.asyncio
+async def test_get_cart_by_user_id_if_not_cart_items(admin_client):
+    """
+    Test getting a cart by user ID when the cart is empty.
+
+    Ensures that the endpoint returns a 200 status code and an empty
+    cart_items list when the specified user has no items in their cart.
+    """
+    response = await admin_client.get(f"/api/v1/shopping_carts/admin/carts/99999999")
+
+    assert response.status_code == 200
+    assert response.json()["cart_items"] == []
+
