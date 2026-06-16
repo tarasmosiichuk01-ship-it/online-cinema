@@ -128,3 +128,14 @@ async def test_refund_order_unauthorized_user(client):
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_refund_order_if_order_not_found(authorized_client):
+
+    client, user = authorized_client
+
+    response = await client.post("/api/v1/payments/orders/99999999/refund")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Order not found"
