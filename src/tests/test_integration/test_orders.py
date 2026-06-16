@@ -1,4 +1,7 @@
 import pytest
+from sqlalchemy import delete
+
+from models.shopping_carts import Cart, CartItem
 
 
 @pytest.mark.asyncio
@@ -30,3 +33,33 @@ async def test_create_order_if_carts_is_empty(authorized_client):
     assert response.status_code == 400
     assert response.json()["detail"] == "Your cart is empty"
 
+
+@pytest.mark.asyncio
+async def test_create_order_with_unavailable_movie(authorized_client, test_movie, db_session_commit):
+    """
+    Test creating an order when all movies in the cart are unavailable.
+
+    Ensures that the endpoint returns a 400 status code and an appropriate
+    error message when all movies in the cart are currently unavailable.
+    """
+    client, user = authorized_client
+
+    cart = Cart(user_id=user.id)
+    db_session_commit.add(cart)
+    await db_session_commit.flush()
+
+    cart_item = CartItem(cart_id=cart.id, movie_id=test_movie.id)
+    db_session_commit.add(cart_item)
+
+    test_movie.is_available = False
+    await db_session_commit.commit()
+
+    response = await client.post("/api/v1/orders/orders")
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["message"] == "All movies in your cart are currently unavailable."
+
+    test_movie.is_available = True
+    await db_session_commit.execute(delete(CartItem).where(CartItem.cart_id == cart.id))
+    await db_session_commit.delete(cart)
+    await db_session_commit.commit()
