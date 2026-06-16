@@ -1,7 +1,8 @@
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 import stripe
+from sqlalchemy.exc import IntegrityError
 
 from models.orders import Order, OrderStatusEnum, OrderItem
 
@@ -43,6 +44,55 @@ async def test_create_checkout_session_stripe_error(authorized_client, test_movi
 
     assert response.status_code == 503
 
+    await db_session_commit.delete(order_item)
+    await db_session_commit.flush()
+    await db_session_commit.delete(order)
+    await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_create_checkout_session_integrity_error(authorized_client, test_movie, db_session_commit):
+    """
+    Test creating a checkout session when a database integrity error occurs.
+
+    Ensures that the endpoint returns a 400 status code and an appropriate
+    error message when an IntegrityError is raised during payment saving.
+    """
+    client, user = authorized_client
+
+    order = Order(
+        user_id=user.id,
+        status=OrderStatusEnum.PENDING,
+        total_amount=test_movie.price,
+    )
+    db_session_commit.add(order)
+    await db_session_commit.flush()
+
+    order_item = OrderItem(
+        order_id=order.id,
+        movie_id=test_movie.id,
+        price_at_order=test_movie.price,
+    )
+    db_session_commit.add(order_item)
+    await db_session_commit.commit()
+
+    mock_session = MagicMock()
+    mock_session.id = "test_session_id"
+    mock_session.url = "https://stripe.com/test"
+
+    simulated_error = IntegrityError(statement="INSERT INTO payments ...", params={}, orig=Exception())
+
+    with patch("stripe.checkout.Session.create_async", return_value=mock_session):
+        with patch("routes.payments.AsyncSession.commit", side_effect=simulated_error):
+            response = await client.post(
+                "/api/v1/payments/payments/create-checkout-session",
+                json={"order_id": order.id}
+            )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Database error: Could not save payment transaction."
+
+    await db_session_commit.rollback()
     await db_session_commit.delete(order_item)
     await db_session_commit.flush()
     await db_session_commit.delete(order)
