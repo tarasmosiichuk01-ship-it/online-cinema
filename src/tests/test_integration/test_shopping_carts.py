@@ -366,7 +366,23 @@ async def test_get_purchased_movies_unauthorized_user(client):
     error message when an unauthenticated user attempts to get
     their purchased movies.
     """
-    response = await client.get(f"/api/v1/shopping_carts/carts/purchased")
+    response = await client.get("/api/v1/shopping_carts/carts/purchased")
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_get_purchased_movies_if_not_purchase(authorized_client):
+    """
+    Test getting purchased movies when the user has no purchases.
+
+    Ensures that the endpoint returns a 200 status code and an empty
+    list when the user has not purchased any movies.
+    """
+    client, user = authorized_client
+
+    response = await client.get("/api/v1/shopping_carts/carts/purchased")
+
+    assert response.status_code == 200
+    assert response.json() == []
