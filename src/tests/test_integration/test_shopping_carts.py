@@ -258,7 +258,7 @@ async def test_delete_cart_items_unauthorized_user(client):
     Ensures that the endpoint returns a 401 status code and an appropriate
     error message when an unauthenticated user attempts to clear their cart.
     """
-    response = await client.delete(f"/api/v1/shopping_carts/carts/clear")
+    response = await client.delete("/api/v1/shopping_carts/carts/clear")
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
@@ -285,7 +285,7 @@ async def test_delete_cart_items_success(authorized_client, test_movie, db_sessi
     db_session_commit.add(cart_item)
     await db_session_commit.commit()
 
-    response = await client.delete(f"/api/v1/shopping_carts/carts/clear")
+    response = await client.delete("/api/v1/shopping_carts/carts/clear")
     assert response.status_code == 204
 
     query = select(CartItem).where(CartItem.cart_id == cart.id)
@@ -305,7 +305,7 @@ async def test_get_cart_by_user_id_unauthorized_user(client):
     Ensures that the endpoint returns a 401 status code and an appropriate
     error message when an unauthenticated user attempts to get a cart.
     """
-    response = await client.get(f"/api/v1/shopping_carts/admin/carts/1")
+    response = await client.get("/api/v1/shopping_carts/admin/carts/1")
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
@@ -322,7 +322,7 @@ async def test_get_cart_by_user_id_not_admin(authorized_client):
     """
     client, user = authorized_client
 
-    response = await client.get(f"/api/v1/shopping_carts/admin/carts/1")
+    response = await client.get("/api/v1/shopping_carts/admin/carts/1")
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Access forbidden. Admin role required."
@@ -336,7 +336,7 @@ async def test_get_cart_by_user_id_if_not_cart_items(admin_client):
     Ensures that the endpoint returns a 200 status code and an empty
     cart_items list when the specified user has no items in their cart.
     """
-    response = await admin_client.get(f"/api/v1/shopping_carts/admin/carts/99999999")
+    response = await admin_client.get("/api/v1/shopping_carts/admin/carts/99999999")
 
     assert response.status_code == 200
     assert response.json()["cart_items"] == []
@@ -350,11 +350,23 @@ async def test_get_cart_by_user_id_success(admin_client, db_session_commit, seed
     Ensures that the endpoint returns a 200 status code and the correct
     cart structure when an admin requests a specific user's cart.
     """
-
-    response = await admin_client.get(f"/api/v1/shopping_carts/admin/carts/1")
+    response = await admin_client.get("/api/v1/shopping_carts/admin/carts/1")
 
     assert response.status_code == 200
     response_data = response.json()
     assert "cart_items" in response_data
 
 
+@pytest.mark.asyncio
+async def test_get_purchased_movies_unauthorized_user(client):
+    """
+    Test getting purchased movies by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to get
+    their purchased movies.
+    """
+    response = await client.get(f"/api/v1/shopping_carts/carts/purchased")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
