@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import delete, select
 
 from models.orders import OrderStatusEnum, Order, OrderItem
-from models.shopping_carts import CartItem, Cart
+from models.shopping_carts import CartItem, Cart, PurchasedMovie
 
 
 @pytest.mark.asyncio
@@ -386,3 +386,32 @@ async def test_get_purchased_movies_if_not_purchase(authorized_client):
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+@pytest.mark.asyncio
+async def test_get_purchased_movies_success(authorized_client, test_movie, db_session_commit):
+    """
+    Test successful retrieval of purchased movies.
+
+    Ensures that the endpoint returns a 200 status code and a list
+    of purchased movies when the user has made purchases.
+    """
+    client, user = authorized_client
+
+    purchased_movie = PurchasedMovie(
+        user_id=user.id,
+        movie_id=test_movie.id,
+    )
+    db_session_commit.add(purchased_movie)
+    await db_session_commit.commit()
+
+    response = await client.get("/api/v1/shopping_carts/carts/purchased")
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert isinstance(response_data, list)
+    assert len(response_data) > 0
+    assert response_data[0]["movie"]["name"] == test_movie.name
+
+    await db_session_commit.delete(purchased_movie)
+    await db_session_commit.commit()
