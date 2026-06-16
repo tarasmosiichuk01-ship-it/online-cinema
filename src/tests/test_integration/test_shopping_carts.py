@@ -341,3 +341,20 @@ async def test_get_cart_by_user_id_if_not_cart_items(admin_client):
     assert response.status_code == 200
     assert response.json()["cart_items"] == []
 
+
+@pytest.mark.asyncio
+async def test_get_cart_by_user_id_success(admin_client, db_session_commit, seed_user_groups):
+    """
+    Test successful retrieval of a user's cart by admin.
+
+    Ensures that the endpoint returns a 200 status code and the correct
+    cart structure when an admin requests a specific user's cart.
+    """
+
+    response = await admin_client.get(f"/api/v1/shopping_carts/admin/carts/1")
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert "cart_items" in response_data
+
+
