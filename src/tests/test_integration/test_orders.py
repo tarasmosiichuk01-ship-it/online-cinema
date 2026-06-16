@@ -1,6 +1,9 @@
+import decimal
+
 import pytest
 from sqlalchemy import delete, select
 
+from models.accounts import UserGroup, UserGroupEnum, User
 from models.orders import OrderStatusEnum, Order, OrderItem
 from models.shopping_carts import Cart, CartItem
 
@@ -445,3 +448,48 @@ async def test_get_order_users_by_filters_by_order_status(admin_client):
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
+
+@pytest.mark.asyncio
+async def test_get_order_users_by_filters_success(admin_client, db_session_commit, seed_user_groups):
+    """
+    Test successful retrieval of orders by admin with filters.
+
+    Ensures that the endpoint returns a 200 status code and a list
+    of orders with correct structure when accessed by an admin user.
+    """
+    query = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
+    result = await db_session_commit.execute(query)
+    user_group = result.scalars().first()
+
+    user = User.create(
+        email="order_filter_test_user@example.com",
+        raw_password="Test1234!",
+        group_id=user_group.id
+    )
+    user.is_active = True
+    db_session_commit.add(user)
+    await db_session_commit.flush()
+
+    order = Order(
+        user_id=user.id,
+        status=OrderStatusEnum.PENDING,
+        total_amount=decimal.Decimal("9.99"),
+    )
+    db_session_commit.add(order)
+    await db_session_commit.commit()
+
+    response = await admin_client.get("/api/v1/orders/admin/orders")
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert isinstance(response_data, list)
+    assert len(response_data) > 0
+    assert "id" in response_data[0]
+    assert "status" in response_data[0]
+    assert "total_amount" in response_data[0]
+    assert "order_items" in response_data[0]
+
+    await db_session_commit.delete(order)
+    await db_session_commit.flush()
+    await db_session_commit.delete(user)
+    await db_session_commit.commit()
