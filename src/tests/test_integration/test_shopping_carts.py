@@ -309,3 +309,20 @@ async def test_get_cart_by_user_id_unauthorized_user(client):
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_get_cart_by_user_id_not_admin(authorized_client):
+    """
+    Test getting a user's cart by ID by a non-admin user.
+
+    Ensures that the endpoint returns a 403 status code and an appropriate
+    error message when a regular authorized user attempts to access
+    the admin cart endpoint.
+    """
+    client, user = authorized_client
+
+    response = await client.get(f"/api/v1/shopping_carts/admin/carts/1")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Access forbidden. Admin role required."
