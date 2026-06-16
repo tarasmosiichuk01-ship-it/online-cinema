@@ -1,6 +1,7 @@
 import pytest
 from sqlalchemy import delete
 
+from models.orders import OrderStatusEnum, Order, OrderItem
 from models.shopping_carts import Cart, CartItem
 
 
@@ -39,8 +40,9 @@ async def test_create_order_with_unavailable_movie(authorized_client, test_movie
     """
     Test creating an order when all movies in the cart are unavailable.
 
-    Ensures that the endpoint returns a 400 status code and an appropriate
-    error message when all movies in the cart are currently unavailable.
+    Ensures that the endpoint returns a 400 status code, an appropriate
+    error message, and warnings about unavailable movies when all movies
+    in the cart are currently unavailable.
     """
     client, user = authorized_client
 
@@ -58,8 +60,55 @@ async def test_create_order_with_unavailable_movie(authorized_client, test_movie
 
     assert response.status_code == 400
     assert response.json()["detail"]["message"] == "All movies in your cart are currently unavailable."
+    assert len(response.json()["detail"]["warnings"]) > 0
+    assert any(test_movie.name in warning for warning in response.json()["detail"]["warnings"])
 
     test_movie.is_available = True
+    await db_session_commit.execute(delete(CartItem).where(CartItem.cart_id == cart.id))
+    await db_session_commit.delete(cart)
+    await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_create_order_if_movie_is_bought(authorized_client, test_movie, db_session_commit):
+    """
+    Test creating an order when all movies in the cart have already been purchased.
+
+    Ensures that the endpoint returns a 400 status code and warnings
+    indicating that the movies were already purchased and excluded from the order.
+    """
+    client, user = authorized_client
+
+    cart = Cart(user_id=user.id)
+    db_session_commit.add(cart)
+    await db_session_commit.flush()
+
+    cart_item = CartItem(cart_id=cart.id, movie_id=test_movie.id)
+    db_session_commit.add(cart_item)
+    await db_session_commit.flush()
+
+    order = Order(user_id=user.id, status=OrderStatusEnum.PAID)
+    db_session_commit.add(order)
+    await db_session_commit.flush()
+
+    order_item = OrderItem(
+        order_id=order.id,
+        movie_id=test_movie.id,
+        price_at_order=test_movie.price
+    )
+    db_session_commit.add(order_item)
+    await db_session_commit.commit()
+
+    response = await client.post("/api/v1/orders/orders")
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["message"] == "All movies in your cart are currently unavailable."
+    assert len(response.json()["detail"]["warnings"]) > 0
+    assert any(test_movie.name in warning for warning in response.json()["detail"]["warnings"])
+
+    await db_session_commit.delete(order_item)
+    await db_session_commit.flush()
+    await db_session_commit.delete(order)
     await db_session_commit.execute(delete(CartItem).where(CartItem.cart_id == cart.id))
     await db_session_commit.delete(cart)
     await db_session_commit.commit()
