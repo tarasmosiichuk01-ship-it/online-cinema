@@ -314,4 +314,31 @@ async def test_cancel_order_if_order_not_found(authorized_client):
     assert response.json()["detail"] == "Order not found"
 
 
+@pytest.mark.asyncio
+async def test_cancel_order_if_order_is_not_pending(authorized_client, test_movie, db_session_commit):
+    """
+    Test canceling an order that is not in PENDING status.
+
+    Ensures that the endpoint returns a 400 status code and an appropriate
+    error message when the user attempts to cancel an order that is
+    not in PENDING status.
+    """
+    client, user = authorized_client
+
+    order = Order(
+        user_id=user.id,
+        status=OrderStatusEnum.PAID,
+        total_amount=test_movie.price,
+    )
+    db_session_commit.add(order)
+    await db_session_commit.commit()
+
+    response = await client.patch(f"/api/v1/orders/orders/{order.id}/cancel")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "You can only cancel pending orders"
+
+    await db_session_commit.delete(order)
+    await db_session_commit.commit()
+
 
