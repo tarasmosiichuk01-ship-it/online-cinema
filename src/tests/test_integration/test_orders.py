@@ -112,3 +112,48 @@ async def test_create_order_if_movie_is_bought(authorized_client, test_movie, db
     await db_session_commit.execute(delete(CartItem).where(CartItem.cart_id == cart.id))
     await db_session_commit.delete(cart)
     await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_create_order_if_is_already_pending_order(authorized_client, test_movie, db_session_commit):
+    """
+    Test creating an order when there is already a pending order with the same movies.
+
+    Ensures that the endpoint returns a 400 status code and an appropriate
+    error message when the user already has a pending order containing
+    some of the movies from their cart.
+    """
+    client, user = authorized_client
+
+    cart = Cart(user_id=user.id)
+    db_session_commit.add(cart)
+    await db_session_commit.flush()
+
+    cart_item = CartItem(cart_id=cart.id, movie_id=test_movie.id)
+    db_session_commit.add(cart_item)
+    await db_session_commit.flush()
+
+    order = Order(user_id=user.id, status=OrderStatusEnum.PENDING)
+    db_session_commit.add(order)
+    await db_session_commit.flush()
+
+    order_item = OrderItem(
+        order_id=order.id,
+        movie_id=test_movie.id,
+        price_at_order=test_movie.price
+    )
+    db_session_commit.add(order_item)
+    await db_session_commit.commit()
+
+    response = await client.post("/api/v1/orders/orders")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "You already have a pending order containing some of these movies. Please complete or cancel it first."
+
+    await db_session_commit.delete(order_item)
+    await db_session_commit.flush()
+    await db_session_commit.delete(order)
+    await db_session_commit.execute(delete(CartItem).where(CartItem.cart_id == cart.id))
+    await db_session_commit.delete(cart)
+    await db_session_commit.commit()
+
