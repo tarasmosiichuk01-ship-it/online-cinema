@@ -223,12 +223,64 @@ async def test_get_orders_unauthorized_user(client):
 
 @pytest.mark.asyncio
 async def test_get_orders_if_orders_is_empty(authorized_client):
+    """
+    Test getting orders when the user has no orders.
 
+    Ensures that the endpoint returns a 200 status code and an empty
+    list when the user has not created any orders.
+    """
     client, user = authorized_client
 
     response = await client.get("/api/v1/orders/orders")
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+@pytest.mark.asyncio
+async def test_get_orders_success(authorized_client, test_movie, db_session_commit):
+    """
+    Test successful retrieval of orders.
+
+    Ensures that the endpoint returns a 200 status code and a list
+    of orders with correct order items data.
+    """
+    client, user = authorized_client
+
+    order = Order(
+        user_id=user.id,
+        status=OrderStatusEnum.PENDING,
+        total_amount=test_movie.price,
+    )
+    db_session_commit.add(order)
+    await db_session_commit.flush()
+
+    order_item = OrderItem(
+        order_id=order.id,
+        movie_id=test_movie.id,
+        price_at_order=test_movie.price,
+    )
+    db_session_commit.add(order_item)
+    await db_session_commit.commit()
+
+    response = await client.get("/api/v1/orders/orders")
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert isinstance(response_data, list)
+    assert len(response_data) > 0
+    assert response_data[0]["order_items"][0]["movie"]["name"] == test_movie.name
+
+    await db_session_commit.rollback()
+
+    query_items = select(OrderItem).where(OrderItem.order_id == order.id)
+    result_items = await db_session_commit.execute(query_items)
+    items = result_items.scalars().all()
+    for item in items:
+        await db_session_commit.delete(item)
+    await db_session_commit.flush()
+
+    await db_session_commit.delete(order)
+    await db_session_commit.commit()
 
 
