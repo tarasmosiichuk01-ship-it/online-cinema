@@ -342,3 +342,30 @@ async def test_cancel_order_if_order_is_not_pending(authorized_client, test_movi
     await db_session_commit.commit()
 
 
+@pytest.mark.asyncio
+async def test_cancel_order_success(authorized_client, test_movie, db_session_commit):
+    """
+    Test successful order cancellation.
+
+    Ensures that the endpoint returns a 200 status code and the order
+    status is updated to CANCELED in the response.
+    """
+    client, user = authorized_client
+
+    order = Order(
+        user_id=user.id,
+        status=OrderStatusEnum.PENDING,
+        total_amount=test_movie.price,
+    )
+    db_session_commit.add(order)
+    await db_session_commit.commit()
+
+    response = await client.patch(f"/api/v1/orders/orders/{order.id}/cancel")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "canceled"
+
+    await db_session_commit.refresh(order)
+    await db_session_commit.delete(order)
+    await db_session_commit.commit()
+
