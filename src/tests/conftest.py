@@ -145,6 +145,30 @@ async def moderator_client(client, db_session_commit, jwt_manager):
 
 
 @pytest_asyncio.fixture
+async def admin_client(client, db_session_commit, jwt_manager):
+    query = select(UserGroup).where(UserGroup.name == UserGroupEnum.ADMIN)
+    result = await db_session_commit.execute(query)
+    admin_group = result.scalars().first()
+
+    admin = User.create(
+        email="admin@example.com",
+        raw_password="Admin1234!",
+        group_id=admin_group.id
+    )
+    admin.is_active = True
+    db_session_commit.add(admin)
+    await db_session_commit.commit()
+
+    access_token = jwt_manager.create_access_token({"user_id": admin.id})
+    client.headers.update({"Authorization": f"Bearer {access_token}"})
+
+    yield client
+
+    await db_session_commit.delete(admin)
+    await db_session_commit.commit()
+
+
+@pytest_asyncio.fixture
 async def authorized_client(client, db_session_commit, jwt_manager):
     query = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
     result = await db_session_commit.execute(query)
