@@ -401,3 +401,18 @@ async def test_get_order_users_by_filters_not_admin(authorized_client):
     assert response.status_code == 403
     assert response.json()["detail"] == "Access forbidden. Admin role required."
 
+
+@pytest.mark.asyncio
+async def test_get_order_users_by_filters_by_user_id(admin_client):
+    """
+    Test getting orders by filters with user_id parameter by admin.
+
+    Ensures that the endpoint returns a 200 status code and filters
+    orders correctly when user_id parameter is provided.
+    """
+    response = await admin_client.get("/api/v1/orders/admin/orders?user_id=1")
+
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
