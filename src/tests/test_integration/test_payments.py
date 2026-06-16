@@ -114,3 +114,17 @@ async def test_create_checkout_session_total_amount_mismatch(authorized_client, 
     await db_session_commit.flush()
     await db_session_commit.delete(order)
     await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_refund_order_unauthorized_user(client):
+    """
+    Test refunding an order by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to refund an order.
+    """
+    response = await client.post("/api/v1/payments/orders/1/refund")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
