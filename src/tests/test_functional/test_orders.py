@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy import select, delete
 
-from models.orders import Order, OrderItem
+from models.orders import Order, OrderItem, OrderStatusEnum
 from models.shopping_carts import Cart, CartItem
 
 
@@ -98,4 +98,41 @@ async def test_create_order_cancel_order_check_order(authorized_client, test_mov
     if cart:
         await db_session_commit.delete(cart)
 
+    await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_add_purchased_movie_to_cart_create_order_check_warnings(authorized_client, test_movie, db_session_commit):
+    """
+    Test creating an order when the only movie in the cart has already been purchased.
+
+    Ensures that the endpoint returns a 400 status code and warnings
+    indicating that the movie was already purchased and excluded from the order.
+    """
+    client, user = authorized_client
+
+    paid_order = Order(
+        user_id=user.id,
+        status=OrderStatusEnum.PAID,
+        total_amount=test_movie.price,
+    )
+    db_session_commit.add(paid_order)
+    await db_session_commit.flush()
+
+    paid_order_item = OrderItem(
+        order_id=paid_order.id,
+        movie_id=test_movie.id,
+        price_at_order=test_movie.price,
+    )
+    db_session_commit.add(paid_order_item)
+    await db_session_commit.commit()
+
+    add_movie_payload = {"movie_id": test_movie.id}
+    add_movie_response = await client.post("/api/v1/shopping_carts/carts", json=add_movie_payload)
+    assert add_movie_response.status_code == 400
+    assert add_movie_response.json()["detail"] == "Repeat purchases are not allowed."
+
+    await db_session_commit.delete(paid_order_item)
+    await db_session_commit.flush()
+    await db_session_commit.delete(paid_order)
     await db_session_commit.commit()
