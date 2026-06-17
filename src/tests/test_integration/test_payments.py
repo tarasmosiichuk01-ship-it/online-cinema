@@ -195,7 +195,7 @@ async def test_get_payments_success_with_pending_status(authorized_client, test_
 
     order = Order(
         user_id=user.id,
-        status=OrderStatusEnum.PAID,
+        status=OrderStatusEnum.PENDING,
         total_amount=test_movie.price,
     )
     db_session_commit.add(order)
@@ -221,6 +221,51 @@ async def test_get_payments_success_with_pending_status(authorized_client, test_
     assert response.json()["status"] == "processing"
     assert response.json()["message"] == "Payment is being processed by the gateway. Please refresh in a moment."
     assert response.json()["payment_status"] == "PENDING"
+
+    await db_session_commit.delete(payment)
+    await db_session_commit.flush()
+    await db_session_commit.delete(order)
+    await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_get_payments_success_with_successful_status(authorized_client, test_movie, db_session_commit):
+    """
+    Test getting payment success page when payment is in SUCCESSFUL status.
+
+    Ensures that the endpoint returns a 200 status code and a success
+    message when the payment has been successfully processed.
+    """
+    client, user = authorized_client
+
+    order = Order(
+        user_id=user.id,
+        status=OrderStatusEnum.PAID,
+        total_amount=test_movie.price,
+    )
+    db_session_commit.add(order)
+    await db_session_commit.flush()
+
+    payment = Payment(
+        user_id=user.id,
+        order_id=order.id,
+        status=PaymentStatusEnum.SUCCESSFUL,
+        amount=test_movie.price,
+        external_payment_id="test_session_id",
+        payment_intent_id="test_intent_id",
+    )
+    db_session_commit.add(payment)
+    await db_session_commit.commit()
+
+    response = await client.get(
+        f"/api/v1/payments/payments/success?session_id={payment.external_payment_id}"
+    )
+
+    assert response.status_code == 200
+
+    assert response.json()["status"] == "success"
+    assert response.json()["message"] == "Thank you for your purchase!"
+    assert response.json()["payment_status"] == "SUCCESSFUL"
 
     await db_session_commit.delete(payment)
     await db_session_commit.flush()
