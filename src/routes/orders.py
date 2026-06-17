@@ -349,18 +349,49 @@ async def cancel_order(
     return canceled_order
 
 
-#Admin endpoint
 @router.get(
     "/admin/orders",
     response_model=list[OrderResponseSchema],
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Get all orders with advanced filtering (Admin only)",
+    description=(
+        "<h3>This administrative endpoint retrieves a list of all user orders from the database. "
+        "It supports dynamic filtering based on `user_id`, `start_date`, `end_date`, and `order_status` via query parameters. "
+        "To prevent the N+1 problem, all related data including order items, movie details, and genres are eagerly loaded. "
+        "The list is sorted chronologically by creation date in descending order.</h3>"
+    ),
+    responses={
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user does not have administrative privileges.",
+        }
+    }
 )
 async def get_order_users_by_filters(
     params: dict = Depends(admin_query_params),
     current_user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Retrieve and filter user orders globally across the application (asynchronously).
 
+    This function acts as a back-office management tool. It constructs a dynamic SQLAlchemy query
+    by inspecting the optional criteria passed through administrative query parameters.
+    It ensures strict separation of concerns by applying a role-based dependency (`get_admin_user`)
+    and optimizes database performance through deeply nested relation preloading.
+
+    :param params: A dictionary of extracted, pre-validated query parameters for multi-criteria filtering.
+    :type params: dict
+    :param current_user: The authenticated user object verifying administrative permissions.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A list of orders matching the specified filter criteria with full nested payloads.
+    :rtype: list[OrderResponseSchema]
+    """
     base_query = (
         select(Order)
         .options(
