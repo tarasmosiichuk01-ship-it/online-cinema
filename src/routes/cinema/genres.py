@@ -109,9 +109,46 @@ async def create_genre(
 
 
 # Public endpoint
-@router.get("/genres", response_model=GenreListResponseSchema)
+@router.get(
+    "/genres",
+    response_model=GenreListResponseSchema,
+    status_code=status.HTTP_200_OK,
+    summary="Get all genres with movie counts",
+    description=(
+            "<h3>This public endpoint retrieves a list of all movie genres available in the catalog. "
+            "It performs an aggregation using an outer join to dynamically calculate the total number of "
+            "movies linked to each genre. Additionally, it generates a hypermedia direct URL (`movies_url`) "
+            "for fetching movies specific to that genre. "
+            "The results are ordered chronologically by the genre ID in descending order.</h3>"
+    ),
+    responses={
+        404: {
+            "description": "Not Found if no genre records exist in the database.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "No genres found."}
+                }
+            },
+        }
+    }
+)
 async def get_genre_list(db: AsyncSession = Depends(get_postgresql_db)) -> GenreListResponseSchema:
+    """
+    Retrieve all catalog genres compiled with their aggregated movie counts (asynchronously).
 
+    This function executes an optimized relational query using an SQL LEFT OUTER JOIN and a `GROUP BY` clause
+    via SQLAlchemy. This allows it to fetch both the genre metadata and the calculated `movies_count`
+    in a single database round-trip, preventing N+1 anomalies. The resulting dataset is parsed and mapped
+    into extended schemas that inject resource hypermedia links.
+
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A structured list schema containing validated genre profiles with counters and hypermedia references.
+    :rtype: GenreListResponseSchema
+
+    :raises HTTPException: Raises a 404 error if the genre catalog is completely empty.
+    """
     query = (
         select(Genre, func.count(Movie.id).label("movies_count"))
         .join(Genre.movies, isouter=True)
