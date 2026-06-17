@@ -479,13 +479,56 @@ async def refund_order(
     return {"message": "Refund successful", "order_id": order.id, "status": order.status}
 
 
-# Authorization endpoint
-@router.get("/payments/success", status_code=status.HTTP_200_OK)
+@router.get(
+    "/payments/success",
+    status_code=status.HTTP_200_OK,
+    summary="Check Stripe checkout session status",
+    description=(
+            "<h3>This endpoint verifies the state of a local payment transaction using a Stripe Checkout session ID. "
+            "It ensures that the record belongs to the currently authenticated user. "
+            "Depending on the internal state (updated via asynchronous webhooks), it returns customized messaging: "
+            "a thank-you notice for successful flows, a processing reminder for pending steps, "
+            "or troubleshooting recommendations if the transaction has failed or been canceled.</h3>"
+    ),
+    responses={
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        404: {
+            "description": "Not Found if the payment record matching the provided session ID cannot be found for the user.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Payment not found."}
+                }
+            },
+        }
+    }
+)
 async def get_payments_success(
     session_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Evaluate and report the current resolution status of a payment session (asynchronously).
+
+    This function pulls a local tracking transaction via its external session reference.
+    It interprets the current model state (which is asynchronously decoupled from the gateway via Stripe Webhooks)
+    and handles front-end polling by branching cleanly into semantic success, intermediate processing,
+    or explicit failure responses.
+
+    :param session_id: The Stripe checkout session token passed as a query string parameter.
+    :type session_id: str
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A dictionary payload mapping readable notifications and strict enum transaction states.
+    :rtype: dict
+
+    :raises HTTPException: Raises a 404 error if the external payment record does not exist or is mismatched.
+    """
     query = (
         select(Payment)
         .where(
