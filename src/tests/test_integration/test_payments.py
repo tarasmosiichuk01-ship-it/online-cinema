@@ -409,3 +409,18 @@ async def test_get_payments_success(authorized_client, test_movie, db_session_co
     await db_session_commit.delete(order)
     await db_session_commit.commit()
 
+
+@pytest.mark.asyncio
+async def test_get_payments_for_admin_unauthorized_user(client):
+    """
+    Test getting payments for admin by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to access
+    the admin payments endpoint.
+    """
+    response = await client.get("/api/v1/payments/admin/payments")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
+
