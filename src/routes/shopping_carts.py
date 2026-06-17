@@ -344,13 +344,47 @@ async def delete_cart_items(
 @router.get(
     "/admin/carts/{user_id}",
     response_model=CartResponse,
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Get any user's shopping cart (Admin only)",
+    description=(
+        "<h3>This administrative endpoint allows back-office managers to view the shopping cart "
+        "of a specific user by providing their user ID in the path URL. "
+        "It loads all items inside the target cart, including full movie data and nested genres. "
+        "If the specified user does not have a cart record yet, the endpoint gracefully returns "
+        "a transient empty cart structure linked to that user ID.</h3>"
+    ),
+    responses={
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user lacks administrative privileges.",
+        }
+    }
 )
 async def get_cart_by_user_id(
     user_id: int,
     current_user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+        Retrieve any target user's shopping cart details globally (asynchronously).
+
+        This function acts as an administrative inspection utility. It queries the database for a cart
+        belonging to the requested `user_id`. To ensure optimal performance and eliminate N+1 overhead,
+        it applies eager relation loading (`selectinload` for cart items followed by sequential `joinedload`
+        calls for movies and genres). It falls back to an unpersisted empty model placeholder if no record is found.
+
+        :param user_id: The ID of the target user extracted from the path URL.
+        :type user_id: int
+        :param current_user: The authenticated user object verifying administrative permissions.
+        :type current_user: User
+        :param db: The async SQLAlchemy database session (provided via dependency injection).
+        :type db: AsyncSession
+
+        :return: A database-backed or dynamically generated Cart model with eager-loaded collections.
+        :rtype: CartResponse
+        """
     query = (
         select(Cart)
         .where(Cart.user_id == user_id)
