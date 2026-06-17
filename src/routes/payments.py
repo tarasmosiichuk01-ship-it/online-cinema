@@ -569,8 +569,28 @@ async def get_payments_success(
         }
 
 
-@router.get("/payments/canceled", status_code=status.HTTP_200_OK)
+@router.get(
+    "/payments/canceled",
+    status_code=status.HTTP_200_OK,
+    summary="Handle canceled Stripe checkout session redirection",
+    description=(
+            "<h3>This endpoint serves as the target landing page when a user explicitly cancels "
+            "the payment process on the Stripe Checkout page. It provides feedback confirming "
+            "the cancellation and reassures the user that their order remains intact in a pending state.</h3>"
+    )
+)
 async def get_payments_canceled():
+    """
+    Handle user redirection upon canceling a payment workflow (asynchronously).
+
+    This function responds to user actions initiated on the client side during the checkout phase.
+    Since Stripe passes control back here when the cancel URL is triggered, this endpoint simply
+    returns a descriptive confirmation message indicating the transaction's termination while
+    affirming that the underlying order preservation state has been maintained.
+
+    :return: A dictionary payload mapping the cancellation status and helpful user instructions.
+    :rtype: dict
+    """
     return {
         "status": "canceled",
         "message": "You have canceled the payment. Your order remains pending."
