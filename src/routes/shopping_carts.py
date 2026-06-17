@@ -222,13 +222,55 @@ async def get_current_user_cart(
     return cart
 
 
-# Authorization endpoint
-@router.delete("/carts/items/{movie_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/carts/items/{movie_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove a movie from the shopping cart",
+    description=(
+            "<h3>This endpoint deletes a specific movie item from the authenticated user's shopping cart. "
+            "It checks if the item exists and ensures that it belongs to the active user's cart instance. "
+            "Upon validation, the item is permanently removed from the database, and a success status "
+            "with no content is returned.</h3>"
+    ),
+    responses={
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        404: {
+            "description": "Not Found if the specified movie is not present in the user's shopping cart.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "This movie is not in your cart."}
+                }
+            },
+        }
+    }
+)
 async def delete_cart_item(
     movie_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Remove an item from the user's active shopping cart (asynchronously).
+
+    This function isolates and deletes a single relational `CartItem` record. It utilizes an internal
+    SQL JOIN with the parent `Cart` scope to strictly restrict the deletion access boundaries to
+    the `current_user`. Once validated, the structural element is dropped and committed inside
+    a single database transaction block.
+
+    :param movie_id: The ID of the target movie extracted from the path URL.
+    :type movie_id: int
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: None (HTTP 204 No Content response is generated automatically).
+    :rtype: None
+
+    :raises HTTPException: Raises a 404 error if the targeted movie asset does not exist in the user's cart scope.
+    """
     query = (
         select(CartItem)
         .join(Cart)
