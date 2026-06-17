@@ -21,12 +21,55 @@ router = APIRouter()
 @router.post(
     "/orders",
     response_model=OrderCreationResponseSchema,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new pending order from the cart",
+    description=(
+        "<h3>This endpoint processes the user's shopping cart to generate a new order. "
+        "It automatically filters out movies that have already been purchased and movies "
+        "that are currently unavailable, returning appropriate warnings. "
+        "It ensures that no duplicate pending orders exist for the same movies, "
+        "calculates the total price, moves the valid items to a new order with 'PENDING' status, "
+        "and clears those items from the user's cart transactionally.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request due to empty cart, all filtered items being unavailable, "
+                           "or an existing pending order with the same movies.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Your cart is empty"}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        }
+    }
 )
 async def create_order(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Checkout the current user's cart and generate a pending order (asynchronously).
+
+    This function performs a series of business logic checks before order placement:
+    1. Fetches the user's cart and items.
+    2. Filters out previously bought or deactivated movies.
+    3. Blocks the creation if there's already an unfulfilled pending order for the same items.
+    4. Transactionally builds the order structure, computes totals, and flushes the handled items from the cart.
+
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A schema object containing the newly created order record along with system execution warnings.
+    :rtype: OrderCreationResponseSchema
+
+    :raises HTTPException: Raises a 400 error if the cart is empty, all selected movies are restricted,
+                           a duplicate pending workflow is detected, or an IntegrityError occurs.
+    """
     cart_query = (
         select(Cart)
         .where(Cart.user_id == current_user.id)
