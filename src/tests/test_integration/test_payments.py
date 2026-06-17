@@ -500,3 +500,69 @@ async def test_get_payments_for_admin_success(admin_client, test_movie, db_sessi
     await db_session_commit.delete(user)
     await db_session_commit.commit()
 
+
+@pytest.mark.asyncio
+async def test_get_payments_for_admin_with_filters(admin_client, test_movie, db_session_commit, seed_user_groups):
+    """
+    Test getting payments for admin with various filter parameters.
+
+    Ensures that the endpoint returns a 200 status code and correctly
+    filters payments by user_id, start_date, end_date and payment_status.
+    """
+    query = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
+    result = await db_session_commit.execute(query)
+    user_group = result.scalars().first()
+
+    user = User.create(
+        email="payment_filter_test_user@example.com",
+        raw_password="Test1234!",
+        group_id=user_group.id
+    )
+    user.is_active = True
+    db_session_commit.add(user)
+    await db_session_commit.flush()
+
+    order = Order(
+        user_id=user.id,
+        status=OrderStatusEnum.PENDING,
+        total_amount=test_movie.price,
+    )
+    db_session_commit.add(order)
+    await db_session_commit.flush()
+
+    payment = Payment(
+        user_id=user.id,
+        order_id=order.id,
+        status=PaymentStatusEnum.PENDING,
+        amount=test_movie.price,
+        external_payment_id="test_filter_session_id",
+        payment_intent_id="test_filter_intent_id",
+    )
+    db_session_commit.add(payment)
+    await db_session_commit.commit()
+
+    response = await admin_client.get(f"/api/v1/payments/admin/payments?user_id={user.id}")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+    assert len(response.json()) > 0
+    assert response.json()[0]["order_id"] == order.id
+
+    response = await admin_client.get(
+        "/api/v1/payments/admin/payments?start_date=2010-01-01&end_date=2030-12-31"
+    )
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+    response = await admin_client.get(
+        "/api/v1/payments/admin/payments?payment_status=PENDING"
+    )
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+    assert all(p["status"] == "PENDING" for p in response.json())
+
+    await db_session_commit.delete(payment)
+    await db_session_commit.flush()
+    await db_session_commit.delete(order)
+    await db_session_commit.delete(user)
+    await db_session_commit.commit()
+
