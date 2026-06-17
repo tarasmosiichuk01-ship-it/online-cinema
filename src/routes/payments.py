@@ -26,13 +26,70 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 @router.post(
     "/payments/create-checkout-session",
     response_model=StripeSessionResponseSchema,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    summary="Create Stripe Checkout Session",
+    description=(
+            "<h3>This endpoint initiates a Stripe Checkout payment workflow for a given pending order. "
+            "It validates that the order exists, belongs to the authenticated user, and is currently in 'PENDING' status. "
+            "It re-calculates and cross-checks the total order price against individual items for integrity, "
+            "maps the items into Stripe format, and communicates with the Stripe API to build a Checkout Session. "
+            "Finally, a local 'PENDING' payment transaction record is created in the database to log the session.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request due to order status mismatch, total cost discrepancy, or database constraint failures.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "You can only pay for pending orders"}
+                }
+            },
+        },
+        404: {
+            "description": "Not Found if the specified order does not exist or does not belong to the user.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Order not found"}
+                }
+            },
+        },
+        503: {
+            "description": "Service Unavailable caused by communication failure or errors on the Stripe API gateway.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Payment gateway error: ..."}
+                }
+            },
+        }
+    }
 )
 async def create_checkout_session(
     payment_data: PaymentCreateSchema,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Initialize a remote Stripe checkout session and log the local transaction (asynchronously).
+
+    This function coordinates payment initiation by processing local order configurations into external
+    payment data structures. It safely preloads item dependencies to audit prices, formats line items for
+    Stripe, manages exceptions thrown by the gateway, and commits a persistent local tracking record inside
+    the database before returning checkout links to the UI client.
+
+    :param payment_data: Request body payload specifying the target order ID.
+    :type payment_data: PaymentCreateSchema
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A schema object containing the generated Stripe checkout URL and session ID.
+    :rtype: StripeSessionResponseSchema
+
+    :raises HTTPException: Raises a 404 error if the order is missing.
+    :raises HTTPException: Raises a 400 error if the order status isn't pending, prices don't audit correctly,
+                           or if a local database integrity exception occurs.
+    :raises HTTPException: Raises a 503 error if Stripe external communications fail.
+    """
     query = (
         select(Order)
         .where(
