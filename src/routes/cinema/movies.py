@@ -265,13 +265,48 @@ async def get_movie_list(
     )
 
 
-# Public endpoint
 @router.get(
     "/movies/{movie_id}",
     response_model=MovieDetailSchema,
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Get movie details by ID",
+    description=(
+        "<h3>This public endpoint retrieves complete details for a specific movie using its unique identifier. "
+        "It strictly filters for entries where `is_available == True`. "
+        "To maximize performance and prevent multiple downstream database round-trips, "
+        "the query eagerly preloads all nested relational graphs—including age certifications, genres, "
+        "cast members (stars), and directors—before validating the data against the response schema.</h3>"
+    ),
+    responses={
+        404: {
+            "description": "Not Found if the movie does not exist or is marked as unavailable in the system.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Movie with the given ID was not found."}
+                }
+            },
+        }
+    }
 )
 async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_postgresql_db)):
+    """
+    Retrieve full metadata and relational object trees for a single movie asset (asynchronously).
+
+    This function fetches a detailed `Movie` domain record by its primary key. It utilizes an optimized
+    SQL Eager Loading strategy: a `joinedload` for the single age certification relation, combined with
+    `selectinload` collections for many-to-many paths (`genres`, `stars`, `directors`). This ensures
+    that the complete object graph is assembled efficiently within minimal queries, completely avoiding N+1 anomalies.
+
+    :param movie_id: The ID of the target movie extracted from the path URL.
+    :type movie_id: int
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A highly detailed, validated schema representing the movie complete with its nested relations.
+    :rtype: MovieDetailSchema
+
+    :raises HTTPException: Raises a 404 error if no movie matches the ID or if it is currently restricted.
+    """
     query = (
         select(Movie)
         .options(
