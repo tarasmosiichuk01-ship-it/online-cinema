@@ -271,3 +271,48 @@ async def test_get_payments_success_with_successful_status(authorized_client, te
     await db_session_commit.flush()
     await db_session_commit.delete(order)
     await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_get_payments_success_with_another_status(authorized_client, test_movie, db_session_commit):
+    """
+    Test getting payment success page when payment is in a failed/refunded status.
+
+    Ensures that the endpoint returns a 200 status code and a failure
+    message when the payment was declined, canceled or refunded.
+    """
+    client, user = authorized_client
+
+    order = Order(
+        user_id=user.id,
+        status=OrderStatusEnum.CANCELED,
+        total_amount=test_movie.price,
+    )
+    db_session_commit.add(order)
+    await db_session_commit.flush()
+
+    payment = Payment(
+        user_id=user.id,
+        order_id=order.id,
+        status=PaymentStatusEnum.REFUNDED,
+        amount=test_movie.price,
+        external_payment_id="test_session_id",
+        payment_intent_id="test_intent_id",
+    )
+    db_session_commit.add(payment)
+    await db_session_commit.commit()
+
+    response = await client.get(
+        f"/api/v1/payments/payments/success?session_id={payment.external_payment_id}"
+    )
+
+    assert response.status_code == 200
+
+    assert response.json()["status"] == "failed"
+    assert response.json()["message"] == "Payment was declined or canceled. Please check your card balance, ensure internet limits are sufficient, or try a different payment method."
+    assert response.json()["payment_status"] == "REFUNDED"
+
+    await db_session_commit.delete(payment)
+    await db_session_commit.flush()
+    await db_session_commit.delete(order)
+    await db_session_commit.commit()
