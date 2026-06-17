@@ -106,8 +106,42 @@ async def create_director(
 
 
 # Public endpoint
-@router.get("/directors", response_model=DirectorListResponseSchema)
+@router.get(
+    "/directors",
+    response_model=DirectorListResponseSchema,
+    summary="Get all directors",
+    description=(
+        "<h3>This public endpoint retrieves a complete list of all movie directors registered in the catalog. "
+        "The entries are sorted sequentially by their unique database identifier in ascending order. "
+        "If the director directory is completely empty, a 404 error is raised to inform the client.</h3>"
+    ),
+    responses={
+        404: {
+            "description": "Not Found if no director records exist in the database.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "No directors found."}
+                }
+            },
+        }
+    }
+)
 async def get_director_list(db: AsyncSession = Depends(get_postgresql_db)):
+    """
+    Retrieve the entire collection of movie directors from the catalog (asynchronously).
+
+    This function executes a simple index query on the `Director` model, sorting the results chronologically
+    by their ID. It validates the presence of records in the database, maps the SQLAlchemy objects into
+    individual validation schemas, and bundles them inside a unified list response payload.
+
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A encapsulated list response object containing all validated director profiles.
+    :rtype: DirectorListResponseSchema
+
+    :raises HTTPException: Raises a 404 error if the database table contains no records.
+    """
     query = select(Director).order_by(Director.id.asc())
     result = await db.execute(query)
     directors = result.scalars().all()
