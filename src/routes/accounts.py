@@ -313,7 +313,40 @@ async def reset_activation_token(
 @router.post(
     "/login/",
     response_model=UserLoginResponseSchema,
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Authenticate user and generate JWT tokens",
+    description=(
+        "<h3>This endpoint authenticates a user using their email and password. "
+        "It validates user credentials, ensures that the account has been activated, "
+        "and generates both a JWT Access Token and a JWT Refresh Token. "
+        "The generated refresh token is transactionally stored in the database for session tracking.</h3>"
+    ),
+    responses={
+        401: {
+            "description": "Unauthorized due to invalid email or password.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid email or password."}
+                }
+            },
+        },
+        403: {
+            "description": "Forbidden because the user account is not active.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "User account is not activated."}
+                }
+            },
+        },
+        500: {
+            "description": "Internal server error due to database transaction failure.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "An error occurred while processing the request."}
+                }
+            },
+        }
+    }
 )
 async def login_user(
     login_data: UserLoginRequestSchema,
@@ -321,6 +354,30 @@ async def login_user(
     settings: BaseAppSettings = Depends(get_settings),
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
 ):
+    """
+    Authenticate a user and issue JWT credentials (asynchronously).
+
+    This function searches for a user by email, verifies the hashed password,
+    and checks if the account is activated. If validation passes, it creates
+    a fresh JWT refresh token, writes it to the database using configured expiration settings,
+    and returns a pair of access and refresh tokens to the client.
+
+    :param login_data: Request body containing user credentials (email and password).
+    :type login_data: UserLoginRequestSchema
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+    :param settings: Global application settings for token lifespan configuration.
+    :type settings: BaseAppSettings
+    :param jwt_manager: Component responsible for encoding and signing JWT tokens.
+    :type jwt_manager: JWTAuthManagerInterface
+
+    :return: A schema object containing the access and refresh tokens.
+    :rtype: UserLoginResponseSchema
+
+    :raises HTTPException: Raises a 401 error if credentials are incorrect.
+    :raises HTTPException: Raises a 403 error if the user account is inactive.
+    :raises HTTPException: Raises a 500 error if saving the refresh token to the DB fails.
+    """
     query = select(User).where(User.email == login_data.email)
     result = await db.execute(query)
     user = result.scalars().first()
