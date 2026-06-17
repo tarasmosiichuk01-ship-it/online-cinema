@@ -20,24 +20,76 @@ from schemas.movies import (
 router = APIRouter()
 
 
-# Moderator endpoint
 @router.post(
     "/genres",
     response_model=GenreDetailSchema,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new genre (Moderator only)",
+    description=(
+        "<h3>This endpoint allows moderators to add a new movie genre to the catalog. "
+        "It enforces strict data uniqueness by performing a case-insensitive check (`ilike`) on the genre name. "
+        "If the genre already exists in the system or if a concurrent transaction triggers a database "
+        "unique constraint violation, it throws an appropriate error to maintain data integrity.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request if the genre name is already taken based on application-level checks.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Genre with that name already exists"}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user lacks elevated moderator privileges.",
+        },
+        409: {
+            "description": "Conflict error raised by database unique constraints during a race condition.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Genre with the name '...' already exists"}
+                }
+            },
+        }
+    }
 )
 async def create_genre(
     genre_data: GenreCreateSchema,
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Register a new movie genre inside the catalog system (asynchronously).
 
+    This function handles the creation of a `Genre` entity. It secures the process via role-based
+    dependency injection (`get_moderator_user`), applies defensive database lookups to prevent duplication,
+    and wraps the state persistence within a transaction block that handles unexpected `IntegrityError` failures.
+
+    :param genre_data: Request body payload containing the name of the genre to create.
+    :type genre_data: GenreCreateSchema
+    :param current_user: The authenticated user profile verifying elevated moderator roles.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A parsed and validated database model representing the newly recorded genre.
+    :rtype: GenreDetailSchema
+
+    :raises HTTPException: Raises a 400 error if a genre with the same name exists (case-insensitive).
+    :raises HTTPException: Raises a 409 error if a unique constraint is violated at the database level.
+    """
     query = select(Genre).where(Genre.name.ilike(genre_data.name))
     result = await db.execute(query)
     existing_genre = result.scalars().first()
 
     if existing_genre:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Genre with that name already exists")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Genre with that name already exists"
+        )
 
     new_genre = Genre(name=genre_data.name)
 
