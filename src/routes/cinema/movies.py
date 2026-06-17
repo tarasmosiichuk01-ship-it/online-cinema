@@ -329,11 +329,42 @@ async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_postgres
     return MovieDetailSchema.model_validate(movie)
 
 
-# Moderators endpoint
 @router.patch(
     "/movies/{movie_id}",
     response_model=MovieDetailSchema,
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Partially update an existing movie (Moderator only)",
+    description=(
+        "<h3>This endpoint allows moderators to partially update a movie's details by its unique ID. "
+        "It supports updating basic attributes as well as altering relationships (genres, stars, directors, "
+        "certification) dynamically. The update uses `exclude_unset=True`, ensuring only the fields explicitly "
+        "provided in the request payload are modified. Relationships are eagerly preloaded and resolved "
+        "via an external helper utility before saving changes to the database.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request due to database integrity validation failures or invalid relational payload.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid input data."}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user lacks elevated moderator privileges.",
+        },
+        404: {
+            "description": "Not Found if no movie record matches the specified identifier in the system.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Movie with the given ID was not found."}
+                }
+            },
+        }
+    }
 )
 async def update_movie(
     movie_id: int,
@@ -341,6 +372,30 @@ async def update_movie(
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Partially update a movie's metadata and relational graphs within the catalog (asynchronously).
+
+    This function orchestrates a dynamic patch process for a targeted `Movie` entity. It secures route
+    boundaries via moderator role inspection, loads the active object structure using high-performance
+    Eager Loading (`joinedload` and `selectinload`), processes missing or assigned external relational elements
+    via `resolve_movie_relations`, maps primitive attributes dynamically through `setattr`, and rolls back
+    the active transaction context if data constraint violations occur.
+
+    :param movie_id: The ID of the target movie extracted from the path URL.
+    :type movie_id: int
+    :param movie_data: The Pydantic schema containing partial data fields to be updated.
+    :type movie_data: MovieUpdateSchema
+    :param current_user: The authenticated user profile verifying elevated moderator roles.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: An updated and fully validated movie schema layout populated with refreshed relation trees.
+    :rtype: MovieDetailSchema
+
+    :raises HTTPException: Raises a 404 error if the targeted movie resource does not exist.
+    :raises HTTPException: Raises a 400 error if concurrent request modifications break system database boundaries.
+    """
     query = (
         select(Movie)
         .options(
@@ -383,7 +438,9 @@ async def update_movie(
     try:
         await db.commit()
         await db.refresh(movie, ["certification", "genres", "stars", "directors"])
+        
         return MovieDetailSchema.model_validate(movie)
+
     except IntegrityError:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
