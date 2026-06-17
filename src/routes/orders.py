@@ -17,7 +17,6 @@ from models.accounts import User
 router = APIRouter()
 
 
-# Authorization endpoint
 @router.post(
     "/orders",
     response_model=OrderCreationResponseSchema,
@@ -199,16 +198,42 @@ async def create_order(
     return {"order": completed_order, "warnings": warnings}
 
 
-# Authorization endpoint
 @router.get(
     "/orders",
     response_model=list[OrderResponseSchema],
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Get user order history",
+    description=(
+        "<h3>This endpoint retrieves a complete list of orders placed by the currently authenticated user. "
+        "It fetches all order items, including details about the ordered movies and their genres. "
+        "The results are ordered chronologically, starting from the most recent order.</h3>"
+    ),
+    responses={
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        }
+    }
 )
 async def get_orders(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Retrieve the authenticated user's order history (asynchronously).
+
+    This function queries the database for all orders belonging to the current user.
+    To avoid the N+1 problem, it optimizes data fetching by preloading nested relationships:
+    order items (`selectinload`), associated movies (`joinedload`), and their respective genres (`joinedload`).
+    The final list is sorted by creation date in descending order.
+
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A list of orders containing items, movie profiles, and genres metadata.
+    :rtype: list[OrderResponseSchema]
+    """
     query = (
         select(Order)
         .where(Order.user_id == current_user.id)
