@@ -597,16 +597,43 @@ async def get_payments_canceled():
     }
 
 
-# Authorization endpoint
 @router.get(
     "/payments/my",
     response_model=list[PaymentResponseSchema],
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Get user payment history",
+    description=(
+            "<h3>This endpoint retrieves a complete list of payment transactions made by the currently authenticated user. "
+            "It loads deeply nested relationships including individual payment items, associated order items, "
+            "purchased movies, and their respective genres. "
+            "The results are sorted chronologically, starting from the most recent payment transaction.</h3>"
+    ),
+    responses={
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        }
+    }
 )
 async def get_payments(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Retrieve the authenticated user's payment transaction history (asynchronously).
+
+    This function queries the database for all payment records associated with the current user.
+    To prevent the N+1 problem, it optimizes data fetching by preloading nested relationships:
+    payment items (`selectinload`), underlying order items (`joinedload`), purchased movies (`joinedload`),
+    and movie genres (`selectinload`). The final dataset is returned sorted by creation date in descending order.
+
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A list of payments with fully loaded items, order references, and movie metadata.
+    :rtype: list[PaymentResponseSchema]
+    """
     query = (
         select(Payment)
         .where(Payment.user_id == current_user.id)
