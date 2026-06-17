@@ -654,17 +654,49 @@ async def get_payments(
     return payments
 
 
-# Admin endpoint
 @router.get(
     "/admin/payments",
     response_model=list[PaymentResponseSchema],
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Get all payments with advanced filtering (Admin only)",
+    description=(
+            "<h3>This administrative endpoint retrieves a global list of all payment transactions in the system. "
+            "It supports dynamic multi-criteria filtering based on `user_id`, `start_date`, `end_date`, and `payment_status` via query parameters. "
+            "To maximize performance and eliminate N+1 query bottlenecks, all nested relations including payment items, "
+            "order items, movie records, and genres are eagerly fetched in a structured hierarchy. "
+            "Results are returned chronologically sorted by creation date in descending order.</h3>"
+    ),
+    responses={
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user lacks administrative privileges.",
+        }
+    }
 )
 async def get_payments_for_admin(
     params: dict = Depends(admin_query_params),
     current_user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Retrieve and filter user payment transactions globally across the application (asynchronously).
+
+    This function serves as an administrative logging and auditing tool. It reads optional parameters
+    passed from the back-office interface, aggregates dynamic SQLAlchemy conditions, checks role-based
+    permissions via the `get_admin_user` dependency, and streams pre-loaded, complex relational transaction metadata.
+
+    :param params: A dictionary of extracted, pre-validated query parameters for multi-criteria filtering.
+    :type params: dict
+    :param current_user: The authenticated user object verifying administrative permissions.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A list of payments matching the filter criteria with full nested structural payloads.
+    :rtype: list[PaymentResponseSchema]
+    """
     base_query = (
         select(Payment)
         .options(
