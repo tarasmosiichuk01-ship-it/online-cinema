@@ -108,18 +108,17 @@ async def create_genre(
     return GenreDetailSchema.model_validate(new_genre)
 
 
-# Public endpoint
 @router.get(
     "/genres",
     response_model=GenreListResponseSchema,
     status_code=status.HTTP_200_OK,
     summary="Get all genres with movie counts",
     description=(
-            "<h3>This public endpoint retrieves a list of all movie genres available in the catalog. "
-            "It performs an aggregation using an outer join to dynamically calculate the total number of "
-            "movies linked to each genre. Additionally, it generates a hypermedia direct URL (`movies_url`) "
-            "for fetching movies specific to that genre. "
-            "The results are ordered chronologically by the genre ID in descending order.</h3>"
+        "<h3>This public endpoint retrieves a list of all movie genres available in the catalog. "
+        "It performs an aggregation using an outer join to dynamically calculate the total number of "
+        "movies linked to each genre. Additionally, it generates a hypermedia direct URL (`movies_url`) "
+        "for fetching movies specific to that genre. "
+        "The results are ordered chronologically by the genre ID in descending order.</h3>"
     ),
     responses={
         404: {
@@ -174,17 +173,57 @@ async def get_genre_list(db: AsyncSession = Depends(get_postgresql_db)) -> Genre
     return GenreListResponseSchema(genres=genre_list)
 
 
-# Authorization endpoint
 @router.get(
     "/genres/{genre_id}/movies",
     response_model=GenreMoviesListResponseSchema,
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Get movies by specific genre",
+    description=(
+            "<h3>This endpoint retrieves a list of all movies associated with a specific genre identifier. "
+            "It requires user authentication and checks the database for the existence of the target genre. "
+            "If the genre exists but has no linked movies, or if the genre ID itself is invalid, "
+            "it returns a targeted 404 error response to guide the client.</h3>"
+    ),
+    responses={
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        404: {
+            "description": "Not Found if the genre does not exist or if no movies are mapped to this genre.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "No movies found for this genre."}
+                }
+            },
+        }
+    }
 )
 async def get_movies_by_genre(
     genre_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ) -> GenreMoviesListResponseSchema:
+    """
+    Retrieve all movies mapped to a specified genre from the catalog (asynchronously).
+
+    This function fetches a single `Genre` record filtering by its primary key. It avoids
+    the N+1 loading issue by eagerly preloading the related `movies` collection using the
+    `selectinload` strategy. It enforces business logic constraints by ensuring both the
+    genre domain entity and its nested relationships contain active entries before serialization.
+
+    :param genre_id: The ID of the target genre extracted from the path URL.
+    :type genre_id: int
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A structured schema containing the genre details and its nested collection of validated movies.
+    :rtype: GenreMoviesListResponseSchema
+
+    :raises HTTPException: Raises a 404 error if the genre record is missing.
+    :raises HTTPException: Raises a 404 error if the genre is valid but contains no assigned movies.
+    """
     query = (
         select(Genre)
         .where(Genre.id == genre_id)
