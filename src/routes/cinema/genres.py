@@ -179,10 +179,10 @@ async def get_genre_list(db: AsyncSession = Depends(get_postgresql_db)) -> Genre
     status_code=status.HTTP_200_OK,
     summary="Get movies by specific genre",
     description=(
-            "<h3>This endpoint retrieves a list of all movies associated with a specific genre identifier. "
-            "It requires user authentication and checks the database for the existence of the target genre. "
-            "If the genre exists but has no linked movies, or if the genre ID itself is invalid, "
-            "it returns a targeted 404 error response to guide the client.</h3>"
+        "<h3>This endpoint retrieves a list of all movies associated with a specific genre identifier. "
+        "It requires user authentication and checks the database for the existence of the target genre. "
+        "If the genre exists but has no linked movies, or if the genre ID itself is invalid, "
+        "it returns a targeted 404 error response to guide the client.</h3>"
     ),
     responses={
         401: {
@@ -257,11 +257,11 @@ async def get_movies_by_genre(
     status_code=status.HTTP_200_OK,
     summary="Update an existing genre (Moderator only)",
     description=(
-            "<h3>This endpoint allows moderators to partially update an existing genre's metadata. "
-            "It verifies the target genre's existence by its unique ID. "
-            "If the genre's name is modified, it executes a defensive case-insensitive check (`ilike`) "
-            "to ensure the new title does not conflict with another existing genre in the catalog. "
-            "The update is applied dynamically using partial schema serialization (`exclude_unset=True`).</h3>"
+        "<h3>This endpoint allows moderators to partially update an existing genre's metadata. "
+        "It verifies the target genre's existence by its unique ID. "
+        "If the genre's name is modified, it executes a defensive case-insensitive check (`ilike`) "
+        "to ensure the new title does not conflict with another existing genre in the catalog. "
+        "The update is applied dynamically using partial schema serialization (`exclude_unset=True`).</h3>"
     ),
     responses={
         400: {
@@ -353,14 +353,58 @@ async def update_genre(
     return {"detail": "Genre updated successfully."}
 
 
-# Moderator endpoint
-@router.delete("/genres/{genre_id}")
+@router.delete(
+    "/genres/{genre_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Delete a genre (Moderator only)",
+    description=(
+        "<h3>This endpoint allows moderators to permanently remove a specific movie genre from the catalog. "
+        "It first verifies whether the genre exists by its unique ID. "
+        "If found, the record is removed from the database, and a success confirmation is returned. "
+        "Note that this operation might fail or trigger cascading rules if the genre is linked "
+        "to active movies, depending on the database foreign key constraints.</h3>"
+    ),
+    responses={
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user lacks elevated moderator privileges.",
+        },
+        404: {
+            "description": "Not Found if no genre record matches the specified identifier in the system.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Genre with the given ID was not found."}
+                }
+            },
+        }
+    }
+)
 async def delete_genre(
     genre_id: int,
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Permanently delete a genre record from the catalog (asynchronously).
 
+    This function handles the hard deletion of a `Genre` entity. It secures the route
+    via role-based dependency checks (`get_moderator_user`), looks up the record by its primary key,
+    and removes it within an isolated database transaction block.
+
+    :param genre_id: The ID of the target genre extracted from the path URL.
+    :type genre_id: int
+    :param current_user: The authenticated user profile verifying elevated moderator roles.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A dictionary confirming successful execution of the deletion block.
+    :rtype: dict
+
+    :raises HTTPException: Raises a 404 error if the targeted genre resource does not exist.
+    """
     query = select(Genre).where(Genre.id == genre_id)
     result = await db.execute(query)
     genre = result.scalars().first()
