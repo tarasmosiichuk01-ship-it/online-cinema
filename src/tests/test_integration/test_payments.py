@@ -1,4 +1,5 @@
 import pytest
+from sqlalchemy.sql.functions import current_user
 
 from models.orders import Order, OrderStatusEnum, OrderItem
 
@@ -132,10 +133,34 @@ async def test_refund_order_unauthorized_user(client):
 
 @pytest.mark.asyncio
 async def test_refund_order_if_order_not_found(authorized_client):
+    """
+    Test refunding an order that does not exist.
 
+    Ensures that the endpoint returns a 404 status code and an appropriate
+    error message when no order with the given ID exists for the current user.
+    """
     client, user = authorized_client
 
     response = await client.post("/api/v1/payments/orders/99999999/refund")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Order not found"
+
+
+@pytest.mark.asyncio
+async def test_get_payments_success_unauthorized_user(client):
+    """
+    Test getting payment success page by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to access
+    the payment success page.
+    """
+    response = await client.get(
+        "/api/v1/payments/payments/success?session_id=test_session_id"
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
+
+
