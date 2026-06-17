@@ -691,13 +691,51 @@ async def change_password(
 @router.post(
     "/forgot-password/",
     response_model=MessageResponseSchema,
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Initiate user password reset process",
+    description=(
+        "<h3>This endpoint initiates the password recovery process for a user. "
+        "If an account with the provided email exists and is active, any previous password reset tokens "
+        "are deleted, a new unique token is generated, and a reset link is emailed to the user. "
+        "To mitigate user enumeration attacks, the endpoint always returns a generic success message, "
+        "masking whether the email exists or is active in the system.</h3>"
+    ),
+    responses={
+        500: {
+            "description": "Internal server error due to database transaction failure during token generation.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "An error occurred. Please try again later."}
+                }
+            },
+        }
+    }
 )
 async def forgot_password(
     user_data: ForgotPasswordRequestSchema,
     db: AsyncSession = Depends(get_postgresql_db),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ):
+    """
+    Generate a password reset token and email the recovery link (asynchronously).
+
+    This function processes password recovery requests securely. It screens the incoming email address,
+    verifies that the user exists and is fully activated, clears stale tokens transactionally, issues
+    a fresh recovery token, and dispatches a notification email. Generic response messaging is utilized
+    to preserve user privacy and prevent account harvesting.
+
+    :param user_data: Request body containing the target email address for password recovery.
+    :type user_data: ForgotPasswordRequestSchema
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+    :param email_sender: The email notification sender service component.
+    :type email_sender: EmailSenderInterface
+
+    :return: A generic message response indicating that a recovery link will be sent if conditions are met.
+    :rtype: MessageResponseSchema
+
+    :raises HTTPException: Raises a 500 error if a database exception occurs during token cleanup or addition.
+    """
     query = select(User).where(User.email == user_data.email)
     result = await db.execute(query)
     user = result.scalars().first()
