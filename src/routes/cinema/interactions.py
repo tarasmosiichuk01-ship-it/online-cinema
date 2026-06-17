@@ -146,12 +146,51 @@ async def create_movie_comments(
     return MovieCommentResponseSchema.model_validate(new_comment)
 
 
-# Authorization endpoint
-@router.get("/movies/{movie_id}/comments")
+@router.get(
+    "/movies/{movie_id}/comments",
+    response_model=list[MovieCommentResponseSchema],
+    status_code=status.HTTP_200_OK,
+    summary="Get movie comments thread",
+    description=(
+            "<h3>This endpoint retrieves all root comments and their nested replies for a specific movie. "
+            "It verifies that the target movie exists and is currently marked as available. "
+            "To build the comment tree hierarchy efficiently, the query filters for top-level comments "
+            "(`parent_id == None`) and recursively preloads nested replies along with the author metadata "
+            "for each comment level.</h3>"
+    ),
+    responses={
+        404: {
+            "description": "Not Found if the specified movie does not exist or is marked as unavailable.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Movie not found."}
+                }
+            },
+        }
+    }
+)
 async def get_movie_comments(
     movie_id: int,
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Retrieve the structured hierarchical comment tree for a specific movie (asynchronously).
+
+    This function coordinates the fetching of a multi-level comment thread. It validates movie availability
+    first to prevent orphan reads. To eliminate massive N+1 query chains on nested recursive relations,
+    it utilizes explicit `selectinload` strategy trees to batch-load root authors, direct replies,
+    reply authors, and secondary sub-reply branches within minimal database round-trips.
+
+    :param movie_id: The ID of the target movie extracted from the path URL.
+    :type movie_id: int
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A list of root comment structures wrapping nested relational recursive reply blocks.
+    :rtype: list[MovieCommentResponseSchema]
+
+    :raises HTTPException: Raises a 404 error if the specified movie identifier is missing or unavailable.
+    """
     movie_query = select(Movie).where(
         Movie.id == movie_id,
         Movie.is_available == True
