@@ -23,17 +23,70 @@ from utils.utils import resolve_movie_relations
 
 router = APIRouter()
 
-# Moderators endpoint
+
 @router.post(
     "/movies",
     response_model=MovieDetailSchema,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new movie (Moderator only)",
+    description=(
+        "<h3>This endpoint allows moderators to add a new movie to the catalog system. "
+        "It performs a defensive combined look-up check on the movie's name, release year, and duration "
+        "to prevent duplicate asset entries. It aggregates and fetches relational data (genres, stars, "
+        "directors, certification) asynchronously using a resolution utility layer before initializing "
+        "and committing the fresh movie entity.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request if data integrity checks fail or mapping rules are violated during commitment.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid input data."}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user lacks elevated moderator privileges.",
+        },
+        409: {
+            "description": "Conflict error if a movie with the identical name, year, and duration already exists.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "A movie with the name '...' and release year '...' already exists."}
+                }
+            },
+        }
+    }
 )
 async def create_movie(
     movie_data: MovieCreateSchema,
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Register a new movie entity with resolved nested relationships inside the catalog (asynchronously).
+
+    This function coordinates complex object graphing. It validates access rights, ensures record uniqueness
+    across multi-column keys, routes identifier lists to an internal helper `resolve_movie_relations`
+    to retrieve existing model objects, constructs the complete `Movie` record, and returns a fully mapped
+    response layer. If structural boundaries fail during transactional commit, an `IntegrityError` rollback is invoked.
+
+    :param movie_data: Request body payload carrying the movie specifications and lists of relational IDs.
+    :type movie_data: MovieCreateSchema
+    :param current_user: The authenticated user profile verifying elevated moderator roles.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A fully detailed and validated movie profile, including its complete relational object tree.
+    :rtype: MovieDetailSchema
+
+    :raises HTTPException: Raises a 409 error if a name-year-time combination already maps to a row.
+    :raises HTTPException: Raises a 400 error if concurrent database operations fail constraint tests.
+    """
     existing_query = select(Movie).where(
         (Movie.name == movie_data.name),
         (Movie.year == movie_data.year),
