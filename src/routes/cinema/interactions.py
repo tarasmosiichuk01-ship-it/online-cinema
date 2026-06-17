@@ -152,11 +152,11 @@ async def create_movie_comments(
     status_code=status.HTTP_200_OK,
     summary="Get movie comments thread",
     description=(
-            "<h3>This endpoint retrieves all root comments and their nested replies for a specific movie. "
-            "It verifies that the target movie exists and is currently marked as available. "
-            "To build the comment tree hierarchy efficiently, the query filters for top-level comments "
-            "(`parent_id == None`) and recursively preloads nested replies along with the author metadata "
-            "for each comment level.</h3>"
+        "<h3>This endpoint retrieves all root comments and their nested replies for a specific movie. "
+        "It verifies that the target movie exists and is currently marked as available. "
+        "To build the comment tree hierarchy efficiently, the query filters for top-level comments "
+        "(`parent_id == None`) and recursively preloads nested replies along with the author metadata "
+        "for each comment level.</h3>"
     ),
     responses={
         404: {
@@ -223,12 +223,41 @@ async def get_movie_comments(
     return comments_list
 
 
-# Authorization endpoint
-
 @router.post(
     "/comments/{comment_id}/reactions",
     response_model=Optional[CommentReactionResponse],
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Toggle comment reaction (Authenticated user only)",
+    description=(
+        "<h3>This endpoint implements a flexible toggle mechanism for user reactions (e.g., like/dislike) "
+        "on movie comments. It validates the target comment, its author, and the related movie. "
+        "If the user submits the exact same reaction, the existing record is removed (deleted), "
+        "returning a `null` payload. If the reaction type differs, it updates the state dynamically. "
+        "When a brand-new reaction is successfully created, an email alert is triggered to notify "
+        "the comment's author.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request due to runtime database anomalies, invalid reaction parameters, "
+                           "or active constraint race conditions.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid input data or race condition."}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        404: {
+            "description": "Not Found if the specified comment identifier cannot be resolved.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Comment with the given ID was not found."}
+                }
+            },
+        }
+    }
 )
 async def toggle_comment_reaction(
     comment_id: int,
@@ -237,6 +266,34 @@ async def toggle_comment_reaction(
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Toggle, switch, or assign a system reaction state to a movie comment (asynchronously).
+
+    This function handles conditional state switching for the `CommentReaction` model:
+    1. Removes the entry if the reaction payload matches historical data (idempotent rollback).
+    2. Overwrites the value if changing execution context (e.g., changing from Like to Dislike).
+    3. Persists a new instance and dispatches an notification email to the comment owner.
+
+    Eager loading via `joinedload` ensures immediate access to relational parent properties
+    (`Comment.user` and `Comment.movie`) necessary for building outbound alert structures.
+
+    :param comment_id: The ID of the target comment extracted from the path URL.
+    :type comment_id: int
+    :param reaction_data: Request body carrying the chosen reaction enum type specifier.
+    :type reaction_data: CommentReactionCreate
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param email_sender: The email manager instance responsible for routing system outbound alerts.
+    :type email_sender: EmailSenderInterface
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: An updated or new CommentReaction instance metadata block, or None if the reaction was toggled off.
+    :rtype: CommentReactionResponse | None
+
+    :raises HTTPException: Raises a 404 error if the targeted comment domain asset does not exist.
+    :raises HTTPException: Raises a 400 error if concurrent request race conditions violate internal model constraints.
+    """
     comment_query = (
         select(MovieComment)
         .where(MovieComment.id == comment_id)
@@ -295,7 +352,10 @@ async def toggle_comment_reaction(
 
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data or race condition.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid input data or race condition."
+        )
 
 
 # Authorization endpoint
