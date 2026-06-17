@@ -155,14 +155,72 @@ async def get_director_list(db: AsyncSession = Depends(get_postgresql_db)):
 
 
 # Moderator endpoint
-@router.patch("/directors/{director_id}")
+@router.patch(
+    "/directors/{director_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Update an existing director (Moderator only)",
+    description=(
+            "<h3>This endpoint allows moderators to partially update an existing director's details. "
+            "It validates the target director's existence by their unique ID. "
+            "If the director's name is being modified, it enforces catalog integrity by executing a case-insensitive "
+            "check (`ilike`) to guarantee the new name does not conflict with another existing director. "
+            "Fields are updated dynamically using partial payload serialization (`exclude_unset=True`).</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request due to a conflicting director name or invalid constraint data.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Director with the name '...' already exists."}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user lacks moderator privileges.",
+        },
+        404: {
+            "description": "Not Found if no director record matches the specified identifier.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Director with the given ID was not found."}
+                }
+            },
+        }
+    }
+)
 async def update_director(
     director_id: int,
     director_data: DirectorUpdateSchema,
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Partially update a director's metadata record within the catalog (asynchronously).
 
+    This function processes structural mutations on an existing `Director` database record.
+    It isolates scope validation via a role dependency, prevents name collision anomalies using defensive criteria
+    filtering, dynamically applies modified schema attributes via `setattr`, and rolls back safely
+    if concurrent state changes trigger an `IntegrityError`.
+
+    :param director_id: The ID of the target director extracted from the path URL.
+    :type director_id: int
+    :param director_data: The Pydantic schema containing partial fields to be updated.
+    :type director_data: DirectorUpdateSchema
+    :param current_user: The authenticated user profile verifying elevated moderator roles.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A dictionary confirming successful execution of the database update operation.
+    :rtype: dict
+
+    :raises HTTPException: Raises a 404 error if the targeted director resource does not exist.
+    :raises HTTPException: Raises a 400 error if the modified name duplicates an existing entity
+                           or if database save boundaries encounter an input data validation issue.
+    """
     query = select(Director).where(Director.id == director_id)
     result = await db.execute(query)
     director = result.scalars().first()
