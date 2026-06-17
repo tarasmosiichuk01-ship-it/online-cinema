@@ -105,7 +105,6 @@ async def create_director(
     return DirectorResponseSchema.model_validate(new_director)
 
 
-# Public endpoint
 @router.get(
     "/directors",
     response_model=DirectorListResponseSchema,
@@ -154,17 +153,16 @@ async def get_director_list(db: AsyncSession = Depends(get_postgresql_db)):
     return DirectorListResponseSchema(directors=director_list)
 
 
-# Moderator endpoint
 @router.patch(
     "/directors/{director_id}",
     status_code=status.HTTP_200_OK,
     summary="Update an existing director (Moderator only)",
     description=(
-            "<h3>This endpoint allows moderators to partially update an existing director's details. "
-            "It validates the target director's existence by their unique ID. "
-            "If the director's name is being modified, it enforces catalog integrity by executing a case-insensitive "
-            "check (`ilike`) to guarantee the new name does not conflict with another existing director. "
-            "Fields are updated dynamically using partial payload serialization (`exclude_unset=True`).</h3>"
+        "<h3>This endpoint allows moderators to partially update an existing director's details. "
+        "It validates the target director's existence by their unique ID. "
+        "If the director's name is being modified, it enforces catalog integrity by executing a case-insensitive "
+        "check (`ilike`) to guarantee the new name does not conflict with another existing director. "
+        "Fields are updated dynamically using partial payload serialization (`exclude_unset=True`).</h3>"
     ),
     responses={
         400: {
@@ -256,14 +254,58 @@ async def update_director(
     return {"detail": "Director updated successfully."}
 
 
-# Moderator endpoint
-@router.delete("/directors/{director_id}")
+@router.delete(
+    "/directors/{director_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Delete a director (Moderator only)",
+    description=(
+        "<h3>This endpoint allows moderators to permanently remove a director from the catalog. "
+        "It first verifies whether the director exists by their unique ID. "
+        "If found, the record is deleted from the database, and a success message is returned. "
+        "Note that this operation may fail or trigger database constraints if the director "
+        "is still linked to existing movies.</h3>"
+    ),
+    responses={
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user lacks moderator privileges.",
+        },
+        404: {
+            "description": "Not Found if no director record matches the specified identifier.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Director with the given ID was not found."}
+                }
+            },
+        }
+    }
+)
 async def delete_director(
     director_id: int,
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Permanently delete a director record from the catalog (asynchronously).
 
+    This function handles the removal of a `Director` entity. It secures the operation
+    via role-based dependency injection (`get_moderator_user`), executes a targeted database
+    lookup, and marks the tracking instance for hard deletion within an atomic transaction.
+
+    :param director_id: The ID of the target director extracted from the path URL.
+    :type director_id: int
+    :param current_user: The authenticated user profile verifying elevated moderator roles.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A dictionary confirming successful execution of the deletion block.
+    :rtype: dict
+
+    :raises HTTPException: Raises a 404 error if the targeted director resource does not exist.
+    """
     query = select(Director).where(Director.id == director_id)
     result = await db.execute(query)
     director = result.scalars().first()
