@@ -584,17 +584,65 @@ async def rate_movie(
     return rating_obj
 
 
-# Authorization endpoint
 @router.post("/movies/my/favorites",
     response_model=MovieFavouriteResponseSchema,
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Add a movie to favorites (Authenticated user only)",
+    description=(
+        "<h3>This endpoint allows authenticated users to add a specific movie to their favorites list. "
+        "It verifies that the target movie exists and is currently active (`is_available == True`). "
+        "If the movie is already present in the user's favorites, the endpoint acts idempotently: "
+        "it reloads the relationship data and returns the existing record without creating a duplicate. "
+        "Otherwise, a new favorite association is transactionally persisted with safe rollback handling.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request if concurrent request race conditions violate model constraints on commit.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid input data."}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        404: {
+            "description": "Not Found if the targeted movie is missing or marked as unavailable.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Movie with the given name was not found."}
+                }
+            },
+        }
+    }
 )
 async def add_movie_favorites(
     movie_data: MovieFavouriteSchema,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Append an available movie to the authenticated user's personal favorites catalog (asynchronously).
 
+    This function serves as a safe relational link creator for the `MovieFavourite` model. It safeguards
+    the system by validating movie availability first. To gracefully handle repeated requests, it applies
+    an idempotent bypass branch that simply refreshes and returns historical rows. New records are appended
+    safely using an atomic transaction wrapper that isolates data conflicts via `IntegrityError` tracking.
+
+    :param movie_data: Request body payload containing the targeted movie unique identifier.
+    :type movie_data: MovieFavouriteSchema
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A completely loaded and validated movie favorite record containing linked movie details.
+    :rtype: MovieFavouriteResponseSchema
+
+    :raises HTTPException: Raises a 404 error if the specified movie cannot be found or is restricted.
+    :raises HTTPException: Raises a 400 error if transaction savepoints trigger input data constraint errors.
+    """
     movie_query = select(Movie).where(
         Movie.id == movie_data.movie_id,
         Movie.is_available == True
