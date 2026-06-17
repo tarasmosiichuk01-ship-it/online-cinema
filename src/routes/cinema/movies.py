@@ -140,11 +140,28 @@ async def create_movie(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
 
 
-
-# Public endpoint
 @router.get(
     "/movies",
-    response_model=MovieListResponseSchema
+    response_model=MovieListResponseSchema,
+    status_code=status.HTTP_200_OK,
+    summary="Get all available movies with pagination and filters",
+    description=(
+        "<h3>This public endpoint retrieves a paginated catalog of movies that are currently marked as available. "
+        "It supports dynamic filtering by release year, minimum IMDb rating, and genre, alongside a powerful "
+        "text search query that scans across movie titles, descriptions, cast members (stars), and directors. "
+        "Results can be sorted dynamically by various attributes and include metadata for structured pagination "
+        "navigation via hypermedia links (`prev_page`, `next_page`).</h3>"
+    ),
+    responses={
+        404: {
+            "description": "Not Found if no movies match the requested criteria or if the page limit is exceeded.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "No movies found."}
+                }
+            },
+        }
+    }
 )
 async def get_movie_list(
     page: int = Query(1, ge=1, description="Page number (1-based index)"),
@@ -152,7 +169,31 @@ async def get_movie_list(
     params: dict = Depends(get_query_params),
     db: AsyncSession = Depends(get_postgresql_db)
 ) -> MovieListResponseSchema:
+    """
+    Retrieve a filtered, sorted, and paginated collection of available movies (asynchronously).
 
+    This function processes catalog listings by building and executing two parallel queries:
+    1. A lightweight counting operation (`count_query`) to compute total items and page limits.
+    2. A data operation (`base_query`) modified sequentially according to dynamic incoming filters.
+
+    To optimize database round-trips and maximize performance under pagination offsets, it combines
+    `joinedload` for many-to-one attributes (`certification`) and `selectinload` for many-to-many paths (`genres`),
+    effectively loading all necessary relationships in a structured bulk operation.
+
+    :param page: Target data chunk index requested by the client wrapper.
+    :type page: int
+    :param per_page: Structural constraints limiting the total number of entries per window.
+    :type per_page: int
+    :param params: Extracted query arguments dictionary carrying search, sorting, and filter fields.
+    :type params: dict
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A structured pagination layout carrying verified movie items and traversal route properties.
+    :rtype: MovieListResponseSchema
+
+    :raises HTTPException: Raises a 404 error if no movie assets match the combined parameter filters.
+    """
     base_query = select(Movie).where(Movie.is_available == True)
     count_query = select(func.count()).select_from(Movie).where(Movie.is_available == True)
 
