@@ -21,11 +21,39 @@ from schemas.movies import MovieCommentResponseSchema, MovieCommentCreateSchema,
 router = APIRouter()
 
 
-# Authorization endpoint
 @router.post(
     "/movies/{movie_id}/comments",
     response_model=MovieCommentResponseSchema,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a movie comment or reply (Authenticated user only)",
+    description=(
+        "<h3>This endpoint allows authenticated users to post a new comment on an available movie "
+        "or reply to an existing comment. It verifies the movie's existence and availability. "
+        "If a `parent_id` is provided, it validates that the parent comment exists and belongs to the same movie. "
+        "Upon successful creation, if it is a reply to another user's comment, an asynchronous email "
+        "notification is triggered to notify the author of the parent comment.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request due to a parent comment mismatch with the movie ID or transaction integrity failures.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Parent comment does not belong to this movie."}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        404: {
+            "description": "Not Found if the specified movie is unavailable/missing, or if the parent comment does not exist.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Movie with the given ID was not found."}
+                }
+            },
+        }
+    }
 )
 async def create_movie_comments(
     movie_id: int,
@@ -34,7 +62,31 @@ async def create_movie_comments(
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Publish a root comment or a nested reply under a specific movie (asynchronously).
 
+    This function processes comment trees. It performs cascading structural validations (movie availability,
+    parent-child alignment), inserts the fresh `MovieComment` record, manually overrides SQLAlchemy state anomalies
+    using `set_committed_value` for eager relationship initialization (`replies`), and delegates notification delivery
+    to the `EmailSenderInterface` layer if a threshold reply event is reached.
+
+    :param movie_id: The ID of the target movie extracted from the path URL.
+    :type movie_id: int
+    :param comment_data: Request body payload containing the comment content and optional parent comment identifier.
+    :type comment_data: MovieCommentCreateSchema
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param email_sender: The email manager instance responsible for routing system outbound alerts.
+    :type email_sender: EmailSenderInterface
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A completely initialized comment response schema reflecting database attributes and user relations.
+    :rtype: MovieCommentResponseSchema
+
+    :raises HTTPException: Raises a 404 error if the movie is not active/found, or if the parent comment is missing.
+    :raises HTTPException: Raises a 400 error if structural hierarchies break or data integrity checks fail on commit.
+    """
     query = select(Movie).where(Movie.id == movie_id, Movie.is_available == True)
     result = await db.execute(query)
     movie = result.scalars().first()
