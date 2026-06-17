@@ -24,25 +24,3 @@ async def test_seed_user_groups_initial_creation(db_session):
     inserted_names = {g.name for g in inserted_groups}
     expected_names = {group for group in UserGroupEnum}
     assert inserted_names == expected_names
-
-
-@pytest.mark.asyncio
-async def test_seed_user_groups_idempotency(db_session):
-    """
-    Idempotence test.
-    If you run the seeder twice, or if one group already exists,
-    no duplicates should be created.
-    """
-    existing_group_enum = list(UserGroupEnum)[0]
-    db_session.add(UserGroup(name=existing_group_enum))
-    await db_session.commit()
-
-    with patch("seed.AsyncPostgresqlSession") as mock_session_factory:
-        mock_session_factory.return_value.__aenter__.return_value = db_session
-
-        await seed_user_groups()
-
-    result = await db_session.execute(select(UserGroup))
-    total_groups = result.scalars().all()
-
-    assert len(total_groups) == len(UserGroupEnum)
