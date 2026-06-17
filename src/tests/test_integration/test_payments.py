@@ -334,3 +334,17 @@ async def test_get_payments_canceled_with_success_status(client):
     assert response.json()["message"] == "You have canceled the payment. Your order remains pending."
 
 
+@pytest.mark.asyncio
+async def test_get_payments_unauthorized_user(client):
+    """
+    Test getting payments by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to get
+    their payment history.
+    """
+    response = await client.get("/api/v1/payments/payments/my")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
+
