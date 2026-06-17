@@ -136,10 +136,10 @@ async def register_user(
     status_code=status.HTTP_200_OK,
     summary="Activate a user account",
     description=(
-            "<h3>This endpoint activates a user's account using a unique activation token. "
-            "It validates the token's existence, checks if it has expired, and verifies if the account "
-            "is already active. Upon successful validation, the user's status is updated to active, "
-            "the token is consumed (deleted), and a confirmation email is dispatched.</h3>"
+        "<h3>This endpoint activates a user's account using a unique activation token. "
+        "It validates the token's existence, checks if it has expired, and verifies if the account "
+        "is already active. Upon successful validation, the user's status is updated to active, "
+        "the token is consumed (deleted), and a confirmation email is dispatched.</h3>"
     ),
     responses={
         400: {
@@ -230,13 +230,51 @@ async def activate_token(
 @router.post(
     "/reset-activation/",
     response_model=MessageResponseSchema,
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Resend or reset user activation token",
+    description=(
+        "<h3>This endpoint handles resetting or regenerating an activation token for inactive users. "
+        "If a user with the provided email exists and is not yet activated, any old tokens are deleted, "
+        "a new unique activation token is generated, and a fresh activation email is sent. "
+        "To prevent user enumeration attacks, the endpoint always returns a generic success message "
+        "regardless of whether the email exists or is already active.</h3>"
+    ),
+    responses={
+        500: {
+            "description": "Internal server error due to database transaction failure.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "An error occurred. Please try again later."}
+                }
+            },
+        }
+    }
 )
 async def reset_activation_token(
     user_data: ResetActivationSchema,
     db: AsyncSession = Depends(get_postgresql_db),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator)
 ):
+    """
+    Reset and resend a user activation token (asynchronously).
+
+    This function safely regenerates an account verification link. It searches for the user by email,
+    ensures the user is not already active, flushes old tokens transactionally, creates a new token,
+    and dispatches an email notification. It applies security best practices by hiding the true
+    existence of accounts via consistent generic responses.
+
+    :param user_data: Request body containing the target email address for token re-issuance.
+    :type user_data: ResetActivationSchema
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+    :param email_sender: The email notification sender service component.
+    :type email_sender: EmailSenderInterface
+
+    :return: A generic success message confirming that an email will be sent if conditions are met.
+    :rtype: MessageResponseSchema
+
+    :raises HTTPException: Raises a 500 error if a database exception occurs during token modification.
+    """
     query = select(User).where(User.email == user_data.email)
     result = await db.execute(query)
     user = result.scalars().first()
@@ -267,7 +305,9 @@ async def reset_activation_token(
         activation_link
     )
 
-    return MessageResponseSchema(message="If you are registered and not yet activated, you will receive an email.")
+    return MessageResponseSchema(
+        message="If you are registered and not yet activated, you will receive an email."
+    )
 
 
 @router.post(
