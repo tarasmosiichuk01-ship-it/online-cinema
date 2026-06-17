@@ -498,13 +498,67 @@ async def logout_user(
 @router.post(
     "/refresh/",
     response_model=TokenRefreshResponseSchema,
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Refresh access token using a refresh token",
+    description=(
+        "<h3>This endpoint issues a new JWT Access Token to the client. "
+        "It validates the provided JWT Refresh Token structure, checks its presence "
+        "and validity in the database, verifies the associated user's existence, "
+        "and returns a newly generated short-lived access token.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request due to token decoding or signature validation failure.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Token signature has expired."}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized because the refresh token does not exist in the database.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Refresh token not found."}
+                }
+            },
+        },
+        404: {
+            "description": "Not Found if the user linked to the token no longer exists.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "User not found."}
+                }
+            },
+        }
+    }
 )
 async def update_access_token(
     token_data: TokenRefreshRequestSchema,
     db: AsyncSession = Depends(get_postgresql_db),
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
 ):
+    """
+    Renew a short-lived JWT access token (asynchronously).
+
+    This function decodes and validates the incoming refresh token payload using the security manager.
+    It performs cross-checks against the stored database session tokens and confirms the user account
+    still exists before minting and returning a fresh access token.
+
+    :param token_data: Request body containing the active refresh token.
+    :type token_data: TokenRefreshRequestSchema
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+    :param jwt_manager: Component responsible for decoding, signing, and managing JWT tokens.
+    :type jwt_manager: JWTAuthManagerInterface
+
+    :return: A response schema containing the new JWT access token.
+    :rtype: TokenRefreshResponseSchema
+
+    :raises HTTPException: Raises a 400 error if token decoding fails (expired, invalid structure).
+    :raises HTTPException: Raises a 401 error if the token is revoked or missing from the DB.
+    :raises HTTPException: Raises a 404 error if the token's user payload references a non-existent account.
+    """
     try:
         decoded_token = jwt_manager.decode_refresh_token(token_data.refresh_token)
         user_id = decoded_token.get("user_id")
