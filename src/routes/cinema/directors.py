@@ -17,18 +17,67 @@ from schemas.movies import (
 router = APIRouter()
 
 
-# Moderator endpoint
 @router.post(
     "/directors",
     response_model=DirectorResponseSchema,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new director (Moderator only)",
+    description=(
+        "<h3>This endpoint allows moderators to add a new movie director to the system. "
+        "It enforces data uniqueness by performing a case-insensitive check (`ilike`) on the director's name. "
+        "If a director with the same name already exists, or if a race condition triggers an database "
+        "integrity violation, an appropriate error response is returned to prevent duplicate data entries.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request if a director with the given name is already registered via application pre-checks.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Director with that name already exists"}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user lacks elevated moderator privileges.",
+        },
+        409: {
+            "description": "Conflict error raised by a native database unique constraint failure during transactional commitment.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Director with the name '...' already exists"}
+                }
+            },
+        }
+    }
 )
 async def create_director(
     director_data: DirectorCreateSchema,
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Register a new director record inside the catalog system (asynchronously).
 
+    This function coordinates back-office directory additions. It verifies role permissions through the
+    `get_moderator_user` dependency, applies structural defensive checks via database selection, safely handles
+    concurrent transaction collisions by catching `IntegrityError` exceptions, and exposes a clean metadata profile.
+
+    :param director_data: Request body payload carrying the desired director specifications.
+    :type director_data: DirectorCreateSchema
+    :param current_user: The authenticated user profile verifying elevated moderator roles.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A parsed and validated database model representing the newly recorded director asset.
+    :rtype: DirectorResponseSchema
+
+    :raises HTTPException: Raises a 400 error if application filters catch a case-insensitive name match.
+    :raises HTTPException: Raises a 409 error if concurrent backend processes trigger an IntegrityError constraint.
+    """
     query = select(Director).where(Director.name.ilike(director_data.name))
     result = await db.execute(query)
     existing_director = result.scalars().first()
