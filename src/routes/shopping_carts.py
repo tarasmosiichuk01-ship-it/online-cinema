@@ -167,16 +167,43 @@ async def add_movie_to_cart(
         )
 
 
-# Authorization endpoint
 @router.get(
     "/carts",
     response_model=CartResponse,
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Get current user's shopping cart",
+    description=(
+            "<h3>This endpoint retrieves the active shopping cart for the currently authenticated user. "
+            "It loads all items inside the cart along with details about the corresponding movies and their genres. "
+            "If the user does not have a cart record in the database yet, the endpoint automatically returns "
+            "a transient empty cart structure linked to their user ID to ensure consistent frontend rendering.</h3>"
+    ),
+    responses={
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        }
+    }
 )
 async def get_current_user_cart(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Retrieve the authenticated user's active shopping cart (asynchronously).
+
+    This function fetches the single cart record belonging to the user. To prevent N+1 query overhead,
+    it utilizes optimized chain loading: preloading cart items via `selectinload` and deeply nesting
+    the related movies and genres using sequential `joinedload` expressions. If no cart instance exists,
+    an unpersisted empty model placeholder is returned as a fallback.
+
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A database-backed or dynamically generated Cart model with eager-loaded collections.
+    :rtype: CartResponse
+    """
     query = (
         select(Cart)
         .where(Cart.user_id == current_user.id)
