@@ -438,7 +438,7 @@ async def update_movie(
     try:
         await db.commit()
         await db.refresh(movie, ["certification", "genres", "stars", "directors"])
-        
+
         return MovieDetailSchema.model_validate(movie)
 
     except IntegrityError:
@@ -446,15 +446,72 @@ async def update_movie(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
 
 
-
-# Moderators endpoint
-@router.delete("/movies/{movie_id}", status_code=status.HTTP_200_OK)
+@router.delete(
+    "/movies/{movie_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Delete a movie (Moderator only)",
+    description=(
+        "<h3>This endpoint allows moderators to permanently delete a movie from the catalog. "
+        "It implements critical integrity check guardrails: first, it verifies the movie's existence; "
+        "second, it blocks deletion if the movie is currently present in any user's shopping cart; "
+        "third, it uses an optimized SQL `EXISTS` clause to prevent deletion if the movie has already "
+        "been successfully purchased (`OrderStatusEnum.PAID`) by any customer. "
+        "If all checks pass, the record is transactionally removed.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request if business logic validation fails (movie is active in user carts or completed order items).",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "This movie cannot be deleted because it has already been purchased by at least one user."}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user lacks elevated moderator privileges.",
+        },
+        404: {
+            "description": "Not Found if no movie record matches the specified identifier in the system.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Movie with the given ID was not found."}
+                }
+            },
+        }
+    }
+)
 async def delete_movie(
     movie_id: int,
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Permanently delete a movie record after enforcing historical purchase and active cart restrictions (asynchronously).
 
+    This function handles the hard deletion of a `Movie` entity while preserving system-wide financial and user state records.
+    It executes sequential defensive validation subqueries:
+    1. Checks if a dependency row exists in active `CartItem` models.
+    2. Runs an existential subquery join matching `OrderItem` to `Order` entries where status equals `PAID`.
+
+    If either business constraint condition is satisfied, a 400 exception is triggered, halting the deletion pipeline
+    and ensuring orphan rows are not left behind.
+
+    :param movie_id: The ID of the target movie extracted from the path URL.
+    :type movie_id: int
+    :param current_user: The authenticated user profile verifying elevated moderator roles.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A dictionary confirming successful execution of the database hard deletion block.
+    :rtype: dict
+
+    :raises HTTPException: Raises a 404 error if the targeted movie resource does not exist.
+    :raises HTTPException: Raises a 400 error if the asset is locked by an active shopping cart context or a historical invoice record.
+    """
     query = select(Movie).where(Movie.id == movie_id)
     result = await db.execute(query)
     movie = result.scalars().first()
