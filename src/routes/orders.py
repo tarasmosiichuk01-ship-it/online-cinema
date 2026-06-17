@@ -252,18 +252,63 @@ async def get_orders(
     return orders
 
 
-# Authorization endpoint
 @router.patch(
     "/orders/{order_id}/cancel",
     response_model=OrderResponseSchema,
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Cancel a pending order",
+    description=(
+        "<h3>This endpoint allows a user to cancel an existing order. "
+        "It verifies that the order belongs to the authenticated user and checks its status. "
+        "An order can only be canceled if its current status is 'PENDING'. "
+        "Once validated, the status is updated to 'CANCELED', and the order details, "
+        "including items and movie relationships, are loaded and returned.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request because the order status is not PENDING.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "You can only cancel pending orders"}
+                }
+            },
+        },
+        404: {
+            "description": "Not Found if the order does not exist or does not belong to the user.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Order not found"}
+                }
+            },
+        }
+    }
 )
 async def cancel_order(
     order_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Cancel an active pending order (asynchronously).
 
+    This function safely modifies the state of an order. It performs a database lookup by
+    order ID and user ID, applies strict business validation rules regarding state transitions,
+    and transactionally transitions the order status to 'CANCELED'. Finally, it refreshes
+    and preloads nested movie and genre records to satisfy the response schema.
+
+    :param order_id: The ID of the target order extracted from the path URL.
+    :type order_id: int
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: The updated order object with loaded nested relationships.
+    :rtype: OrderResponseSchema
+
+    :raises HTTPException: Raises a 404 error if the order is missing or unauthorized.
+    :raises HTTPException: Raises a 400 error if the order is already processed, paid, or canceled.
+    """
     query = (
         select(Order)
         .where(
