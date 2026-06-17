@@ -17,18 +17,68 @@ from schemas.movies import (
 router = APIRouter()
 
 
-# Moderator endpoint
 @router.post(
     "/stars",
     response_model=StarResponseSchema,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new movie star (Moderator only)",
+    description=(
+        "<h3>This endpoint allows moderators to register a new movie star (actor/actress) in the system. "
+        "It implements a case-insensitive check (`ilike`) on the star's name to avoid duplication. "
+        "If a duplicate name is caught during the application lookup or triggers a unique constraint violation "
+        "at the database level due to a race condition, an appropriate error response is returned.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request if the star's name already exists based on application-level checks.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Star with that name already exists"}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user lacks elevated moderator privileges.",
+        },
+        409: {
+            "description": "Conflict error caught by unique constraints during a database transaction race condition.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Star with the name '...' already exists"}
+                }
+            },
+        }
+    }
 )
 async def create_star(
     star_data: StarCreateSchema,
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Register a new movie star entry in the system catalog (asynchronously).
 
+    This function coordinates the addition of a `Star` entity. It secures execution scope through
+    role-based dependency verification (`get_moderator_user`), applies case-insensitive pre-checks
+    to maintain domain data uniqueness, and wraps database persistence in a block that catches
+    and handles `IntegrityError` failures cleanly via a rollback operation.
+
+    :param star_data: Request body payload containing the metadata (name) of the star to create.
+    :type star_data: StarCreateSchema
+    :param current_user: The authenticated user profile verifying elevated moderator roles.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A validated schema representation of the newly created movie star database record.
+    :rtype: StarResponseSchema
+
+    :raises HTTPException: Raises a 400 error if the star name is already taken (case-insensitive application check).
+    :raises HTTPException: Raises a 409 error if a unique constraint violation occurs during database commit.
+    """
     query = select(Star).where(Star.name.ilike(star_data.name))
     result = await db.execute(query)
     existing_star = result.scalars().first()
