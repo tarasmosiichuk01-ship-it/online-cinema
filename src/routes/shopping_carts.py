@@ -173,10 +173,10 @@ async def add_movie_to_cart(
     status_code=status.HTTP_200_OK,
     summary="Get current user's shopping cart",
     description=(
-            "<h3>This endpoint retrieves the active shopping cart for the currently authenticated user. "
-            "It loads all items inside the cart along with details about the corresponding movies and their genres. "
-            "If the user does not have a cart record in the database yet, the endpoint automatically returns "
-            "a transient empty cart structure linked to their user ID to ensure consistent frontend rendering.</h3>"
+        "<h3>This endpoint retrieves the active shopping cart for the currently authenticated user. "
+        "It loads all items inside the cart along with details about the corresponding movies and their genres. "
+        "If the user does not have a cart record in the database yet, the endpoint automatically returns "
+        "a transient empty cart structure linked to their user ID to ensure consistent frontend rendering.</h3>"
     ),
     responses={
         401: {
@@ -227,10 +227,10 @@ async def get_current_user_cart(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Remove a movie from the shopping cart",
     description=(
-            "<h3>This endpoint deletes a specific movie item from the authenticated user's shopping cart. "
-            "It checks if the item exists and ensures that it belongs to the active user's cart instance. "
-            "Upon validation, the item is permanently removed from the database, and a success status "
-            "with no content is returned.</h3>"
+        "<h3>This endpoint deletes a specific movie item from the authenticated user's shopping cart. "
+        "It checks if the item exists and ensures that it belongs to the active user's cart instance. "
+        "Upon validation, the item is permanently removed from the database, and a success status "
+        "with no content is returned.</h3>"
     ),
     responses={
         401: {
@@ -292,12 +292,42 @@ async def delete_cart_item(
     await db.commit()
 
 
-# Authorization endpoint
-@router.delete("/carts/clear", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/carts/clear",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Clear all items from the shopping cart",
+    description=(
+        "<h3>This endpoint permanently removes all movie items from the authenticated user's shopping cart. "
+        "It resolves the user's cart identity via an efficient scalar subquery and executes an atomic bulk deletion "
+        "of all nested items. The root cart record itself is preserved, and a success status with no content "
+        "is returned upon completion.</h3>"
+    ),
+    responses={
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        }
+    }
+)
 async def delete_cart_items(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Clear all items within the user's active shopping cart (asynchronously).
+
+    This function performs a bulk database deletion on the `CartItem` model. Instead of pulling records
+    into application memory (avoiding N+1 and overhead), it builds an optimal SQL criteria sequence
+    using a compiled scalar subquery that binds the relation directly to the `current_user.id`.
+    The transaction is committed atomically.
+
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: None (HTTP 204 No Content response is generated automatically).
+    :rtype: None
+    """
     delete_query = (
         delete(CartItem)
         .where(
