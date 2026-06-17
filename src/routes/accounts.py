@@ -771,13 +771,59 @@ async def forgot_password(
 @router.post(
     "/reset-password/{token}/",
     response_model=MessageResponseSchema,
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Reset user password using a recovery token",
+    description=(
+        "<h3>This endpoint completes the password recovery process. "
+        "It validates the unique token from the URL path, checks its expiration status, "
+        "and ensures that the new password matches the confirmation password. "
+        "Upon successful validation, the user's password is updated, and the used token "
+        "is permanently removed from the database to prevent reuse.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request due to an invalid/expired token or mismatched passwords.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid or expired password reset token."}
+                }
+            },
+        },
+        500: {
+            "description": "Internal server error due to database transaction failure during password update.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "An error occurred while resetting the password."}
+                }
+            },
+        }
+    }
 )
 async def reset_password(
     token: str,
     user_data: ResetPasswordRequestSchema,
     db: AsyncSession = Depends(get_postgresql_db),
 ):
+    """
+    Reset user password via a valid recovery token (asynchronously).
+
+    This function securely applies a new password to a user account. It fetches the recovery token,
+    verifies its active lifespan, and validates that the submission payloads contain matching passwords.
+    The update and the token deletion are executed inside a single database transaction.
+
+    :param token: The unique password reset token extracted from the path URL.
+    :type token: str
+    :param user_data: Request body containing the new password and confirmation string.
+    :type user_data: ResetPasswordRequestSchema
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A message response confirming successful password modification.
+    :rtype: MessageResponseSchema
+
+    :raises HTTPException: Raises a 400 error if the token is invalid, expired, or if the new passwords do not match.
+    :raises HTTPException: Raises a 500 error if a database exception occurs during password persistence.
+    """
     query = (
         select(PasswordResetToken)
         .options(joinedload(PasswordResetToken.user))
@@ -802,7 +848,10 @@ async def reset_password(
         )
 
     if user_data.new_password != user_data.confirm_password:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwords do not match"
+        )
 
     user = token_record.user
 
