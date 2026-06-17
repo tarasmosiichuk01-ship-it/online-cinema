@@ -15,17 +15,74 @@ from schemas.shopping_carts import CartItemCreateSchema, CartItemResponseSchema,
 router = APIRouter()
 
 
-# Authorization endpoint
 @router.post(
     "/carts",
     response_model=CartItemResponseSchema,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    summary="Add a movie to the shopping cart",
+    description=(
+        "<h3>This endpoint adds a specified movie to the authenticated user's shopping cart. "
+        "It enforces multiple business rules: verification of active authentication state (via optional dependency), "
+        "blocking duplicate purchases of already owned movies, validating the target movie's existence, "
+        "and preventing multi-instance presence of the same film in the cart. "
+        "If the user does not possess an active cart instance, one is implicitly created transactionally.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request due to repeat purchase block, duplicate cart item inclusion, "
+                           "or race-condition database integrity errors.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "This movie is already in your cart."}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized because the request is anonymous. A redirection link to register is supplied.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "You must sign up or log in before completing a purchase. ..."}
+                }
+            },
+        },
+        404: {
+            "description": "Not Found if the requested movie identifier does not point to a valid database record.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Movie with the given ID was not found."}
+                }
+            },
+        }
+    }
 )
 async def add_movie_to_cart(
     cart_item_data: CartItemCreateSchema,
     current_user: User | None = Depends(get_optional_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Append an entry to the user's active shopping cart (asynchronously).
+
+    This function coordinates rigorous structural validations on item placement workflows.
+    It catches missing session signatures early, cross-references historical order item lists to stop
+    re-purchasing, hooks up lazy-initialized relational parent scopes (`Cart`), and relies on transactional
+    flushes and database integrity locks to isolate clean payloads before mapping data relations outwards.
+
+    :param cart_item_data: Request body parameters identifying the target movie to buy.
+    :type cart_item_data: CartItemCreateSchema
+    :param current_user: The authenticated user profile if logged in; otherwise None.
+    :type current_user: User | None
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A completely loaded cart item reference wrapping linked movie descriptions and genres.
+    :rtype: CartItemResponseSchema
+
+    :raises HTTPException: Raises a 401 error if `current_user` evaluates to None.
+    :raises HTTPException: Raises a 404 error if the specified movie does not exist.
+    :raises HTTPException: Raises a 400 error if the user already paid for this asset,
+                           the record exists in the cart, or a concurrent session raises an IntegrityError.
+    """
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

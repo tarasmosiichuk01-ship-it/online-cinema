@@ -29,11 +29,11 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
     status_code=status.HTTP_201_CREATED,
     summary="Create Stripe Checkout Session",
     description=(
-            "<h3>This endpoint initiates a Stripe Checkout payment workflow for a given pending order. "
-            "It validates that the order exists, belongs to the authenticated user, and is currently in 'PENDING' status. "
-            "It re-calculates and cross-checks the total order price against individual items for integrity, "
-            "maps the items into Stripe format, and communicates with the Stripe API to build a Checkout Session. "
-            "Finally, a local 'PENDING' payment transaction record is created in the database to log the session.</h3>"
+        "<h3>This endpoint initiates a Stripe Checkout payment workflow for a given pending order. "
+        "It validates that the order exists, belongs to the authenticated user, and is currently in 'PENDING' status. "
+        "It re-calculates and cross-checks the total order price against individual items for integrity, "
+        "maps the items into Stripe format, and communicates with the Stripe API to build a Checkout Session. "
+        "Finally, a local 'PENDING' payment transaction record is created in the database to log the session.</h3>"
     ),
     responses={
         400: {
@@ -187,12 +187,12 @@ async def create_checkout_session(
     status_code=status.HTTP_200_OK,
     summary="Handle Stripe Webhook Events",
     description=(
-            "<h3>This public endpoint processes asynchronous event notifications sent by Stripe. "
-            "It validates the integrity of the payload using the `stripe-signature` header to ensure authenticity. "
-            "The handler acts upon several crucial payment lifecycle events: "
-            "`checkout.session.completed` (updates payment/order status to successful/paid, creates payment items, triggers Celery tasks, and dispatches a receipt email), "
-            "`checkout.session.expired` (marks the transaction as canceled due to timeout), "
-            "and `charge.failed` (handles declined transactions by updating relevant records).</h3>"
+        "<h3>This public endpoint processes asynchronous event notifications sent by Stripe. "
+        "It validates the integrity of the payload using the `stripe-signature` header to ensure authenticity. "
+        "The handler acts upon several crucial payment lifecycle events: "
+        "`checkout.session.completed` (updates payment/order status to successful/paid, creates payment items, triggers Celery tasks, and dispatches a receipt email), "
+        "`checkout.session.expired` (marks the transaction as canceled due to timeout), "
+        "and `charge.failed` (handles declined transactions by updating relevant records).</h3>"
     ),
     responses={
         400: {
@@ -377,11 +377,11 @@ async def stripe_webhook(
     status_code=status.HTTP_200_OK,
     summary="Refund a paid order",
     description=(
-            "<h3>This endpoint processes a full refund for a previously paid order. "
-            "It verifies that the order exists, belongs to the authenticated user, and has the status 'PAID'. "
-            "It then locates the corresponding successful payment record to retrieve the Stripe `payment_intent_id`. "
-            "The refund is issued externally via the Stripe API in a thread-safe manner, "
-            "and upon success, the local payment status is updated to 'REFUNDED' and the order is marked as 'CANCELED'.</h3>"
+        "<h3>This endpoint processes a full refund for a previously paid order. "
+        "It verifies that the order exists, belongs to the authenticated user, and has the status 'PAID'. "
+        "It then locates the corresponding successful payment record to retrieve the Stripe `payment_intent_id`. "
+        "The refund is issued externally via the Stripe API in a thread-safe manner, "
+        "and upon success, the local payment status is updated to 'REFUNDED' and the order is marked as 'CANCELED'.</h3>"
     ),
     responses={
         400: {
@@ -484,11 +484,11 @@ async def refund_order(
     status_code=status.HTTP_200_OK,
     summary="Check Stripe checkout session status",
     description=(
-            "<h3>This endpoint verifies the state of a local payment transaction using a Stripe Checkout session ID. "
-            "It ensures that the record belongs to the currently authenticated user. "
-            "Depending on the internal state (updated via asynchronous webhooks), it returns customized messaging: "
-            "a thank-you notice for successful flows, a processing reminder for pending steps, "
-            "or troubleshooting recommendations if the transaction has failed or been canceled.</h3>"
+        "<h3>This endpoint verifies the state of a local payment transaction using a Stripe Checkout session ID. "
+        "It ensures that the record belongs to the currently authenticated user. "
+        "Depending on the internal state (updated via asynchronous webhooks), it returns customized messaging: "
+        "a thank-you notice for successful flows, a processing reminder for pending steps, "
+        "or troubleshooting recommendations if the transaction has failed or been canceled.</h3>"
     ),
     responses={
         401: {
@@ -574,9 +574,9 @@ async def get_payments_success(
     status_code=status.HTTP_200_OK,
     summary="Handle canceled Stripe checkout session redirection",
     description=(
-            "<h3>This endpoint serves as the target landing page when a user explicitly cancels "
-            "the payment process on the Stripe Checkout page. It provides feedback confirming "
-            "the cancellation and reassures the user that their order remains intact in a pending state.</h3>"
+        "<h3>This endpoint serves as the target landing page when a user explicitly cancels "
+        "the payment process on the Stripe Checkout page. It provides feedback confirming "
+        "the cancellation and reassures the user that their order remains intact in a pending state.</h3>"
     )
 )
 async def get_payments_canceled():
@@ -603,10 +603,10 @@ async def get_payments_canceled():
     status_code=status.HTTP_200_OK,
     summary="Get user payment history",
     description=(
-            "<h3>This endpoint retrieves a complete list of payment transactions made by the currently authenticated user. "
-            "It loads deeply nested relationships including individual payment items, associated order items, "
-            "purchased movies, and their respective genres. "
-            "The results are sorted chronologically, starting from the most recent payment transaction.</h3>"
+        "<h3>This endpoint retrieves a complete list of payment transactions made by the currently authenticated user. "
+        "It loads deeply nested relationships including individual payment items, associated order items, "
+        "purchased movies, and their respective genres. "
+        "The results are sorted chronologically, starting from the most recent payment transaction.</h3>"
     ),
     responses={
         401: {
@@ -660,11 +660,11 @@ async def get_payments(
     status_code=status.HTTP_200_OK,
     summary="Get all payments with advanced filtering (Admin only)",
     description=(
-            "<h3>This administrative endpoint retrieves a global list of all payment transactions in the system. "
-            "It supports dynamic multi-criteria filtering based on `user_id`, `start_date`, `end_date`, and `payment_status` via query parameters. "
-            "To maximize performance and eliminate N+1 query bottlenecks, all nested relations including payment items, "
-            "order items, movie records, and genres are eagerly fetched in a structured hierarchy. "
-            "Results are returned chronologically sorted by creation date in descending order.</h3>"
+        "<h3>This administrative endpoint retrieves a global list of all payment transactions in the system. "
+        "It supports dynamic multi-criteria filtering based on `user_id`, `start_date`, `end_date`, and `payment_status` via query parameters. "
+        "To maximize performance and eliminate N+1 query bottlenecks, all nested relations including payment items, "
+        "order items, movie records, and genres are eagerly fetched in a structured hierarchy. "
+        "Results are returned chronologically sorted by creation date in descending order.</h3>"
     ),
     responses={
         401: {
