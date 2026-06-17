@@ -340,7 +340,6 @@ async def delete_cart_items(
     await db.commit()
 
 
-# Admin endpoint
 @router.get(
     "/admin/carts/{user_id}",
     response_model=CartResponse,
@@ -368,23 +367,23 @@ async def get_cart_by_user_id(
     db: AsyncSession = Depends(get_postgresql_db)
 ):
     """
-        Retrieve any target user's shopping cart details globally (asynchronously).
+    Retrieve any target user's shopping cart details globally (asynchronously).
 
-        This function acts as an administrative inspection utility. It queries the database for a cart
-        belonging to the requested `user_id`. To ensure optimal performance and eliminate N+1 overhead,
-        it applies eager relation loading (`selectinload` for cart items followed by sequential `joinedload`
-        calls for movies and genres). It falls back to an unpersisted empty model placeholder if no record is found.
+    This function acts as an administrative inspection utility. It queries the database for a cart
+    belonging to the requested `user_id`. To ensure optimal performance and eliminate N+1 overhead,
+    it applies eager relation loading (`selectinload` for cart items followed by sequential `joinedload`
+    calls for movies and genres). It falls back to an unpersisted empty model placeholder if no record is found.
 
-        :param user_id: The ID of the target user extracted from the path URL.
-        :type user_id: int
-        :param current_user: The authenticated user object verifying administrative permissions.
-        :type current_user: User
-        :param db: The async SQLAlchemy database session (provided via dependency injection).
-        :type db: AsyncSession
+    :param user_id: The ID of the target user extracted from the path URL.
+    :type user_id: int
+    :param current_user: The authenticated user object verifying administrative permissions.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
 
-        :return: A database-backed or dynamically generated Cart model with eager-loaded collections.
-        :rtype: CartResponse
-        """
+    :return: A database-backed or dynamically generated Cart model with eager-loaded collections.
+    :rtype: CartResponse
+    """
     query = (
         select(Cart)
         .where(Cart.user_id == user_id)
@@ -407,12 +406,39 @@ async def get_cart_by_user_id(
 @router.get(
     "/carts/purchased",
     response_model=list[PurchasedMovieResponseSchema],
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Get user's purchased movies",
+    description=(
+        "<h3>This endpoint retrieves a complete list of movies that the currently authenticated user "
+        "has successfully purchased. It extracts records from the user's permanent digital library, "
+        "eagerly loading the associated movie details and their corresponding genres. "
+        "This ensures the user can stream or access their custom library assets.</h3>"
+    ),
+    responses={
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        }
+    }
 )
 async def get_purchased_movies(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Retrieve the library of movies purchased by the authenticated user (asynchronously).
+
+    This function queries the `PurchasedMovie` library table for records matching the current user's ID.
+    To avoid the N+1 database problem during list rendering, it optimizes loading by preloading the
+    linked `Movie` records and their nested `genres` collection using sequential `selectinload` strategies.
+
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A list of purchased movie entries containing structural movie profiles and genre metadata.
+    :rtype: list[PurchasedMovieResponseSchema]
+    """
     query = (
         select(PurchasedMovie)
         .where(PurchasedMovie.user_id == current_user.id)
