@@ -363,3 +363,49 @@ async def test_get_payments_if_not_payments(authorized_client):
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+@pytest.mark.asyncio
+async def test_get_payments_success(authorized_client, test_movie, db_session_commit):
+    """
+    Test successful retrieval of payment history.
+
+    Ensures that the endpoint returns a 200 status code and a list
+    of payments with correct structure when the user has payments.
+    """
+    client, user = authorized_client
+
+    order = Order(
+        user_id=user.id,
+        status=OrderStatusEnum.PENDING,
+        total_amount=test_movie.price,
+    )
+    db_session_commit.add(order)
+    await db_session_commit.flush()
+
+    payment = Payment(
+        user_id=user.id,
+        order_id=order.id,
+        status=PaymentStatusEnum.PENDING,
+        amount=test_movie.price,
+        external_payment_id="test_session_id",
+        payment_intent_id="test_intent_id",
+    )
+    db_session_commit.add(payment)
+    await db_session_commit.commit()
+
+    response = await client.get("/api/v1/payments/payments/my")
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert isinstance(response_data, list)
+    assert len(response_data) > 0
+    assert "id" in response_data[0]
+    assert "status" in response_data[0]
+    assert "amount" in response_data[0]
+
+    await db_session_commit.delete(payment)
+    await db_session_commit.flush()
+    await db_session_commit.delete(order)
+    await db_session_commit.commit()
+
