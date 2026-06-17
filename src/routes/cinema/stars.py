@@ -106,9 +106,43 @@ async def create_star(
     return StarResponseSchema.model_validate(new_star)
 
 
-# Public endpoint
-@router.get("/stars", response_model=StarListResponseSchema)
+@router.get(
+    "/stars",
+    response_model=StarListResponseSchema,
+    status_code=status.HTTP_200_OK,
+    summary="Get all movie stars",
+    description=(
+        "<h3>This public endpoint retrieves a complete list of all movie stars (actors/actresses) "
+        "registered in the catalog. The collection is returned in ascending order based on their unique ID. "
+        "If no star records are found within the database, it returns a clear 404 error response.</h3>"
+    ),
+    responses={
+        404: {
+            "description": "Not Found if the star catalog is currently empty.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "No stars found."}
+                }
+            },
+        }
+    }
+)
 async def get_star_list(db: AsyncSession = Depends(get_postgresql_db)) -> StarListResponseSchema:
+    """
+        Retrieve the entire collection of movie stars from the database (asynchronously).
+
+        This function performs a straightforward relational fetch operation using SQLAlchemy.
+        It streams all available `Star` records sorted sequentially by their primary key, validates
+        each database row against the structural item schema, and bundles them into a list response envelope.
+
+        :param db: The async SQLAlchemy database session (provided via dependency injection).
+        :type db: AsyncSession
+
+        :return: A validated list schema containing all registered movie star profiles.
+        :rtype: StarListResponseSchema
+
+        :raises HTTPException: Raises a 404 error if no star entries exist in the system database.
+        """
     query = select(Star).order_by(Star.id.asc())
     result = await db.execute(query)
     stars = result.scalars().all()
