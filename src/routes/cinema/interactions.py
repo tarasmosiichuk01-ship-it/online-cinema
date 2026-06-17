@@ -358,11 +358,39 @@ async def toggle_comment_reaction(
         )
 
 
-# Authorization endpoint
 @router.post(
     "/movies/{movie_id}/reactions",
     response_model=Optional[MovieReactionResponseSchema],
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Toggle movie reaction (Authenticated user only)",
+    description=(
+            "<h3>This endpoint implements an idempotent toggle mechanism for user reactions (like/dislike) "
+            "directly on a movie. It verifies that the movie exists and is active (`is_available == True`). "
+            "If the user applies the exact same reaction type, the existing record is removed (deleted) "
+            "from the database, returning a `null` payload. If the reaction type differs, it updates the state. "
+            "Otherwise, a brand-new reaction instance is persisted transactionally.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request due to database validation failures or active constraint race conditions.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid input data or race condition."}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        404: {
+            "description": "Not Found if the specified movie is missing or marked as unavailable.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Movie with the given ID was not found."}
+                }
+            },
+        }
+    }
 )
 async def toggle_movie_reaction(
     movie_id: int,
@@ -370,7 +398,31 @@ async def toggle_movie_reaction(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Toggle, switch, or assign a system reaction state to a specific movie asset (asynchronously).
 
+    This function coordinates conditional branch state switches for the `MovieReaction` model:
+    1. Removes the entry if the reaction payload matches historical data (idempotent removal).
+    2. Overwrites the property value if changing execution context (e.g., swapping Like to Dislike).
+    3. Persists a fresh instance from scratch if no relation row exists.
+
+    It validates movie availability boundaries before processing modifications to prevent phantom entries.
+
+    :param movie_id: The ID of the target movie extracted from the path URL.
+    :type movie_id: int
+    :param reaction_data: Request body payload carrying the chosen reaction enum type specifier.
+    :type reaction_data: MovieReactionCreateSchema
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: An updated or new MovieReaction instance metadata block, or None if the reaction was toggled off.
+    :rtype: MovieReactionResponseSchema | None
+
+    :raises HTTPException: Raises a 404 error if the targeted movie resource does not exist or is unavailable.
+    :raises HTTPException: Raises a 400 error if transaction savepoints trigger database constraint failures or race conditions.
+    """
     movie_query = select(Movie).where(
         Movie.id == movie_id,
         Movie.is_available == True
@@ -417,7 +469,10 @@ async def toggle_movie_reaction(
 
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data or race condition.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid input data or race condition."
+        )
 
 
 # Authorization endpoint
