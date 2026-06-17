@@ -826,16 +826,55 @@ async def get_movie_favorites(
     )
 
 
-# Authorization endpoint
 @router.delete(
     "/movies/my/favorites/{movie_id}",
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Remove a movie from favorites (Authenticated user only)",
+    description=(
+        "<h3>This endpoint allows authenticated users to remove a specific movie from their personal "
+        "favorites list. It searches for an active relationship record matching both the provided "
+        "movie ID and the current user's ID. If the movie is not found in the user's favorites, "
+        "a 404 error is raised. Upon successful matching, the record is permanently deleted.</h3>"
+    ),
+    responses={
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        404: {
+            "description": "Not Found if the specified movie is not present in the user's favorites list.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Movie is not found in your favorites."}
+                }
+            },
+        }
+    }
 )
 async def delete_movie_favorites(
     movie_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Remove an existing movie record from the authenticated user's favorites list (asynchronously).
+
+    This function isolates user-specific relational rows in the `MovieFavourite` link table.
+    It ensures secure scoped resource deletion by strictly filtering queries with the injection context's
+    `current_user.id`. If a valid tracking tuple matches, the row is scheduled for a transactional
+    hard deletion via the async SQLAlchemy session block.
+
+    :param movie_id: The ID of the target movie extracted from the path URL.
+    :type movie_id: int
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A dictionary confirming successful execution of the deletion block.
+    :rtype: dict
+
+    :raises HTTPException: Raises a 404 error if no matching record ties the target movie to the current user.
+    """
     query = select(MovieFavourite).where(
         MovieFavourite.movie_id == movie_id,
         MovieFavourite.user_id == current_user.id
