@@ -684,11 +684,31 @@ async def add_movie_favorites(
     return movie_favourite
 
 
-# Authorization endpoint
 @router.get(
     "/movies/my/favorites",
     response_model=MovieFavouriteListResponseSchema,
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Get user's favorite movies with pagination and filters",
+    description=(
+        "<h3>This endpoint retrieves a paginated list of available movies that the currently "
+        "authenticated user has added to their favorites. It supports dynamic filtering by release year, "
+        "minimum IMDb rating, and genre, alongside a comprehensive text search across movie titles, "
+        "descriptions, actors (stars), and directors. Results can be sorted dynamically and include "
+        "metadata for hypermedia pagination control (`prev_page`, `next_page`).</h3>"
+    ),
+    responses={
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        404: {
+            "description": "Not Found if no matching favorite movie records are discovered for the current page or filters.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "No movies found."}
+                }
+            },
+        }
+    }
 )
 async def get_movie_favorites(
     page: int = Query(1, ge=1, description="Page number (1-based index)"),
@@ -697,8 +717,33 @@ async def get_movie_favorites(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Fetch a filtered, sorted, and paginated stream of the user's favorite movies (asynchronously).
 
+    This function processes complex catalog lookups by constructing two separate executable query trees:
+    1. A counting sequence (`count_query`) to aggregate total matched records for pagination bounds.
+    2. A data sequence (`base_query`) modified via text scanning criteria (`ilike` on many-to-many paths).
 
+    To ensure high-performance loading and block N+1 database operations, it combined strategic `joinedload`
+    for one-to-one attributes (`certification`) and `selectinload` for many-to-many collections (`genres`),
+    safely cutting off execution if offset limits scale past available limits.
+
+    :param page: Target index chunk requested by the client container.
+    :type page: int
+    :param per_page: Structural row limit constraint to extract per active page context.
+    :type per_page: int
+    :param params: Extracted dictionary containing filtering parameters (year, rating, search string, sort keys).
+    :type params: dict
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A fully wrapped pagination envelope mapping rows, counters, and hypermedia trajectory strings.
+    :rtype: MovieFavouriteListResponseSchema
+
+    :raises HTTPException: Raises a 404 error if the query yields no records under the applied filters.
+    """
     base_query = (
         select(MovieFavourite)
         .join(MovieFavourite.movie)
