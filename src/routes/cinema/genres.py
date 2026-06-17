@@ -252,15 +252,72 @@ async def get_movies_by_genre(
     )
 
 
-# Moderator endpoint
-@router.patch("/genres/{genre_id}", status_code=status.HTTP_200_OK)
+@router.patch(
+    "/genres/{genre_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Update an existing genre (Moderator only)",
+    description=(
+            "<h3>This endpoint allows moderators to partially update an existing genre's metadata. "
+            "It verifies the target genre's existence by its unique ID. "
+            "If the genre's name is modified, it executes a defensive case-insensitive check (`ilike`) "
+            "to ensure the new title does not conflict with another existing genre in the catalog. "
+            "The update is applied dynamically using partial schema serialization (`exclude_unset=True`).</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request due to a conflicting genre name or dynamic transaction input invalidation.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Genre with the name '...' already exists."}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user lacks elevated moderator privileges.",
+        },
+        404: {
+            "description": "Not Found if no genre record matches the specified identifier in the system.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Genre with the given ID was not found."}
+                }
+            },
+        }
+    }
+)
 async def update_genre(
     genre_id: int,
     genre_data: GenreUpdateSchema,
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Partially update a genre's metadata within the catalog (asynchronously).
 
+    This function coordinates structural modifications on a targeted `Genre` database entity.
+    It isolates scope access via role checking, performs secondary lookups to block name collisions,
+    iterates over unpacked patch attributes via `setattr`, and handles database state recovery
+    by rolling back the transaction if an unexpected `IntegrityError` is encountered.
+
+    :param genre_id: The ID of the target genre extracted from the path URL.
+    :type genre_id: int
+    :param genre_data: The Pydantic schema containing partial fields to be updated.
+    :type genre_data: GenreUpdateSchema
+    :param current_user: The authenticated user profile verifying elevated moderator roles.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A dictionary confirming successful execution of the database update operation.
+    :rtype: dict
+
+    :raises HTTPException: Raises a 404 error if the targeted genre resource does not exist.
+    :raises HTTPException: Raises a 400 error if the modified name duplicates an existing record
+                           or if database save boundaries encounter data constraint failures.
+    """
     query = select(Genre).where(Genre.id == genre_id)
     result = await db.execute(query)
     genre = result.scalars().first()
