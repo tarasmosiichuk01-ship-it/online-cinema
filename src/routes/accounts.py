@@ -25,13 +25,60 @@ router = APIRouter()
 @router.post(
     "/register/",
     response_model=UserRegistrationResponseSchema,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    summary="Register a new user",
+    description=(
+        "<h3>This endpoint handles new user registration. "
+        "It checks if the email is already in use, assigns the default 'USER' group, "
+        "hashes the password, creates an activation token, and stores the user in the database. "
+        "Upon successful creation, an activation email with a unique verification link is sent to the user.</h3>"
+    ),
+    responses={
+        409: {
+            "description": "Email already exists.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "A user with this email user@example.com already exists."}
+                }
+            }
+        },
+        500: {
+            "description": "Internal server error due to missing configurations or database failures.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Default user group not found."}
+                }
+            }
+        }
+    }
 )
 async def register_user(
     user_data: UserRegistrationRequestSchema,
     db: AsyncSession = Depends(get_postgresql_db),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator)
 ):
+    """
+    Register a new system user and trigger an activation email (asynchronously).
+
+    This function performs database validation to ensure uniqueness of the email.
+    It links the new user to the default 'USER' group, creates a corresponding
+    activation token transactionally, and sends a generated activation link via
+    the provided email notification service.
+
+    :param user_data: Request body containing registration details (email and password).
+    :type user_data: UserRegistrationRequestSchema
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+    :param email_sender: The email notification sender service component.
+    :type email_sender: EmailSenderInterface
+
+    :return: A response containing the created user profile metadata.
+    :rtype: UserRegistrationResponseSchema
+
+    :raises HTTPException: Raises a 409 error if the email is already registered.
+    :raises HTTPException: Raises a 500 error if the default user group is missing in DB
+                           or if a database transaction failure occurs during user creation.
+    """
     query = select(User).where(User.email == user_data.email)
     result = await db.execute(query)
     existing_user = result.scalars().first()
@@ -81,6 +128,7 @@ async def register_user(
     )
 
     return UserRegistrationResponseSchema.model_validate(new_user)
+
 
 @router.get("/activate/{token}/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
 async def activate_token(
