@@ -372,16 +372,65 @@ async def stripe_webhook(
     return {"status": "ignored"}
 
 
-# Authorization endpoint
 @router.post(
     "/orders/{order_id}/refund",
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Refund a paid order",
+    description=(
+            "<h3>This endpoint processes a full refund for a previously paid order. "
+            "It verifies that the order exists, belongs to the authenticated user, and has the status 'PAID'. "
+            "It then locates the corresponding successful payment record to retrieve the Stripe `payment_intent_id`. "
+            "The refund is issued externally via the Stripe API in a thread-safe manner, "
+            "and upon success, the local payment status is updated to 'REFUNDED' and the order is marked as 'CANCELED'.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request due to Stripe API errors or gateway failures.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Stripe error: ..."}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        404: {
+            "description": "Not Found if the paid order or successful payment record does not exist for the user.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Order not found"}
+                }
+            },
+        }
+    }
 )
 async def refund_order(
     order_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Issue a full order refund via Stripe and reverse local transaction states (asynchronously).
+
+    This function safely interacts with the Stripe gateway to return funds to the user. It audits
+    the local order and payment eligibility criteria, offloads the synchronous external Stripe API
+    call to an isolated worker thread via `asyncio.to_thread`, and executes atomic updates to roll back
+    the order state to 'CANCELED' and the payment state to 'REFUNDED'.
+
+    :param order_id: The ID of the target paid order extracted from the path URL.
+    :type order_id: int
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A dictionary confirming successful refund execution alongside database identifiers.
+    :rtype: dict
+
+    :raises HTTPException: Raises a 404 error if the eligible paid order or payment record is not found.
+    :raises HTTPException: Raises a 400 error if the external Stripe gateway rejects the operation.
+    """
     order_query = (
         select(Order)
         .where(
