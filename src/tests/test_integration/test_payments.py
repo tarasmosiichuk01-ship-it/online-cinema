@@ -316,3 +316,21 @@ async def test_get_payments_success_with_another_status(authorized_client, test_
     await db_session_commit.flush()
     await db_session_commit.delete(order)
     await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_get_payments_canceled_with_success_status(client):
+    """
+    Test getting payment canceled page.
+
+    Ensures that the endpoint returns a 200 status code and an appropriate
+    message when the user cancels the payment process.
+    """
+    response = await client.get("/api/v1/payments/payments/canceled")
+
+    assert response.status_code == 200
+
+    assert response.json()["status"] == "canceled"
+    assert response.json()["message"] == "You have canceled the payment. Your order remains pending."
+
+
