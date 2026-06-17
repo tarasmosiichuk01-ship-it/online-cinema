@@ -164,3 +164,20 @@ async def test_get_payments_success_unauthorized_user(client):
     assert response.json()["detail"] == "Not authenticated"
 
 
+@pytest.mark.asyncio
+async def test_get_payments_success_if_payment_not_found(authorized_client):
+    """
+    Test getting payment success page when payment does not exist.
+
+    Ensures that the endpoint returns a 404 status code and an appropriate
+    error message when no payment with the given session ID exists
+    for the current user.
+    """
+    client, user = authorized_client
+
+    response = await client.get(
+        "/api/v1/payments/payments/success?session_id=999999999999999"
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Payment not found."
