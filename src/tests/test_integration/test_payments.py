@@ -348,3 +348,18 @@ async def test_get_payments_unauthorized_user(client):
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
 
+
+@pytest.mark.asyncio
+async def test_get_payments_if_not_payments(authorized_client):
+    """
+    Test getting payments when the user has no payment history.
+
+    Ensures that the endpoint returns a 200 status code and an empty
+    list when the user has not made any payments.
+    """
+    client, user = authorized_client
+
+    response = await client.get("/api/v1/payments/payments/my")
+
+    assert response.status_code == 200
+    assert response.json() == []
