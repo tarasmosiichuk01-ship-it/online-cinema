@@ -22,7 +22,7 @@ router = APIRouter()
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
-# Authorization endpoint
+
 @router.post(
     "/payments/create-checkout-session",
     response_model=StripeSessionResponseSchema,
@@ -182,12 +182,55 @@ async def create_checkout_session(
 
 
 # Public endpoint
-@router.post("/webhook", status_code=status.HTTP_200_OK)
+@router.post(
+    "/webhook",
+    status_code=status.HTTP_200_OK,
+    summary="Handle Stripe Webhook Events",
+    description=(
+            "<h3>This public endpoint processes asynchronous event notifications sent by Stripe. "
+            "It validates the integrity of the payload using the `stripe-signature` header to ensure authenticity. "
+            "The handler acts upon several crucial payment lifecycle events: "
+            "`checkout.session.completed` (updates payment/order status to successful/paid, creates payment items, triggers Celery tasks, and dispatches a receipt email), "
+            "`checkout.session.expired` (marks the transaction as canceled due to timeout), "
+            "and `charge.failed` (handles declined transactions by updating relevant records).</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request due to an invalid JSON payload structure or signature verification failure.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Signature verification failed: ..."}
+                }
+            },
+        }
+    }
+)
 async def stripe_webhook(
     request: Request,
     db: AsyncSession = Depends(get_postgresql_db),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator)
 ):
+    """
+    Process asynchronous callback notifications from Stripe (asynchronously).
+
+    This function serves as the central orchestration point for the application's payment lifecycle.
+    It verifies cryptographically that incoming payloads originate from Stripe. Depending on the event state,
+    it transitions database models, registers payment configurations, schedules background celery workers
+    for post-payment pipelines (`add_movies_to_purchased_table`), and triggers user confirmation notifications.
+
+    :param request: The raw FastAPI request object containing headers and byte stream payload.
+    :type request: Request
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+    :param email_sender: The email notification sender service component.
+    :type email_sender: EmailSenderInterface
+
+    :return: A JSON-compatible dictionary or status object signifying how the system handled the event.
+    :rtype: dict
+
+    :raises HTTPException: Raises a 400 error if the signature verification fails or if the payload body is malformed.
+    :raises HTTPException: Raises a 400 error if a database integrity exception occurs during successful state updates.
+    """
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
 
