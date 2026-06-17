@@ -8,6 +8,7 @@ from sqlalchemy import select
 from config.dependencies import get_accounts_email_notificator, get_settings, get_current_user
 from models.accounts import UserGroupEnum, UserGroup, User
 from models.movies import Movie, Certification
+from notifications.emails import EmailSender
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
 
@@ -217,3 +218,21 @@ async def test_movie(db_session_commit):
     await db_session_commit.delete(movie)
     await db_session_commit.delete(certification)
     await db_session_commit.commit()
+
+
+@pytest_asyncio.fixture
+def email_sender():
+    return EmailSender(
+        hostname="smtp.test.com",
+        port=587,
+        email="test@test.com",
+        password="password",
+        use_tls=True,
+        template_dir="/templates",
+        activation_email_template_name="activation.html",
+        activation_complete_email_template_name="activation_complete.html",
+        password_email_template_name="password_reset.html",
+        reply_comment_template_name="reply_comment.html",
+        reaction_comment_template_name="reaction_comment.html",
+        confirmation_payment_template_name="confirmation_payment.html"
+    )
