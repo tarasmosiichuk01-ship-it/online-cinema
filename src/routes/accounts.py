@@ -130,12 +130,54 @@ async def register_user(
     return UserRegistrationResponseSchema.model_validate(new_user)
 
 
-@router.get("/activate/{token}/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
+@router.get(
+    "/activate/{token}/",
+    response_model=MessageResponseSchema,
+    status_code=status.HTTP_200_OK,
+    summary="Activate a user account",
+    description=(
+            "<h3>This endpoint activates a user's account using a unique activation token. "
+            "It validates the token's existence, checks if it has expired, and verifies if the account "
+            "is already active. Upon successful validation, the user's status is updated to active, "
+            "the token is consumed (deleted), and a confirmation email is dispatched.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request due to invalid, expired token, or already active account.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid or expired activation token."}
+                }
+            },
+        }
+    }
+)
 async def activate_token(
     token: str,
     db: AsyncSession = Depends(get_postgresql_db),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator)
 ):
+    """
+    Activate a user account via a verification token (asynchronously).
+
+    This function fetches the activation token along with the associated user,
+    verifies its expiration status, and updates the user's `is_active` flag to True.
+    After activation, the token record is deleted from the database to prevent reuse,
+    and a success notification email is triggered.
+
+    :param token: The unique activation token string extracted from the path URL.
+    :type token: str
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+    :param email_sender: The email notification sender service component.
+    :type email_sender: EmailSenderInterface
+
+    :return: A message response confirming successful account activation.
+    :rtype: MessageResponseSchema
+
+    :raises HTTPException: Raises a 400 error if the token is not found, has expired,
+                           or if the user account is already activated.
+    """
     query = (
         select(ActivationToken)
         .options(joinedload(ActivationToken.user))
