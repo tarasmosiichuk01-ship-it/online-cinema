@@ -255,14 +255,57 @@ async def update_star(
     return {"detail": "Star updated successfully."}
 
 
-# Moderator endpoint
-@router.delete("/stars/{star_id}")
+@router.delete(
+    "/stars/{star_id}",
+    summary="Delete a movie star (Moderator only)",
+    description=(
+        "<h3>This endpoint allows moderators to permanently delete a movie star (actor/actress) "
+        "from the system catalog. It verifies the existence of the star by their unique ID, "
+        "raising a 404 error if no record matches. If found, the record is removed transactionally. "
+        "Note: Depending on cascading rules defined at the database level, this may also clear or alter "
+        "many-to-many associations in movie cast lists.</h3>"
+    ),
+    responses={
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user lacks elevated moderator privileges.",
+        },
+        404: {
+            "description": "Not Found if no movie star record matches the specified identifier.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Star with the given ID was not found."}
+                }
+            },
+        }
+    }
+)
 async def delete_star(
     star_id: int,
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Permanently delete a specific movie star from the system catalog (asynchronously).
 
+    This function executes a hard deletion of a targeted `Star` record. It secures the path execution
+    context via moderator role verification (`get_moderator_user`) and safely isolates the database
+    entity by its primary key before committing the structural state change through the async session.
+
+    :param star_id: The ID of the target movie star extracted from the path URL.
+    :type star_id: int
+    :param current_user: The authenticated user profile verifying elevated moderator roles.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A confirmation dictionary indicating a completely successful database transaction deletion.
+    :rtype: dict
+
+    :raises HTTPException: Raises a 404 error if the targeted star domain asset does not exist.
+    """
     query = select(Star).where(Star.id == star_id)
     result = await db.execute(query)
     star = result.scalars().first()

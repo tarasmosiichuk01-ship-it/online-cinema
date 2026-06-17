@@ -828,7 +828,6 @@ async def get_movie_favorites(
 
 @router.delete(
     "/movies/my/favorites/{movie_id}",
-    status_code=status.HTTP_200_OK,
     summary="Remove a movie from favorites (Authenticated user only)",
     description=(
         "<h3>This endpoint allows authenticated users to remove a specific movie from their personal "

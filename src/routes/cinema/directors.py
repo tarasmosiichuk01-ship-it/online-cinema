@@ -256,7 +256,6 @@ async def update_director(
 
 @router.delete(
     "/directors/{director_id}",
-    status_code=status.HTTP_200_OK,
     summary="Delete a director (Moderator only)",
     description=(
         "<h3>This endpoint allows moderators to permanently remove a director from the catalog. "

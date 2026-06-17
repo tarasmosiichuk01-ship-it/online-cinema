@@ -355,7 +355,6 @@ async def update_genre(
 
 @router.delete(
     "/genres/{genre_id}",
-    status_code=status.HTTP_200_OK,
     summary="Delete a genre (Moderator only)",
     description=(
         "<h3>This endpoint allows moderators to permanently remove a specific movie genre from the catalog. "

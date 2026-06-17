@@ -448,7 +448,6 @@ async def update_movie(
 
 @router.delete(
     "/movies/{movie_id}",
-    status_code=status.HTTP_200_OK,
     summary="Delete a movie (Moderator only)",
     description=(
         "<h3>This endpoint allows moderators to permanently delete a movie from the catalog. "
