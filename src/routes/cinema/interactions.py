@@ -364,11 +364,11 @@ async def toggle_comment_reaction(
     status_code=status.HTTP_200_OK,
     summary="Toggle movie reaction (Authenticated user only)",
     description=(
-            "<h3>This endpoint implements an idempotent toggle mechanism for user reactions (like/dislike) "
-            "directly on a movie. It verifies that the movie exists and is active (`is_available == True`). "
-            "If the user applies the exact same reaction type, the existing record is removed (deleted) "
-            "from the database, returning a `null` payload. If the reaction type differs, it updates the state. "
-            "Otherwise, a brand-new reaction instance is persisted transactionally.</h3>"
+        "<h3>This endpoint implements an idempotent toggle mechanism for user reactions (like/dislike) "
+        "directly on a movie. It verifies that the movie exists and is active (`is_available == True`). "
+        "If the user applies the exact same reaction type, the existing record is removed (deleted) "
+        "from the database, returning a `null` payload. If the reaction type differs, it updates the state. "
+        "Otherwise, a brand-new reaction instance is persisted transactionally.</h3>"
     ),
     responses={
         400: {
@@ -475,11 +475,39 @@ async def toggle_movie_reaction(
         )
 
 
-# Authorization endpoint
 @router.post(
     "/movies/{movie_id}/rate",
     response_model=MovieRatingResponseSchema,
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    summary="Rate a movie (Authenticated user only)",
+    description=(
+        "<h3>This endpoint allows authenticated users to submit or update a numerical rating for a specific movie. "
+        "It verifies that the movie exists and is currently active (`is_available == True`). "
+        "If the user has already rated this movie, the existing score is overwritten with the new value. "
+        "Otherwise, a new rating record is persisted. Both creation and modification are handled "
+        "transactionally with rollback safety on database constraint failures.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request if runtime database anomalies or integrity violations occur on commit.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Input data is invalid."}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        404: {
+            "description": "Not Found if the target movie is missing or marked as unavailable.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Movie with the given ID was not found."}
+                }
+            },
+        }
+    }
 )
 async def rate_movie(
     movie_id: int,
@@ -487,7 +515,29 @@ async def rate_movie(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Submit a new rating score or update an existing one for a movie asset (asynchronously).
 
+    This function acts as an idempotent upsert boundary for movie scores. It verifies active movie
+    availability to prevent orphan relations, branches dynamically based on historical user evaluations
+    (modifying an existing reference or appending a new `MovieRating` instance), and catches unexpected
+    concurrency or database exceptions via an explicit `IntegrityError` rollback strategy.
+
+    :param movie_id: The ID of the target movie extracted from the path URL.
+    :type movie_id: int
+    :param rating_data: Request body payload carrying the numerical evaluation score.
+    :type rating_data: MovieRatingSchema
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: The newly generated or updated MovieRating record containing tracking identifiers.
+    :rtype: MovieRatingResponseSchema
+
+    :raises HTTPException: Raises a 404 error if the requested movie domain asset cannot be resolved.
+    :raises HTTPException: Raises a 400 error if transaction validation steps encounter constraint errors.
+    """
     movie_query = select(Movie).where(
         Movie.id == movie_id,
         Movie.is_available == True
