@@ -155,15 +155,71 @@ async def get_star_list(db: AsyncSession = Depends(get_postgresql_db)) -> StarLi
     return StarListResponseSchema(stars=star_list)
 
 
-# Moderator endpoint
-@router.patch("/stars/{star_id}")
+@router.patch(
+    "/stars/{star_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Partially update an existing movie star (Moderator only)",
+    description=(
+        "<h3>This endpoint allows moderators to partially update a movie star's metadata by their unique ID. "
+        "It safely extracts explicitly provided attributes using `exclude_unset=True`. "
+        "If a new name is specified, the endpoint performs a case-insensitive application check (`ilike`) "
+        "excluding the current record's ID to prevent unique name collisions. "
+        "All changes are persisted transactionally with full rollback handling on validation failure.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request if the new name already conflicts with another star, or if database integrity rules fail.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Star with the name '...' already exists."}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user lacks elevated moderator privileges.",
+        },
+        404: {
+            "description": "Not Found if no movie star record matches the specified identifier.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Star with the given ID was not found."}
+                }
+            },
+        }
+    }
+)
 async def update_star(
     star_id: int,
     star_data: StarUpdateSchema,
     current_user: User = Depends(get_moderator_user),
     db: AsyncSession = Depends(get_postgresql_db)
 ):
+    """
+    Partially modify a specific movie star's profile within the system catalog (asynchronously).
 
+    This function processes dynamic single-row changes on the `Star` model. It safeguards business rules by
+    validating moderator scope permissions, confirming record existence, and performing cross-record uniqueness
+    lookups on unique constraints. State changes are mapped dynamically via `setattr` loop parsing, protecting
+    the active session boundary against concurrent exceptions with an explicit `IntegrityError` rollback point.
+
+    :param star_id: The ID of the target movie star extracted from the path URL.
+    :type star_id: int
+    :param star_data: The Pydantic schema containing partial fields to be updated.
+    :type star_data: StarUpdateSchema
+    :param current_user: The authenticated user profile verifying elevated moderator roles.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A confirmation dictionary indicating a completely successful database transaction update.
+    :rtype: dict
+
+    :raises HTTPException: Raises a 404 error if the targeted star record does not exist.
+    :raises HTTPException: Raises a 400 error if name uniqueness checks fail or data mutations break schema integrity.
+    """
     query = select(Star).where(Star.id == star_id)
     result = await db.execute(query)
     star = result.scalars().first()
