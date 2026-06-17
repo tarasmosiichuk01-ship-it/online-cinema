@@ -419,11 +419,58 @@ async def login_user(
     )
 
 
-@router.post("/logout/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
+@router.post(
+    "/logout/",
+    response_model=MessageResponseSchema,
+    status_code=status.HTTP_200_OK,
+    summary="Logout user and invalidate refresh token",
+    description=(
+        "<h3>This endpoint logs out a user by invalidating their active session. "
+        "It looks up the provided JWT Refresh Token in the database and, if found, "
+        "permanently deletes the token record. This ensures the refresh token "
+        "cannot be used again to obtain new access tokens.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request due to an invalid or missing refresh token.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid refresh token."}
+                }
+            },
+        },
+        500: {
+            "description": "Internal server error due to a database failure during token deletion.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "An error occurred while processing the request."}
+                }
+            },
+        }
+    }
+)
 async def logout_user(
     logout_data: UserLogoutRequestSchema,
     db: AsyncSession = Depends(get_postgresql_db),
 ):
+    """
+    Log out the user by revoking their refresh token (asynchronously).
+
+    This function handles the termination of a user's session. It verifies the existence
+    of the provided refresh token in the database, removes the token record transactionally
+    to prevent reuse, and commits the changes.
+
+    :param logout_data: Request body containing the refresh token to be revoked.
+    :type logout_data: UserLogoutRequestSchema
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A message response confirming successful logout.
+    :rtype: MessageResponseSchema
+
+    :raises HTTPException: Raises a 400 error if the refresh token is invalid or not found.
+    :raises HTTPException: Raises a 500 error if a database exception occurs during token deletion.
+    """
     query = select(RefreshToken).where(RefreshToken.token == logout_data.refresh_token)
     result = await db.execute(query)
     token = result.scalars().first()
@@ -446,6 +493,7 @@ async def logout_user(
         )
 
     return MessageResponseSchema(message="Successfully logged out.")
+
 
 @router.post(
     "/refresh/",
