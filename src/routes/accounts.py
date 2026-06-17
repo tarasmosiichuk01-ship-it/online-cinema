@@ -591,21 +591,85 @@ async def update_access_token(
     return TokenRefreshResponseSchema(access_token=new_access_token)
 
 
-@router.post("/change-password/", response_model=MessageResponseSchema, status_code=status.HTTP_200_OK)
+@router.post(
+    "/change-password/",
+    response_model=MessageResponseSchema,
+    status_code=status.HTTP_200_OK,
+    summary="Change user password and revoke sessions",
+    description=(
+        "<h3>This endpoint allows an authenticated user to change their password. "
+        "It validates that the new password matches the confirmation, verifies the user's "
+        "current password, and ensures the new password is different from the old one. "
+        "Upon a successful password change, all active refresh tokens (sessions) for this user "
+        "are permanently deleted from the database to enforce re-authentication across all devices.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request due to mismatched passwords, incorrect old password, or identical old and new passwords.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "New passwords do not match"}
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        500: {
+            "description": "Internal server error due to database transaction failure during update or session revocation.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "An error occurred while changing password."}
+                }
+            },
+        }
+    }
+)
 async def change_password(
     user_data: ChangePasswordRequestSchema,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db),
 
 ):
+    """
+    Change the current user's password and invalidate all active sessions (asynchronously).
+
+    This function performs strict validation on the old and new passwords provided in the request.
+    If all business logic checks pass, the user's password record is updated, and all associated
+    refresh tokens are deleted transactionally to guarantee absolute security logout across all platforms.
+
+    :param user_data: Request body containing old, new, and confirmation passwords.
+    :type user_data: ChangePasswordRequestSchema
+    :param current_user: The currently authenticated user object (provided via dependency injection).
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A message response confirming successful password modification.
+    :rtype: MessageResponseSchema
+
+    :raises HTTPException: Raises a 400 error if new passwords mismatch, the old password is invalid,
+                           or the new password is identical to the old one.
+    :raises HTTPException: Raises a 500 error if the database fails to update the user or purge tokens.
+    """
     if user_data.new_password != user_data.confirm_password:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New passwords do not match")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New passwords do not match"
+        )
 
     if not current_user.verify_password(user_data.old_password):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect current password")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect current password"
+        )
 
     if user_data.old_password == user_data.new_password:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password must be different from old password")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from old password"
+        )
+
     try:
         current_user.password = user_data.new_password
 
@@ -616,9 +680,13 @@ async def change_password(
 
     except SQLAlchemyError:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An error occurred while changing password.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while changing password."
+        )
 
     return MessageResponseSchema(message="Successfully changed password.")
+
 
 @router.post(
     "/forgot-password/",
