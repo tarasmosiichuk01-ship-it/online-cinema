@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 
 @celery.task
 def delete_expired_tokens():
+    """
+    Delete expired activation and password reset tokens from the database.
+    """
     try:
         with SyncSessionLocal() as session:
             logger.info("Starting cleanup of expired tokens...")
