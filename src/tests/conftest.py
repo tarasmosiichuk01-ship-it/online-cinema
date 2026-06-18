@@ -41,6 +41,10 @@ AsyncPostgresqlSession = async_sessionmaker(
 
 @pytest_asyncio.fixture(scope="session")
 async def setup_database():
+    """
+    Session-scoped fixture that creates all database tables before tests
+    and drops them after all tests are completed.
+    """
     async with test_postgresql_engine.begin() as connect:
         await connect.run_sync(Base.metadata.create_all)
 
@@ -52,6 +56,10 @@ async def setup_database():
 
 @pytest_asyncio.fixture(scope="session")
 async def seed_user_groups(setup_database):
+    """
+    Session-scoped fixture that seeds default user groups into the database.
+    Depends on setup_database to ensure tables exist before seeding.
+    """
     async with AsyncPostgresqlSession() as session:
         for group in UserGroupEnum:
             result = await session.execute(select(UserGroup).where(UserGroup.name == group))
@@ -63,6 +71,10 @@ async def seed_user_groups(setup_database):
 
 @pytest_asyncio.fixture(scope="function")
 async def db_session(setup_database):
+    """
+    Function-scoped fixture that provides a database session with automatic
+    rollback after each test to ensure test isolation.
+    """
     async with test_postgresql_engine.connect() as connect:
         await connect.begin()
 
@@ -74,9 +86,13 @@ async def db_session(setup_database):
 
 @pytest_asyncio.fixture(scope="function")
 async def client(seed_user_groups):
+    """
+    Function-scoped fixture that provides an async HTTP client with
+    overridden database and email notificator dependencies.
+    Clears all dependency overrides after each test.
+    """
     app.dependency_overrides[get_postgresql_db] = override_get_postgresql_db
     app.dependency_overrides[get_accounts_email_notificator] = override_get_email_notificator
-
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as async_client:
         yield async_client
@@ -86,12 +102,20 @@ async def client(seed_user_groups):
 
 @pytest_asyncio.fixture(scope="function")
 async def db_session_commit():
+    """
+    Function-scoped fixture that provides a database session that commits
+    changes. Used when tests need data to persist across multiple operations.
+    """
     async with AsyncPostgresqlSession() as session:
         yield session
 
 
 @pytest_asyncio.fixture(scope="session")
 async def jwt_manager() -> JWTAuthManagerInterface:
+    """
+    Session-scoped fixture that provides a JWT manager instance
+    configured with test settings for token creation and validation.
+    """
     settings = get_settings()
     return JWTAuthManager(
         secret_key_access=settings.SECRET_KEY_ACCESS,
@@ -99,8 +123,14 @@ async def jwt_manager() -> JWTAuthManagerInterface:
         algorithm=settings.JWT_SIGNING_ALGORITHM
     )
 
+
 @pytest_asyncio.fixture
 async def authenticated_client(client):
+    """
+    Function-scoped fixture that provides a client with a mocked
+    current user dependency override for unit tests.
+    Yields a tuple of (client, mock_user).
+    """
     mock_user = MagicMock()
     app.dependency_overrides[get_current_user] = lambda: mock_user
     yield client, mock_user
@@ -109,6 +139,11 @@ async def authenticated_client(client):
 
 @pytest_asyncio.fixture
 async def moderator_client(client, db_session_commit, jwt_manager):
+    """
+    Function-scoped fixture that provides an async HTTP client
+    authorized as a moderator user with a valid JWT token.
+    Creates a moderator user before the test and deletes it after.
+    """
     query = select(UserGroup).where(UserGroup.name == UserGroupEnum.MODERATOR)
     result = await db_session_commit.execute(query)
     moderator_group = result.scalars().first()
@@ -133,6 +168,11 @@ async def moderator_client(client, db_session_commit, jwt_manager):
 
 @pytest_asyncio.fixture
 async def admin_client(client, db_session_commit, jwt_manager):
+    """
+    Function-scoped fixture that provides an async HTTP client
+    authorized as an admin user with a valid JWT token.
+    Creates an admin user before the test and deletes it after.
+    """
     query = select(UserGroup).where(UserGroup.name == UserGroupEnum.ADMIN)
     result = await db_session_commit.execute(query)
     admin_group = result.scalars().first()
@@ -157,6 +197,12 @@ async def admin_client(client, db_session_commit, jwt_manager):
 
 @pytest_asyncio.fixture
 async def authorized_client(client, db_session_commit, jwt_manager):
+    """
+    Function-scoped fixture that provides an async HTTP client
+    authorized as a regular user with a valid JWT token.
+    Creates a user before the test and deletes it after.
+    Yields a tuple of (client, user).
+    """
     query = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
     result = await db_session_commit.execute(query)
     user_group = result.scalars().first()
@@ -181,6 +227,11 @@ async def authorized_client(client, db_session_commit, jwt_manager):
 
 @pytest_asyncio.fixture
 async def test_movie(db_session_commit):
+    """
+    Function-scoped fixture that creates a test movie with certification
+    in the database before the test and deletes it after.
+    Yields the created Movie instance.
+    """
     certification = Certification(name="PG-13")
     db_session_commit.add(certification)
     await db_session_commit.flush()
@@ -208,6 +259,11 @@ async def test_movie(db_session_commit):
 
 @pytest_asyncio.fixture
 def email_sender():
+    """
+    Function-scoped fixture that provides an EmailSender instance
+    configured with test SMTP settings and template names
+    for unit testing email sending functionality.
+    """
     return EmailSender(
         hostname="smtp.test.com",
         port=587,
