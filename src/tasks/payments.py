@@ -21,6 +21,13 @@ def add_movies_to_purchased_table(
     user_id: int,
     order_id: int,
 ):
+    """
+    Move purchased movies from an order to the purchased history table and clear the user's cart.
+
+    Args:
+        user_id (int): The unique identifier of the user who made the purchase.
+        order_id (int): The unique identifier of the completed order.
+    """
     with SyncSessionLocal() as session:
         try:
             query = (
