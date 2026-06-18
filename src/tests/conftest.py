@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 from dotenv import load_dotenv
 from sqlalchemy import select
@@ -11,12 +11,12 @@ from models.movies import Movie, Certification
 from notifications.emails import EmailSender
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
+from tests.test_helpers import override_get_postgresql_db, override_get_email_notificator
 
 base_dir = Path(__file__).resolve().parent.parent.parent
 env_test_path = base_dir / ".env.test"
 load_dotenv(env_test_path, override=True)
 
-from typing import AsyncGenerator
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
@@ -70,20 +70,6 @@ async def db_session(setup_database):
             yield session
 
         await connect.rollback()
-
-
-#----
-
-async def override_get_postgresql_db() -> AsyncGenerator[AsyncSession, None]:
-
-    async with AsyncPostgresqlSession() as session:
-        yield session
-
-
-async def override_get_email_notificator():
-    mock = AsyncMock()
-    mock.send_activation_email = AsyncMock()
-    return mock
 
 
 @pytest_asyncio.fixture(scope="function")
