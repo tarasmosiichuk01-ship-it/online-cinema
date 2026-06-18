@@ -3,7 +3,18 @@ import secrets
 from datetime import datetime, date, timezone, timedelta
 from typing import Optional, List
 
-from sqlalchemy import Integer, Enum, String, Boolean, DateTime, func, ForeignKey, Date, Text, UniqueConstraint
+from sqlalchemy import (
+    Integer,
+    Enum,
+    String,
+    Boolean,
+    DateTime,
+    func,
+    ForeignKey,
+    Date,
+    Text,
+    UniqueConstraint
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from src.validators import accounts as validators
@@ -116,7 +127,12 @@ class User(Base):
 
     @classmethod
     def create(cls, email: str, raw_password: str, group_id: int | Mapped[int]) -> "User":
+        """
+        Factory method to create a new UserModel instance.
 
+        This method simplifies the creation of a new user by handling
+        password hashing and setting required attributes.
+        """
         user = cls(email=email, group_id=group_id)
         user.password = raw_password
         return user
@@ -127,10 +143,16 @@ class User(Base):
 
     @password.setter
     def password(self, raw_password: str) -> None:
+        """
+        Set the user's password after validating its strength and hashing it.
+        """
         validators.validate_password_strength(raw_password)
         self._hashed_password = hash_password(raw_password)
 
     def verify_password(self, raw_password: str) -> bool:
+        """
+        Verify the provided password against the stored hashed password.
+        """
         return verify_password(raw_password, self._hashed_password)
 
     @validates("email")
@@ -215,6 +237,13 @@ class RefreshToken(TokenBase):
 
     @classmethod
     def create(cls, user_id: int | Mapped[int], days_valid: int, token: str) -> "RefreshToken":
+        """
+        Factory method to create a new RefreshTokenModel instance.
+
+        This method simplifies the creation of a new refresh token by calculating
+        the expiration date based on the provided number of valid days and setting
+        the required attributes.
+        """
         expires_at = datetime.now(timezone.utc) + timedelta(days=days_valid)
 
         return cls(user_id=user_id, expires_at=expires_at, token=token)
