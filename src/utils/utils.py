@@ -5,6 +5,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 async def get_or_create(db: AsyncSession, model, **kwargs):
+    """
+    Retrieves an existing instance of the model from the database
+    or creates a new one if it does not exist.
+
+    Args:
+        db: The async database session.
+        model: The SQLAlchemy model class to query or create.
+        **kwargs: Field values used to filter the existing instance
+                  or create a new one.
+
+    Returns:
+        The existing or newly created model instance.
+    """
     result = await db.execute(select(model).filter_by(**kwargs))
     instance = result.scalar_one_or_none()
     if not instance:
