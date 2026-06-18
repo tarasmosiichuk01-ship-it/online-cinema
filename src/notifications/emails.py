@@ -42,7 +42,17 @@ class EmailSender(EmailSenderInterface):
 
 
     async def _send_email(self, recipient: str, subject: str, html_content: str) -> None:
+        """
+        Asynchronously send an email with the given subject and HTML content.
 
+        Args:
+            recipient (str): The recipient's email address.
+            subject (str): The subject of the email.
+            html_content (str): The HTML content of the email.
+
+        Raises:
+            BaseEmailError: If sending the email fails.
+        """
         message = MIMEMultipart()
         message["From"] = self._email
         message["To"] = recipient
@@ -62,38 +72,78 @@ class EmailSender(EmailSenderInterface):
             raise BaseEmailError(f"Failed to send email to {recipient}: {error}")
 
     async def send_activation_email(self, email: str, activation_link: str) -> None:
+        """
+        Send an account activation email asynchronously.
 
+        Args:
+            email (str): The recipient's email address.
+            activation_link (str): The activation link to be included in the email.
+        """
         template = self._env.get_template(self._activation_email_template_name)
         html_content = template.render(email=email, activation_link=activation_link)
         subject = "Account Activation"
         await self._send_email(email, subject, html_content)
 
     async def send_activation_complete_email(self, email: str, login_link: str) -> None:
+        """
+        Send an account activation completion email asynchronously.
 
+        Args:
+            email (str): The recipient's email address.
+            login_link (str): The login link to be included in the email.
+        """
         template = self._env.get_template(self._activation_complete_email_template_name)
         html_content = template.render(email=email, login_link=login_link)
         subject = "Account Activated Successfully"
         await self._send_email(email, subject, html_content)
 
     async def send_password_reset_email(self, email: str, reset_link: str) -> None:
+        """
+        Send a password reset request email asynchronously.
+
+        Args:
+            email (str): The recipient's email address.
+            reset_link (str): The reset link to be included in the email.
+        """
         template = self._env.get_template(self._password_email_template_name)
         html_content = template.render(email=email, reset_link=reset_link)
         subject = "Password Reset Request"
         await self._send_email(email, subject, html_content)
 
     async def send_reply_comment_email(self, email: str, comment_link: str) -> None:
+        """
+        Send a comment reply notification email asynchronously.
+
+        Args:
+            email (str): The recipient's email address.
+            comment_link (str): The direct link to the movie comment thread.
+        """
         template = self._env.get_template(self._reply_comment_template_name)
         html_content = template.render(email=email, comment_link=comment_link)
         subject = "Reply Comment"
         await self._send_email(email, subject, html_content)
 
     async def send_reaction_comment_email(self, email: str, comment_link: str) -> None:
+        """
+        Send a comment reaction notification email asynchronously.
+
+        Args:
+            email (str): The recipient's email address.
+            comment_link (str): The direct link to the movie comment thread.
+        """
         template = self._env.get_template(self._reaction_comment_template_name)
         html_content = template.render(email=email, comment_link=comment_link)
         subject = "Reaction Comment"
         await self._send_email(email, subject, html_content)
 
     async def send_confirmation_payment_email(self, email: str, order_link: str) -> None:
+        """
+        Send a payment confirmation email asynchronously.
+
+        Args:
+            email (str): The recipient's email address.
+            order_link (str): The direct link to the verified order details.
+        """
         template = self._env.get_template(self._confirmation_payment_template_name)
         html_content = template.render(email=email, order_link=order_link)
         subject = "Confirmation Payment"
