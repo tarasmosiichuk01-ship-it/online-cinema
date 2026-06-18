@@ -23,12 +23,26 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 def get_settings() -> Settings:
+    """
+    Returns the application settings instance.
+
+    Used as a FastAPI dependency to inject settings
+    into route handlers and other dependencies.
+    """
     return settings
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: AsyncSession = Depends(get_postgresql_db),
 ) -> User:
+    """
+    Retrieves the currently authenticated user from the JWT access token.
+
+    Decodes the JWT token, extracts the user_id, and fetches the
+    corresponding user from the database. Raises HTTP 401 if the token
+    is invalid or the user is not found. Raises HTTP 403 if the user
+    account is inactive.
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials.",
@@ -66,6 +80,12 @@ async def get_current_user(
     return user
 
 async def get_moderator_user(current_user: User = Depends(get_current_user)) -> User:
+    """
+    Validates that the current user has Moderator or Admin role.
+
+    Raises HTTP 403 if the current user does not have the required role.
+    Used to protect moderator-only endpoints.
+    """
     if not current_user.has_group(UserGroupEnum.MODERATOR) and not current_user.has_group(UserGroupEnum.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -75,6 +95,12 @@ async def get_moderator_user(current_user: User = Depends(get_current_user)) -> 
     return current_user
 
 async def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    """
+    Validates that the current user has Admin role.
+
+    Raises HTTP 403 if the current user does not have the Admin role.
+    Used to protect admin-only endpoints.
+    """
     if not current_user.has_group(UserGroupEnum.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -88,7 +114,13 @@ async def get_optional_current_user(
     request: Request,
     db: AsyncSession = Depends(get_postgresql_db)
 ) -> User | None:
+    """
+    Attempts to retrieve the currently authenticated user from the request.
 
+    Unlike get_current_user, this dependency does not raise an exception
+    if the token is missing or invalid — it returns None instead.
+    Used for endpoints that support both authenticated and anonymous access.
+    """
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return None
@@ -119,6 +151,13 @@ async def get_optional_current_user(
 
 
 def get_accounts_email_notificator() -> EmailSenderInterface:
+    """
+    Creates and returns an EmailSender instance configured with
+    application settings.
+
+    Used as a FastAPI dependency to inject the email sender
+    into route handlers that need to send emails.
+    """
     return EmailSender(
         hostname=settings.EMAIL_HOST,
         port=settings.EMAIL_PORT,
@@ -136,7 +175,13 @@ def get_accounts_email_notificator() -> EmailSenderInterface:
 
 
 def get_jwt_auth_manager(settings: Settings = Depends(get_settings)) -> JWTAuthManagerInterface:
+    """
+    Creates and returns a JWTAuthManager instance configured with
+    application settings.
 
+    Used as a FastAPI dependency to inject the JWT manager
+    into route handlers that need to create or validate tokens.
+    """
     return JWTAuthManager(
         secret_key_access=settings.SECRET_KEY_ACCESS,
         secret_key_refresh=settings.SECRET_KEY_REFRESH,
@@ -152,6 +197,13 @@ def get_query_params(
     sort_by: str = Query("id", description="Sort field: id, year, price, votes"),
     order: str = Query("desc", description="Direction: asc (growing) or desc (falling)"),
 ):
+    """
+    Collects and returns common query parameters for movie list filtering,
+    searching and sorting.
+
+    Used as a FastAPI dependency in endpoints that support
+    filtering and sorting of movie lists.
+    """
     return {
         "search": search,
         "release_year": release_year,
@@ -168,6 +220,13 @@ def admin_query_params(
     order_status: Optional[OrderStatusEnum] = Query(None, description="Filter by order status"),
     payment_status: Optional[PaymentStatusEnum] = Query(None, description="Filter by payment status")
 ):
+    """
+    Collects and returns query parameters for admin filtering of orders
+    and payments by user, date range and status.
+
+    Used as a FastAPI dependency in admin endpoints that support
+    filtering of orders and payments.
+    """
     return {
         "user_id": user_id,
         "start_date": start_date,
