@@ -2,7 +2,7 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy import select
 from models.accounts import UserGroupEnum, UserGroup
-from seed import seed_user_groups
+from utils.seed import seed_user_groups
 
 
 @pytest.mark.asyncio

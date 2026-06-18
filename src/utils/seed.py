@@ -5,6 +5,14 @@ from models.accounts import UserGroupEnum, UserGroup
 
 
 async def seed_user_groups():
+    """
+    Seeds the database with default user groups.
+
+    Iterates over all values in UserGroupEnum and creates a UserGroup
+    record for each one if it does not already exist in the database.
+    This function is idempotent — running it multiple times will not
+    create duplicate records.
+    """
     async with AsyncPostgresqlSession() as session:
         for group in UserGroupEnum:
             result = await session.execute(select(UserGroup).where(UserGroup.name == group))
@@ -13,8 +21,16 @@ async def seed_user_groups():
                 session.add(UserGroup(name=group))
         await session.commit()
 
+
 async def main():
+    """
+    Entry point for the seeding script.
+
+    Calls all seeding functions to populate the database
+    with required initial data.
+    """
     await seed_user_groups()
+
 
 if __name__ == "__main__":
     import asyncio
