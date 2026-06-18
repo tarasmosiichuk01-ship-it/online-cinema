@@ -8,6 +8,9 @@ from security.interfaces import JWTAuthManagerInterface
 
 
 class JWTAuthManager(JWTAuthManagerInterface):
+    """
+    A manager for creating, decoding, and verifying JWT access and refresh tokens.
+    """
 
     _ACCESS_KEY_TIMEDELTA_MINUTES = 60
     _REFRESH_KEY_TIMEDELTA_MINUTES = 60 * 24 * 7
