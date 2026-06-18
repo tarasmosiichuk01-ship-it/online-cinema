@@ -178,12 +178,12 @@ class UserProfile(Base):
 
     user: Mapped[User] = relationship("User", back_populates="profile")
 
-
     def __repr__(self):
         return (
             f"<UserProfile(id={self.id}, first_name={self.first_name}, last_name={self.last_name}, "
             f"gender={self.gender}, date_of_birth={self.date_of_birth})>"
         )
+
 
 class TokenBase(Base):
     __abstract__ = True
@@ -203,6 +203,7 @@ class TokenBase(Base):
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
 
+
 class ActivationToken(TokenBase):
     __tablename__ = "activation_tokens"
     __table_args__ = (UniqueConstraint("user_id"),)
@@ -212,12 +213,12 @@ class ActivationToken(TokenBase):
     def __repr__(self):
         return f"<ActivationToken(id={self.id}, token={self.token}, expires_at={self.expires_at})>"
 
+
 class PasswordResetToken(TokenBase):
     __tablename__ = "password_reset_tokens"
     __table_args__ = (UniqueConstraint("user_id"),)
 
     user: Mapped[User] = relationship("User", back_populates="password_reset_token")
-
 
     def __repr__(self):
         return f"<PasswordResetToken(id={self.id}, token={self.token}, expires_at={self.expires_at})>"

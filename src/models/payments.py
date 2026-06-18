@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
 
+
 class PaymentStatusEnum(str, enum.Enum):
     PENDING = "PENDING"
     SUCCESSFUL = "SUCCESSFUL"

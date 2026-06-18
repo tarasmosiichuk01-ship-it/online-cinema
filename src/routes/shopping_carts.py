@@ -10,7 +10,12 @@ from models.accounts import User, UserGroupEnum
 from models.movies import Movie
 from models.orders import OrderItem, Order, OrderStatusEnum
 from models.shopping_carts import Cart, CartItem, PurchasedMovie
-from schemas.shopping_carts import CartItemCreateSchema, CartItemResponseSchema, CartResponse, PurchasedMovieResponseSchema
+from schemas.shopping_carts import (
+    CartItemCreateSchema,
+    CartItemResponseSchema,
+    CartResponse,
+    PurchasedMovieResponseSchema
+)
 
 router = APIRouter()
 
@@ -38,7 +43,8 @@ router = APIRouter()
             },
         },
         401: {
-            "description": "Unauthorized because the request is anonymous. A redirection link to register is supplied.",
+            "description": "Unauthorized because the request is anonymous. "
+                           "A redirection link to register is supplied.",
             "content": {
                 "application/json": {
                     "example": {"detail": "You must sign up or log in before completing a purchase. ..."}

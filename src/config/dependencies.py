@@ -31,6 +31,7 @@ def get_settings() -> Settings:
     """
     return settings
 
+
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: AsyncSession = Depends(get_postgresql_db),
@@ -79,6 +80,7 @@ async def get_current_user(
 
     return user
 
+
 async def get_moderator_user(current_user: User = Depends(get_current_user)) -> User:
     """
     Validates that the current user has Moderator or Admin role.
@@ -93,6 +95,7 @@ async def get_moderator_user(current_user: User = Depends(get_current_user)) -> 
         )
 
     return current_user
+
 
 async def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
     """
@@ -212,6 +215,7 @@ def get_query_params(
         "sort_by": sort_by,
         "order": order,
     }
+
 
 def admin_query_params(
     user_id: Optional[int] = Query(None, description="Filter by user id"),

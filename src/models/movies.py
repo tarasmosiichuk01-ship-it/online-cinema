@@ -49,6 +49,7 @@ movies_directors = Table(
         ForeignKey("directors.id", ondelete="CASCADE"), primary_key=True, nullable=False),
 )
 
+
 class Genre(Base):
     __tablename__ = "genres"
 
@@ -171,7 +172,6 @@ class Movie(Base):
         back_populates="movie"
     )
 
-
     __table_args__ = (
         UniqueConstraint("name", "year", "time", name="unique_movie_constraint"),
     )
@@ -275,6 +275,7 @@ class MovieFavourite(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "movie_id", name="unique_movie_favourites_constraint"),
     )
+
 
 class CommentReaction(Base):
     __tablename__ = "comments_reactions"

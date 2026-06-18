@@ -227,6 +227,7 @@ class MovieCommentResponseSchema(BaseModel):
 class CommentReactionCreate(BaseModel):
     reaction_type: ReactionTypeEnum
 
+
 class CommentReactionResponse(BaseModel):
     id: int
     comment_id: int
@@ -256,8 +257,10 @@ class MovieRatingResponseSchema(BaseModel):
     rating: int
     movie_id: int
 
+
 class MovieFavouriteSchema(BaseModel):
     movie_id: int
+
 
 class MovieFavouriteResponseSchema(BaseModel):
     id: int
@@ -265,6 +268,7 @@ class MovieFavouriteResponseSchema(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class MovieFavouriteListResponseSchema(BaseModel):
     movies_favourite: List[MovieFavouriteResponseSchema]
@@ -274,4 +278,3 @@ class MovieFavouriteListResponseSchema(BaseModel):
     total_items: int
 
     model_config = ConfigDict(from_attributes=True)
-

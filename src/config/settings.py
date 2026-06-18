@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+
 class BaseAppSettings(BaseSettings):
     PATH_TO_EMAIL_TEMPLATES_DIR: str = str(
         Path(__file__).parent.parent / "notifications" / "templates"
@@ -66,5 +67,6 @@ class Settings(BaseAppSettings):
             f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@"
             f"{self.POSTGRES_HOST}:{self.POSTGRES_DB_PORT}/{self.POSTGRES_DB}"
         )
+
 
 settings = Settings()

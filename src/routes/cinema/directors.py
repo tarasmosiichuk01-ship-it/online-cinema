@@ -30,7 +30,8 @@ router = APIRouter()
     ),
     responses={
         400: {
-            "description": "Bad Request if a director with the given name is already registered via application pre-checks.",
+            "description": "Bad Request if a director with the given name is "
+                           "already registered via application pre-checks.",
             "content": {
                 "application/json": {
                     "example": {"detail": "Director with that name already exists"}
@@ -44,7 +45,8 @@ router = APIRouter()
             "description": "Forbidden if the authenticated user lacks elevated moderator privileges.",
         },
         409: {
-            "description": "Conflict error raised by a native database unique constraint failure during transactional commitment.",
+            "description": "Conflict error raised by a native database unique "
+                           "constraint failure during transactional commitment.",
             "content": {
                 "application/json": {
                     "example": {"detail": "Director with the name '...' already exists"}

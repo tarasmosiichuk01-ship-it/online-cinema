@@ -35,7 +35,8 @@ router = APIRouter()
     ),
     responses={
         400: {
-            "description": "Bad Request due to a parent comment mismatch with the movie ID or transaction integrity failures.",
+            "description": "Bad Request due to a parent comment mismatch with "
+                           "the movie ID or transaction integrity failures.",
             "content": {
                 "application/json": {
                     "example": {"detail": "Parent comment does not belong to this movie."}
@@ -46,7 +47,8 @@ router = APIRouter()
             "description": "Unauthorized due to missing or invalid authentication token.",
         },
         404: {
-            "description": "Not Found if the specified movie is unavailable/missing, or if the parent comment does not exist.",
+            "description": "Not Found if the specified movie is unavailable/missing, "
+                           "or if the parent comment does not exist.",
             "content": {
                 "application/json": {
                     "example": {"detail": "Movie with the given ID was not found."}
@@ -87,7 +89,7 @@ async def create_movie_comments(
     :raises HTTPException: Raises a 404 error if the movie is not active/found, or if the parent comment is missing.
     :raises HTTPException: Raises a 400 error if structural hierarchies break or data integrity checks fail on commit.
     """
-    query = select(Movie).where(Movie.id == movie_id, Movie.is_available == True)
+    query = select(Movie).where(Movie.id == movie_id, Movie.is_available.is_(True))
     result = await db.execute(query)
     movie = result.scalars().first()
 
@@ -193,7 +195,7 @@ async def get_movie_comments(
     """
     movie_query = select(Movie).where(
         Movie.id == movie_id,
-        Movie.is_available == True
+        Movie.is_available.is_(True)
     )
     movie_result = await db.execute(movie_query)
     movie = movie_result.scalars().first()
@@ -201,12 +203,11 @@ async def get_movie_comments(
     if not movie:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Movie not found.")
 
-
     comments_query = (
         select(MovieComment)
         .where(
             MovieComment.movie_id == movie_id,
-            MovieComment.parent_id == None
+            MovieComment.parent_id.is_(None)
         )
         .options(
             selectinload(MovieComment.user),
@@ -421,11 +422,12 @@ async def toggle_movie_reaction(
     :rtype: MovieReactionResponseSchema | None
 
     :raises HTTPException: Raises a 404 error if the targeted movie resource does not exist or is unavailable.
-    :raises HTTPException: Raises a 400 error if transaction savepoints trigger database constraint failures or race conditions.
+    :raises HTTPException: Raises a 400 error if transaction savepoints
+    trigger database constraint failures or race conditions.
     """
     movie_query = select(Movie).where(
         Movie.id == movie_id,
-        Movie.is_available == True
+        Movie.is_available.is_(True)
     )
     movie_result = await db.execute(movie_query)
     movie = movie_result.scalars().first()
@@ -442,7 +444,6 @@ async def toggle_movie_reaction(
     )
     reaction_result = await db.execute(reaction_query)
     existing_reaction = reaction_result.scalars().first()
-
 
     try:
         if existing_reaction:
@@ -540,7 +541,7 @@ async def rate_movie(
     """
     movie_query = select(Movie).where(
         Movie.id == movie_id,
-        Movie.is_available == True
+        Movie.is_available.is_(True)
     )
     movie_result = await db.execute(movie_query)
     movie_exists = movie_result.scalars().first()
@@ -584,7 +585,8 @@ async def rate_movie(
     return rating_obj
 
 
-@router.post("/movies/my/favorites",
+@router.post(
+    "/movies/my/favorites",
     response_model=MovieFavouriteResponseSchema,
     status_code=status.HTTP_200_OK,
     summary="Add a movie to favorites (Authenticated user only)",
@@ -645,7 +647,7 @@ async def add_movie_favorites(
     """
     movie_query = select(Movie).where(
         Movie.id == movie_data.movie_id,
-        Movie.is_available == True
+        Movie.is_available.is_(True)
     )
     movie_result = await db.execute(movie_query)
     movie = movie_result.scalars().first()
@@ -701,7 +703,8 @@ async def add_movie_favorites(
             "description": "Unauthorized due to missing or invalid authentication token.",
         },
         404: {
-            "description": "Not Found if no matching favorite movie records are discovered for the current page or filters.",
+            "description": "Not Found if no matching favorite movie records are "
+                           "discovered for the current page or filters.",
             "content": {
                 "application/json": {
                     "example": {"detail": "No movies found."}
@@ -747,13 +750,13 @@ async def get_movie_favorites(
     base_query = (
         select(MovieFavourite)
         .join(MovieFavourite.movie)
-        .where(MovieFavourite.user_id == current_user.id, Movie.is_available == True)
+        .where(MovieFavourite.user_id == current_user.id, Movie.is_available.is_(True))
     )
     count_query = (
         select(func.count())
         .select_from(MovieFavourite)
         .join(MovieFavourite.movie)
-        .where(MovieFavourite.user_id == current_user.id, Movie.is_available == True)
+        .where(MovieFavourite.user_id == current_user.id, Movie.is_available.is_(True))
     )
 
     if params["release_year"]:

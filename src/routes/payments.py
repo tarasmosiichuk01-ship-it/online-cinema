@@ -37,7 +37,8 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
     ),
     responses={
         400: {
-            "description": "Bad Request due to order status mismatch, total cost discrepancy, or database constraint failures.",
+            "description": "Bad Request due to order status mismatch, "
+                           "total cost discrepancy, or database constraint failures.",
             "content": {
                 "application/json": {
                     "example": {"detail": "You can only pay for pending orders"}
@@ -190,7 +191,8 @@ async def create_checkout_session(
         "<h3>This public endpoint processes asynchronous event notifications sent by Stripe. "
         "It validates the integrity of the payload using the `stripe-signature` header to ensure authenticity. "
         "The handler acts upon several crucial payment lifecycle events: "
-        "`checkout.session.completed` (updates payment/order status to successful/paid, creates payment items, triggers Celery tasks, and dispatches a receipt email), "
+        "`checkout.session.completed` (updates payment/order status to successful/paid, creates payment "
+        "items, triggers Celery tasks, and dispatches a receipt email), "
         "`checkout.session.expired` (marks the transaction as canceled due to timeout), "
         "and `charge.failed` (handles declined transactions by updating relevant records).</h3>"
     ),
@@ -293,7 +295,7 @@ async def stripe_webhook(
                 order_id=payment.order_id
             )
 
-            order_link = f"http://127.0.0.1:8000/api/v1/orders/orders"
+            order_link = "http://127.0.0.1:8000/api/v1/orders/orders"
 
             await email_sender.send_confirmation_payment_email(
                 email=payment.user.email,
@@ -338,7 +340,6 @@ async def stripe_webhook(
             await db.rollback()
             return {"status": "database_error"}
 
-
     elif event["type"] == "charge.failed":
         charge = event["data"]["object"]
         error_message = charge.get("failure_message")
@@ -381,7 +382,8 @@ async def stripe_webhook(
         "It verifies that the order exists, belongs to the authenticated user, and has the status 'PAID'. "
         "It then locates the corresponding successful payment record to retrieve the Stripe `payment_intent_id`. "
         "The refund is issued externally via the Stripe API in a thread-safe manner, "
-        "and upon success, the local payment status is updated to 'REFUNDED' and the order is marked as 'CANCELED'.</h3>"
+        "and upon success, the local payment status is "
+        "updated to 'REFUNDED' and the order is marked as 'CANCELED'.</h3>"
     ),
     responses={
         400: {
@@ -495,7 +497,8 @@ async def refund_order(
             "description": "Unauthorized due to missing or invalid authentication token.",
         },
         404: {
-            "description": "Not Found if the payment record matching the provided session ID cannot be found for the user.",
+            "description": "Not Found if the payment record matching "
+                           "the provided session ID cannot be found for the user.",
             "content": {
                 "application/json": {
                     "example": {"detail": "Payment not found."}
@@ -603,7 +606,8 @@ async def get_payments_canceled():
     status_code=status.HTTP_200_OK,
     summary="Get user payment history",
     description=(
-        "<h3>This endpoint retrieves a complete list of payment transactions made by the currently authenticated user. "
+        "<h3>This endpoint retrieves a complete list of payment "
+        "transactions made by the currently authenticated user. "
         "It loads deeply nested relationships including individual payment items, associated order items, "
         "purchased movies, and their respective genres. "
         "The results are sorted chronologically, starting from the most recent payment transaction.</h3>"
@@ -661,7 +665,8 @@ async def get_payments(
     summary="Get all payments with advanced filtering (Admin only)",
     description=(
         "<h3>This administrative endpoint retrieves a global list of all payment transactions in the system. "
-        "It supports dynamic multi-criteria filtering based on `user_id`, `start_date`, `end_date`, and `payment_status` via query parameters. "
+        "It supports dynamic multi-criteria filtering based on `user_id`, `start_date`, "
+        "`end_date`, and `payment_status` via query parameters. "
         "To maximize performance and eliminate N+1 query bottlenecks, all nested relations including payment items, "
         "order items, movie records, and genres are eagerly fetched in a structured hierarchy. "
         "Results are returned chronologically sorted by creation date in descending order.</h3>"

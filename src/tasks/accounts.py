@@ -15,6 +15,7 @@ SyncSessionLocal = sessionmaker(engine, autocommit=False, autoflush=False)
 
 logger = logging.getLogger(__name__)
 
+
 @celery.task
 def delete_expired_tokens():
     """

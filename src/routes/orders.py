@@ -356,8 +356,10 @@ async def cancel_order(
     summary="Get all orders with advanced filtering (Admin only)",
     description=(
         "<h3>This administrative endpoint retrieves a list of all user orders from the database. "
-        "It supports dynamic filtering based on `user_id`, `start_date`, `end_date`, and `order_status` via query parameters. "
-        "To prevent the N+1 problem, all related data including order items, movie details, and genres are eagerly loaded. "
+        "It supports dynamic filtering based on `user_id`, `start_date`, "
+        "`end_date`, and `order_status` via query parameters. "
+        "To prevent the N+1 problem, all related data including order items, "
+        "movie details, and genres are eagerly loaded. "
         "The list is sorted chronologically by creation date in descending order.</h3>"
     ),
     responses={

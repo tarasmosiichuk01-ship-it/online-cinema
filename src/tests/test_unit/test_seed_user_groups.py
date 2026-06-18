@@ -11,7 +11,7 @@ async def test_seed_user_groups_initial_creation(db_session):
     Test for the first run on a raw database.
     Checks that all groups from the enam have been created.
     """
-    with patch("seed.AsyncPostgresqlSession") as mock_session_factory:
+    with patch("utils.seed.AsyncPostgresqlSession") as mock_session_factory:
         mock_session_factory.return_value.__aenter__.return_value = db_session
 
         await seed_user_groups()

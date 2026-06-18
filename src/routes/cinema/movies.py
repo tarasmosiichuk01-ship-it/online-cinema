@@ -38,7 +38,8 @@ router = APIRouter()
     ),
     responses={
         400: {
-            "description": "Bad Request if data integrity checks fail or mapping rules are violated during commitment.",
+            "description": "Bad Request if data integrity checks fail or "
+                           "mapping rules are violated during commitment.",
             "content": {
                 "application/json": {
                     "example": {"detail": "Invalid input data."}
@@ -194,8 +195,8 @@ async def get_movie_list(
 
     :raises HTTPException: Raises a 404 error if no movie assets match the combined parameter filters.
     """
-    base_query = select(Movie).where(Movie.is_available == True)
-    count_query = select(func.count()).select_from(Movie).where(Movie.is_available == True)
+    base_query = select(Movie).where(Movie.is_available.is_(True))
+    count_query = select(func.count()).select_from(Movie).where(Movie.is_available.is_(True))
 
     if params["release_year"]:
         base_query = base_query.where(Movie.year == params["release_year"])
@@ -239,8 +240,10 @@ async def get_movie_list(
     total_items = total_items_result.scalar() or 0
 
     total_pages = 1 if total_items == 0 else math.ceil(total_items / per_page)
-    prev_page = f"http://127.0.0.1:8000/api/v1/cinema/movies?page={page - 1}&per_page={per_page}" if page > 1 else None
-    next_page = f"http://127.0.0.1:8000/api/v1/cinema/movies?page={page + 1}&per_page={per_page}" if page < total_pages else None
+    prev_page = (f"http://127.0.0.1:8000/api/v1/cinema/movies?page={page - 1}"
+                 f"&per_page={per_page}") if page > 1 else None
+    next_page = (f"http://127.0.0.1:8000/api/v1/cinema/movies?page={page + 1}"
+                 f"&per_page={per_page}") if page < total_pages else None
 
     queryset = (
         base_query
@@ -315,7 +318,7 @@ async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_postgres
             selectinload(Movie.stars),
             selectinload(Movie.directors),
         )
-        .where(Movie.id == movie_id, Movie.is_available == True)
+        .where(Movie.id == movie_id, Movie.is_available.is_(True))
     )
     result = await db.execute(query)
     movie = result.scalars().first()
@@ -425,10 +428,14 @@ async def update_movie(
         certification=update_dict.get("certification")
     )
 
-    if genres is not None: movie.genres = genres
-    if stars is not None: movie.stars = stars
-    if directors is not None: movie.directors = directors
-    if certification is not None: movie.certification = certification
+    if genres is not None:
+        movie.genres = genres
+    if stars is not None:
+        movie.stars = stars
+    if directors is not None:
+        movie.directors = directors
+    if certification is not None:
+        movie.certification = certification
 
     movie_fields = {"genres", "stars", "directors", "certification"}
     for field, value in update_dict.items():
@@ -459,10 +466,14 @@ async def update_movie(
     ),
     responses={
         400: {
-            "description": "Bad Request if business logic validation fails (movie is active in user carts or completed order items).",
+            "description": "Bad Request if business logic validation fails "
+                           "(movie is active in user carts or completed order items).",
             "content": {
                 "application/json": {
-                    "example": {"detail": "This movie cannot be deleted because it has already been purchased by at least one user."}
+                    "example": {
+                        "detail": "This movie cannot be deleted because "
+                                  "it has already been purchased by at least one user."
+                    }
                 }
             },
         },
@@ -488,9 +499,11 @@ async def delete_movie(
     db: AsyncSession = Depends(get_postgresql_db)
 ):
     """
-    Permanently delete a movie record after enforcing historical purchase and active cart restrictions (asynchronously).
+    Permanently delete a movie record after enforcing historical purchase
+    and active cart restrictions (asynchronously).
 
-    This function handles the hard deletion of a `Movie` entity while preserving system-wide financial and user state records.
+    This function handles the hard deletion of a `Movie` entity while preserving
+    system-wide financial and user state records.
     It executes sequential defensive validation subqueries:
     1. Checks if a dependency row exists in active `CartItem` models.
     2. Runs an existential subquery join matching `OrderItem` to `Order` entries where status equals `PAID`.
@@ -509,7 +522,8 @@ async def delete_movie(
     :rtype: dict
 
     :raises HTTPException: Raises a 404 error if the targeted movie resource does not exist.
-    :raises HTTPException: Raises a 400 error if the asset is locked by an active shopping cart context or a historical invoice record.
+    :raises HTTPException: Raises a 400 error if the asset is locked by
+    an active shopping cart context or a historical invoice record.
     """
     query = select(Movie).where(Movie.id == movie_id)
     result = await db.execute(query)
@@ -528,7 +542,8 @@ async def delete_movie(
     if existing_in_cart:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Warning to Moderator: This movie cannot be deleted because it is currently in users' shopping carts."
+            detail="Warning to Moderator: This movie cannot be deleted because "
+                   "it is currently in users' shopping carts."
         )
 
     query_purchased = (

@@ -168,7 +168,8 @@ async def get_star_list(db: AsyncSession = Depends(get_postgresql_db)) -> StarLi
     ),
     responses={
         400: {
-            "description": "Bad Request if the new name already conflicts with another star, or if database integrity rules fail.",
+            "description": "Bad Request if the new name already conflicts with another star, "
+                           "or if database integrity rules fail.",
             "content": {
                 "application/json": {
                     "example": {"detail": "Star with the name '...' already exists."}

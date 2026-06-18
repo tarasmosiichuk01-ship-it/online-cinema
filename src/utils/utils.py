@@ -4,6 +4,7 @@ from typing import Optional, List, Tuple
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+
 async def get_or_create(db: AsyncSession, model, **kwargs):
     """
     Retrieves an existing instance of the model from the database
@@ -42,11 +43,21 @@ async def resolve_movie_relations(
 
     genre_tasks = [get_or_create(db=db, model=Genre, name=genre) for genre in genres] if genres is not None else []
     star_tasks = [get_or_create(db=db, model=Star, name=star) for star in stars] if stars is not None else []
-    director_tasks = [get_or_create(db=db, model=Director, name=director) for director in directors] if directors is not None else []
+    director_tasks = [
+        get_or_create(
+            db=db,
+            model=Director,
+            name=director
+        ) for director in directors
+    ] if directors is not None else []
 
     resolved_genres = await asyncio.gather(*genre_tasks) if genre_tasks else (None if genres is None else [])
     resolved_stars = await asyncio.gather(*star_tasks) if star_tasks else (None if stars is None else [])
-    resolved_directors = await asyncio.gather(*director_tasks) if director_tasks else (None if directors is None else [])
+    resolved_directors = await asyncio.gather(
+        *director_tasks
+    ) if director_tasks else (
+        None if directors is None else []
+    )
 
     resolved_certification = None
     if certification:

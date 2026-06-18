@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
-from unittest.mock import MagicMock
+from typing import AsyncGenerator
+from unittest.mock import MagicMock, AsyncMock
 
 from dotenv import load_dotenv
 from sqlalchemy import select
@@ -11,7 +12,6 @@ from models.movies import Movie, Certification
 from notifications.emails import EmailSender
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
-from tests.test_helpers import override_get_postgresql_db, override_get_email_notificator
 
 base_dir = Path(__file__).resolve().parent.parent.parent
 env_test_path = base_dir / ".env.test"
@@ -37,6 +37,29 @@ AsyncPostgresqlSession = async_sessionmaker(
     autoflush=False,
     expire_on_commit=False,
 )
+
+
+async def override_get_postgresql_db() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Override for the get_postgresql_db dependency.
+
+    Provides a test database session using the test PostgreSQL engine
+    instead of the production database session.
+    """
+    async with AsyncPostgresqlSession() as session:
+        yield session
+
+
+async def override_get_email_notificator():
+    """
+    Override for the get_accounts_email_notificator dependency.
+
+    Returns a mocked email notificator with all email sending methods
+    replaced by AsyncMock to prevent real emails from being sent during tests.
+    """
+    mock = AsyncMock()
+    mock.send_activation_email = AsyncMock()
+    return mock
 
 
 @pytest_asyncio.fixture(scope="session")

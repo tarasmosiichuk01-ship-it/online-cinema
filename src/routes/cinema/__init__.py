@@ -12,4 +12,3 @@ cinema_router.include_router(interactions_router)
 cinema_router.include_router(genres_router)
 cinema_router.include_router(stars_router)
 cinema_router.include_router(directors_router)
-

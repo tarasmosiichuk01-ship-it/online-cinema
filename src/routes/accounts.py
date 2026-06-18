@@ -216,7 +216,6 @@ async def activate_token(
     await db.delete(token_record)
     await db.commit()
 
-
     login_link = "http://127.0.0.1/accounts/login/"
 
     await email_sender.send_activation_complete_email(
@@ -605,7 +604,8 @@ async def update_access_token(
     ),
     responses={
         400: {
-            "description": "Bad Request due to mismatched passwords, incorrect old password, or identical old and new passwords.",
+            "description": "Bad Request due to mismatched passwords, incorrect old password, "
+                           "or identical old and new passwords.",
             "content": {
                 "application/json": {
                     "example": {"detail": "New passwords do not match"}
@@ -616,7 +616,8 @@ async def update_access_token(
             "description": "Unauthorized due to missing or invalid authentication token.",
         },
         500: {
-            "description": "Internal server error due to database transaction failure during update or session revocation.",
+            "description": "Internal server error due to database transaction "
+                           "failure during update or session revocation.",
             "content": {
                 "application/json": {
                     "example": {"detail": "An error occurred while changing password."}
@@ -767,6 +768,7 @@ async def forgot_password(
     return MessageResponseSchema(
         message="If you wish to reset your password, you will receive an email."
     )
+
 
 @router.post(
     "/reset-password/{token}/",
