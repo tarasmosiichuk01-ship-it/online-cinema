@@ -18,10 +18,17 @@ from src.models import accounts, movies, shopping_carts, orders, payments # noqa
 # access to the values within the .ini file in use.
 config = context.config
 
-config.set_main_option(
-    "sqlalchemy.url",
-    settings.postgres_database_url.replace("asyncpg", "psycopg2")
-)
+#config.set_main_option(
+#    "sqlalchemy.url",
+#    settings.postgres_database_url.replace("asyncpg", "psycopg2")
+#)
+
+db_url = settings.postgres_database_url.replace("asyncpg", "psycopg2")
+
+if not os.path.exists('/.dockerenv'):
+    db_url = db_url.replace("@db:", "@localhost:")
+
+config.set_main_option("sqlalchemy.url", db_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
