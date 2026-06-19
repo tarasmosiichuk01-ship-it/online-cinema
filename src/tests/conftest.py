@@ -22,11 +22,12 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 from config.database import get_postgresql_db
-from src.models.base import Base
+from models.base import Base
 from src.main import app
 
+settings = get_settings()
 
-TEST_POSTGRESQL_DATABASE_URL = os.getenv("DATABASE_URL")
+TEST_POSTGRESQL_DATABASE_URL = settings.postgres_database_url
 
 test_postgresql_engine = create_async_engine(TEST_POSTGRESQL_DATABASE_URL, echo=False)
 

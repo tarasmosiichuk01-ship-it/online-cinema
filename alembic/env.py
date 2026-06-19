@@ -11,17 +11,12 @@ from sqlalchemy import pool
 from alembic import context
 
 from src.config.settings import settings
-from src.models.base import Base
-from src.models import accounts, movies, shopping_carts, orders, payments # noqa: F401
+from models.base import Base
+from models import accounts, movies, shopping_carts, orders, payments # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-
-#config.set_main_option(
-#    "sqlalchemy.url",
-#    settings.postgres_database_url.replace("asyncpg", "psycopg2")
-#)
 
 db_url = settings.postgres_database_url.replace("asyncpg", "psycopg2")
 

@@ -1,7 +1,12 @@
+import asyncio
 from sqlalchemy import select
 
 from config.database import AsyncPostgresqlSession
 from models.accounts import UserGroupEnum, UserGroup
+import models.movies  # noqa: F401
+import models.orders  # noqa: F401
+import models.payments  # noqa: F401
+import models.shopping_carts  # noqa: F401
 
 
 async def seed_user_groups():
@@ -33,5 +38,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
