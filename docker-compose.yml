@@ -36,7 +36,6 @@ services:
         condition: service_started
     volumes:
       - ./src:/app/src
-    command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
   mailhog:
     image: mailhog/mailhog

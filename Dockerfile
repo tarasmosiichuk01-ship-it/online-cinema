@@ -1,5 +1,9 @@
 FROM python:3.12-slim
 
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -12,5 +16,6 @@ RUN poetry config virtualenvs.create false \
     && poetry install --only main --no-root --no-interaction --no-ansi
 
 COPY . .
+RUN chmod +x /app/commands/entrypoint.sh
 
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["./commands/entrypoint.sh"]
