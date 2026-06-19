@@ -1,8 +1,8 @@
 """initial_migration
 
-Revision ID: e1e1e4035d25
+Revision ID: e162f1b0c6f9
 Revises: 
-Create Date: 2026-05-29 17:49:11.793162
+Create Date: 2026-06-19 15:23:32.883380
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'e1e1e4035d25'
+revision: str = 'e162f1b0c6f9'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -63,6 +63,7 @@ def upgrade() -> None:
     sa.Column('gross', sa.Float(), nullable=True),
     sa.Column('description', sa.Text(), nullable=False),
     sa.Column('price', sa.DECIMAL(precision=10, scale=2), nullable=False),
+    sa.Column('is_available', sa.Boolean(), nullable=False),
     sa.Column('certification_id', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['certification_id'], ['certifications.id'], ),
     sa.PrimaryKeyConstraint('id'),
@@ -92,6 +93,13 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('token'),
+    sa.UniqueConstraint('user_id')
+    )
+    op.create_table('carts',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('user_id')
     )
     op.create_table('movies_comments',
@@ -161,6 +169,15 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['star_id'], ['stars.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('movie_id', 'star_id')
     )
+    op.create_table('orders',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'PAID', 'CANCELED', name='orderstatusenum'), nullable=False),
+    sa.Column('total_amount', sa.DECIMAL(precision=10, scale=2), nullable=True),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
     op.create_table('password_reset_tokens',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('token', sa.String(length=64), nullable=False),
@@ -193,6 +210,26 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('user_id')
     )
+    op.create_table('user_purchased_movies',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('movie_id', sa.Integer(), nullable=False),
+    sa.Column('purchased_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['movie_id'], ['movies.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('user_id', 'movie_id', name='unique_user_movie_purchase')
+    )
+    op.create_table('cart_items',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('cart_id', sa.Integer(), nullable=False),
+    sa.Column('movie_id', sa.Integer(), nullable=False),
+    sa.Column('added_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['cart_id'], ['carts.id'], ),
+    sa.ForeignKeyConstraint(['movie_id'], ['movies.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('cart_id', 'movie_id', name='unique_cart_item_constraint')
+    )
     op.create_table('comments_reactions',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -204,16 +241,53 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('user_id', 'comment_id', name='unique_comment_reaction_constraint')
     )
+    op.create_table('order_items',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('order_id', sa.Integer(), nullable=False),
+    sa.Column('movie_id', sa.Integer(), nullable=False),
+    sa.Column('price_at_order', sa.DECIMAL(precision=10, scale=2), nullable=False),
+    sa.ForeignKeyConstraint(['movie_id'], ['movies.id'], ),
+    sa.ForeignKeyConstraint(['order_id'], ['orders.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('payments',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('order_id', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'SUCCESSFUL', 'CANCELED', 'REFUNDED', name='paymentstatusenum'), nullable=False),
+    sa.Column('amount', sa.DECIMAL(precision=10, scale=2), nullable=False),
+    sa.Column('external_payment_id', sa.String(), nullable=True),
+    sa.Column('payment_intent_id', sa.String(), nullable=True),
+    sa.ForeignKeyConstraint(['order_id'], ['orders.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('payment_items',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('payment_id', sa.Integer(), nullable=False),
+    sa.Column('order_item_id', sa.Integer(), nullable=False),
+    sa.Column('price_at_payment', sa.DECIMAL(precision=10, scale=2), nullable=False),
+    sa.ForeignKeyConstraint(['order_item_id'], ['order_items.id'], ),
+    sa.ForeignKeyConstraint(['payment_id'], ['payments.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_table('payment_items')
+    op.drop_table('payments')
+    op.drop_table('order_items')
     op.drop_table('comments_reactions')
+    op.drop_table('cart_items')
+    op.drop_table('user_purchased_movies')
     op.drop_table('user_profiles')
     op.drop_table('refresh_tokens')
     op.drop_table('password_reset_tokens')
+    op.drop_table('orders')
     op.drop_table('movies_stars')
     op.drop_table('movies_reactions')
     op.drop_table('movies_ratings')
@@ -221,6 +295,7 @@ def downgrade() -> None:
     op.drop_table('movies_favorites')
     op.drop_table('movies_directors')
     op.drop_table('movies_comments')
+    op.drop_table('carts')
     op.drop_table('activation_tokens')
     op.drop_table('users')
     op.drop_index(op.f('ix_movies_year'), table_name='movies')
