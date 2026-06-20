@@ -20,14 +20,14 @@ class BaseAppSettings(BaseSettings):
 
     LOGIN_TIME_DAYS: int = 7
 
-    EMAIL_HOST: str = os.getenv("EMAIL_HOST", "localhost")
-    EMAIL_PORT: int = int(os.getenv("EMAIL_PORT", 25))
-    EMAIL_HOST_USER: str = os.getenv("EMAIL_HOST_USER", "test_user")
-    EMAIL_HOST_PASSWORD: str = os.getenv("EMAIL_HOST_PASSWORD", "test_password")
-    EMAIL_USE_TLS: bool = os.getenv("EMAIL_USE_TLS", "False").lower() == "true"
-    MAILHOG_API_PORT: int = int(os.getenv("MAILHOG_API_PORT", 8025))
+    EMAIL_HOST: str = "localhost"
+    EMAIL_PORT: int = 25
+    EMAIL_HOST_USER: str = "test_user"
+    EMAIL_HOST_PASSWORD: str = "test_password"
+    EMAIL_USE_TLS: bool = False
+    MAILHOG_API_PORT: int = 8025
 
-    JWT_SIGNING_ALGORITHM: str = os.getenv("JWT_SIGNING_ALGORITHM", "HS256")
+    JWT_SIGNING_ALGORITHM: str = "HS256"
 
     model_config = SettingsConfigDict(
         extra="ignore"
