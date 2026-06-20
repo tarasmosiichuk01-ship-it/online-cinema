@@ -63,12 +63,13 @@ services:
       - .env
     volumes:
       - ./src:/app/src
-    command: >
-      sh -c "sleep 10 && celery -A src.celery_app worker --loglevel=info --uid=nobody --gid=nogroup"
+    command: celery -A src.celery_app worker --loglevel=info --uid=nobody --gid=nogroup
     environment:
       - PYTHONPATH=/app/src
       - POSTGRES_HOST=db
     depends_on:
+      app:
+        condition: service_started
       redis:
         condition: service_healthy
       db:
@@ -85,12 +86,13 @@ services:
       - .env
     volumes:
       - ./src:/app/src
-    command: >
-      sh -c "sleep 10 && celery -A src.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule"
+    command: celery -A src.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
     environment:
       - PYTHONPATH=/app/src
       - POSTGRES_HOST=db
     depends_on:
+      app:
+        condition: service_started
       redis:
         condition: service_healthy
       db:
