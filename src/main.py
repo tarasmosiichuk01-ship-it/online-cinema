@@ -1,13 +1,8 @@
 from fastapi import FastAPI
 
-from config.dependencies import get_settings
 from routes import accounts_router, shopping_carts_router, orders_router, payments_router
 from routes.cinema import cinema_router
 
-settings = get_settings()
-
-print("EMAIL_HOST =", settings.EMAIL_HOST)
-print("EMAIL_PORT =", settings.EMAIL_PORT)
 
 app = FastAPI(
     title="Online Cinema",
