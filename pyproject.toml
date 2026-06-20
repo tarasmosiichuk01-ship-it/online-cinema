@@ -1,53 +1,64 @@
-[project]
+[tool.poetry]
 name = "online-cinema"
 version = "0.1.0"
 description = "Task for Online Cinema project"
-authors = [
-    {name = "Taras Mosiichuk",email = "taras.mosiichuk.01@gmail.com"}
-]
+authors = ["Taras Mosiichuk <taras.mosiichuk.01@gmail.com>"]
 readme = "README.md"
-requires-python = ">=3.12,<4"
-dependencies = [
-    "fastapi (==0.136.1)",
-    "sqlalchemy (==2.0.49)",
-    "alembic (==1.18.4)",
-    "asyncpg (==0.31.0)",
-    "pydantic (==2.13.4)",
-    "pydantic-settings (==2.14.1)",
-    "uvicorn (==0.47.0)",
-    "python-jose (==3.5.0)",
-    "passlib (==1.7.4)",
-    "bcrypt (==4.0.1)",
-    "python-multipart (==0.0.28)",
-    "aiosmtplib (==5.1.0)",
-    "jinja2 (==3.1.6)",
-    "celery (==5.6.3)",
-    "redis (==7.4.0)",
-    "stripe (==15.2.0)",
-    "python-dotenv (==1.2.2)",
-    "httpx (==0.28.1)",
-    "email-validator (==2.3.0)",
-    "aiofiles (==25.1.0)",
-    "aioboto3 (==15.5.0)",
-    "boto3 (==1.40.61)",
-    "psycopg2-binary (==2.9.12)",
-    "kombu (==5.6.2)",
-    "aiohttp (==3.13.5)"
-]
 
+[tool.poetry.dependencies]
+python = ">=3.12,<4"
+fastapi = "==0.136.1"
+sqlalchemy = "==2.0.49"
+alembic = "==1.18.4"
+asyncpg = "==0.31.0"
+pydantic = "==2.13.4"
+pydantic-settings = "==2.14.1"
+psycopg2-binary = "==2.9.12"
+uvicorn = "==0.47.0"
+python-jose = "==3.5.0"
+passlib = "==1.7.4"
+bcrypt = "==4.0.1"
+python-multipart = "==0.0.28"
+aiosmtplib = "==5.1.0"
+jinja2 = "==3.1.6"
+celery = "==5.6.3"
+redis = "==7.4.0"
+stripe = "==15.2.0"
+python-dotenv = "==1.2.2"
+httpx = "==0.28.1"
+email-validator = "==2.3.0"
+aiofiles = "==25.1.0"
+aioboto3 = "==15.5.0"
+boto3 = "==1.40.61"
+kombu = "==5.6.2"
+aiohttp = "==3.13.5"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "==9.0.3"
+pytest-asyncio = "==1.3.0"
+pytest-cov = "==7.1.0"
+pytest-env = "==1.6.0"
+flake8 = "==7.3.0"
+coverage = "==7.14.1"
+black = ">=26.5.1,<27.0.0"
+mypy = ">=2.1.0,<3.0.0"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-[dependency-groups]
-dev = [
-    "pytest (==9.0.3)",
-    "pytest-asyncio (==1.3.0)",
-    "pytest-cov (==7.1.0)",
-    "pytest-env (==1.6.0)",
-    "flake8 (==7.3.0)",
-    "coverage (==7.14.1)",
-    "black (>=26.5.1,<27.0.0)",
-    "mypy (>=2.1.0,<3.0.0)"
-]
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["src/tests"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["src/tests/*", "*/migrations/*"]
