@@ -1,0 +1,589 @@
+import math
+
+from fastapi import APIRouter, status, Depends, HTTPException, Query
+from sqlalchemy import select, func, desc, asc, exists
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload, joinedload
+
+from config.dependencies import get_moderator_user, get_query_params
+from config.database import get_postgresql_db
+from models.accounts import User
+from models.movies import Movie, Genre, Star, Director
+from models.orders import OrderStatusEnum, OrderItem, Order
+from models.shopping_carts import CartItem
+from schemas.movies import (
+    MovieDetailSchema,
+    MovieCreateSchema,
+    MovieListResponseSchema,
+    MovieListItemSchema,
+    MovieUpdateSchema,
+)
+from utils.utils import resolve_movie_relations
+
+router = APIRouter()
+
+
+@router.post(
+    "/movies",
+    response_model=MovieDetailSchema,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new movie (Moderator only)",
+    description=(
+        "<h3>This endpoint allows moderators to add a new movie to the catalog system. "
+        "It performs a defensive combined look-up check on the movie's name, release year, and duration "
+        "to prevent duplicate asset entries. It aggregates and fetches relational data (genres, stars, "
+        "directors, certification) asynchronously using a resolution utility layer before initializing "
+        "and committing the fresh movie entity.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request if data integrity checks fail or "
+            "mapping rules are violated during commitment.",
+            "content": {
+                "application/json": {"example": {"detail": "Invalid input data."}}
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user lacks elevated moderator privileges.",
+        },
+        409: {
+            "description": "Conflict error if a movie with the identical name, year, and duration already exists.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "A movie with the name '...' and release year '...' already exists."
+                    }
+                }
+            },
+        },
+    },
+)
+async def create_movie(
+    movie_data: MovieCreateSchema,
+    current_user: User = Depends(get_moderator_user),
+    db: AsyncSession = Depends(get_postgresql_db),
+):
+    """
+    Register a new movie entity with resolved nested relationships inside the catalog (asynchronously).
+
+    This function coordinates complex object graphing. It validates access rights, ensures record uniqueness
+    across multi-column keys, routes identifier lists to an internal helper `resolve_movie_relations`
+    to retrieve existing model objects, constructs the complete `Movie` record, and returns a fully mapped
+    response layer. If structural boundaries fail during transactional commit, an `IntegrityError` rollback is invoked.
+
+    :param movie_data: Request body payload carrying the movie specifications and lists of relational IDs.
+    :type movie_data: MovieCreateSchema
+    :param current_user: The authenticated user profile verifying elevated moderator roles.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A fully detailed and validated movie profile, including its complete relational object tree.
+    :rtype: MovieDetailSchema
+
+    :raises HTTPException: Raises a 409 error if a name-year-time combination already maps to a row.
+    :raises HTTPException: Raises a 400 error if concurrent database operations fail constraint tests.
+    """
+    existing_query = select(Movie).where(
+        (Movie.name == movie_data.name),
+        (Movie.year == movie_data.year),
+        (Movie.time == movie_data.time),
+    )
+    existing_result = await db.execute(existing_query)
+    existing_movie = existing_result.scalars().first()
+
+    if existing_movie:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"A movie with the name '{movie_data.name}' and release year "
+                f"'{movie_data.year}' already exists."
+            ),
+        )
+
+    genres, stars, directors, certification = await resolve_movie_relations(
+        db=db,
+        genres=movie_data.genres,
+        stars=movie_data.stars,
+        directors=movie_data.directors,
+        certification=movie_data.certification,
+    )
+
+    try:
+        new_movie = Movie(
+            name=movie_data.name,
+            year=movie_data.year,
+            time=movie_data.time,
+            imdb=movie_data.imdb,
+            votes=movie_data.votes,
+            meta_score=movie_data.meta_score,
+            gross=movie_data.gross,
+            description=movie_data.description,
+            price=movie_data.price,
+            certification=certification,
+            genres=genres,
+            stars=stars,
+            directors=directors,
+        )
+
+        db.add(new_movie)
+        await db.commit()
+        await db.refresh(new_movie, ["certification", "genres", "stars", "directors"])
+
+        return MovieDetailSchema.model_validate(new_movie)
+
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data."
+        )
+
+
+@router.get(
+    "/movies",
+    response_model=MovieListResponseSchema,
+    status_code=status.HTTP_200_OK,
+    summary="Get all available movies with pagination and filters",
+    description=(
+        "<h3>This public endpoint retrieves a paginated catalog of movies that are currently marked as available. "
+        "It supports dynamic filtering by release year, minimum IMDb rating, and genre, alongside a powerful "
+        "text search query that scans across movie titles, descriptions, cast members (stars), and directors. "
+        "Results can be sorted dynamically by various attributes and include metadata for structured pagination "
+        "navigation via hypermedia links (`prev_page`, `next_page`).</h3>"
+    ),
+    responses={
+        404: {
+            "description": "Not Found if no movies match the requested criteria or if the page limit is exceeded.",
+            "content": {
+                "application/json": {"example": {"detail": "No movies found."}}
+            },
+        }
+    },
+)
+async def get_movie_list(
+    page: int = Query(1, ge=1, description="Page number (1-based index)"),
+    per_page: int = Query(10, ge=1, le=20, description="Number of items per page"),
+    params: dict = Depends(get_query_params),
+    db: AsyncSession = Depends(get_postgresql_db),
+) -> MovieListResponseSchema:
+    """
+    Retrieve a filtered, sorted, and paginated collection of available movies (asynchronously).
+
+    This function processes catalog listings by building and executing two parallel queries:
+    1. A lightweight counting operation (`count_query`) to compute total items and page limits.
+    2. A data operation (`base_query`) modified sequentially according to dynamic incoming filters.
+
+    To optimize database round-trips and maximize performance under pagination offsets, it combines
+    `joinedload` for many-to-one attributes (`certification`) and `selectinload` for many-to-many paths (`genres`),
+    effectively loading all necessary relationships in a structured bulk operation.
+
+    :param page: Target data chunk index requested by the client wrapper.
+    :type page: int
+    :param per_page: Structural constraints limiting the total number of entries per window.
+    :type per_page: int
+    :param params: Extracted query arguments dictionary carrying search, sorting, and filter fields.
+    :type params: dict
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A structured pagination layout carrying verified movie items and traversal route properties.
+    :rtype: MovieListResponseSchema
+
+    :raises HTTPException: Raises a 404 error if no movie assets match the combined parameter filters.
+    """
+    base_query = select(Movie).where(Movie.is_available.is_(True))
+    count_query = (
+        select(func.count()).select_from(Movie).where(Movie.is_available.is_(True))
+    )
+
+    if params["release_year"]:
+        base_query = base_query.where(Movie.year == params["release_year"])
+        count_query = count_query.where(Movie.year == params["release_year"])
+
+    if params["min_rating_imdb"]:
+        base_query = base_query.where(Movie.imdb >= params["min_rating_imdb"])
+        count_query = count_query.where(Movie.imdb >= params["min_rating_imdb"])
+
+    if params["genre"]:
+        genre_condition = Movie.genres.any(Genre.name.ilike(f"%{params['genre']}%"))
+        base_query = base_query.where(genre_condition)
+        count_query = count_query.where(genre_condition)
+
+    if params["search"]:
+        search_term = f"%{params['search']}%"
+
+        movie_text_condition = (Movie.name.ilike(search_term)) | (
+            Movie.description.ilike(search_term)
+        )
+        star_condition = Movie.stars.any(Star.name.ilike(search_term))
+        director_condition = Movie.directors.any(Director.name.ilike(search_term))
+
+        full_search_condition = (
+            movie_text_condition | star_condition | director_condition
+        )
+
+        base_query = base_query.where(full_search_condition)
+        count_query = count_query.where(full_search_condition)
+
+    sort_mapping = {
+        "id": Movie.id,
+        "year": Movie.year,
+        "price": Movie.price,
+        "votes": Movie.votes,
+    }
+    sort_column = sort_mapping.get(params["sort_by"], Movie.id)
+
+    if params["order"] == "asc":
+        base_query = base_query.order_by(asc(sort_column))
+    else:
+        base_query = base_query.order_by(desc(sort_column))
+
+    total_items_result = await db.execute(count_query)
+    total_items = total_items_result.scalar() or 0
+
+    total_pages = 1 if total_items == 0 else math.ceil(total_items / per_page)
+    prev_page = (
+        (
+            f"http://127.0.0.1:8000/api/v1/cinema/movies?page={page - 1}"
+            f"&per_page={per_page}"
+        )
+        if page > 1
+        else None
+    )
+    next_page = (
+        (
+            f"http://127.0.0.1:8000/api/v1/cinema/movies?page={page + 1}"
+            f"&per_page={per_page}"
+        )
+        if page < total_pages
+        else None
+    )
+
+    queryset = (
+        base_query.options(joinedload(Movie.certification), selectinload(Movie.genres))
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
+    result = await db.execute(queryset)
+    movies = result.scalars().all()
+
+    if not movies:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No movies found."
+        )
+
+    movie_list = [MovieListItemSchema.model_validate(movie) for movie in movies]
+
+    return MovieListResponseSchema(
+        movies=movie_list,
+        prev_page=prev_page,
+        next_page=next_page,
+        total_pages=total_pages,
+        total_items=total_items,
+    )
+
+
+@router.get(
+    "/movies/{movie_id}",
+    response_model=MovieDetailSchema,
+    status_code=status.HTTP_200_OK,
+    summary="Get movie details by ID",
+    description=(
+        "<h3>This public endpoint retrieves complete details for a specific movie using its unique identifier. "
+        "It strictly filters for entries where `is_available == True`. "
+        "To maximize performance and prevent multiple downstream database round-trips, "
+        "the query eagerly preloads all nested relational graphs—including age certifications, genres, "
+        "cast members (stars), and directors—before validating the data against the response schema.</h3>"
+    ),
+    responses={
+        404: {
+            "description": "Not Found if the movie does not exist or is marked as unavailable in the system.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Movie with the given ID was not found."}
+                }
+            },
+        }
+    },
+)
+async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_postgresql_db)):
+    """
+    Retrieve full metadata and relational object trees for a single movie asset (asynchronously).
+
+    This function fetches a detailed `Movie` domain record by its primary key. It utilizes an optimized
+    SQL Eager Loading strategy: a `joinedload` for the single age certification relation, combined with
+    `selectinload` collections for many-to-many paths (`genres`, `stars`, `directors`). This ensures
+    that the complete object graph is assembled efficiently within minimal queries, completely avoiding N+1 anomalies.
+
+    :param movie_id: The ID of the target movie extracted from the path URL.
+    :type movie_id: int
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A highly detailed, validated schema representing the movie complete with its nested relations.
+    :rtype: MovieDetailSchema
+
+    :raises HTTPException: Raises a 404 error if no movie matches the ID or if it is currently restricted.
+    """
+    query = (
+        select(Movie)
+        .options(
+            joinedload(Movie.certification),
+            selectinload(Movie.genres),
+            selectinload(Movie.stars),
+            selectinload(Movie.directors),
+        )
+        .where(Movie.id == movie_id, Movie.is_available.is_(True))
+    )
+    result = await db.execute(query)
+    movie = result.scalars().first()
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie with the given ID was not found.",
+        )
+
+    return MovieDetailSchema.model_validate(movie)
+
+
+@router.patch(
+    "/movies/{movie_id}",
+    response_model=MovieDetailSchema,
+    status_code=status.HTTP_200_OK,
+    summary="Partially update an existing movie (Moderator only)",
+    description=(
+        "<h3>This endpoint allows moderators to partially update a movie's details by its unique ID. "
+        "It supports updating basic attributes as well as altering relationships (genres, stars, directors, "
+        "certification) dynamically. The update uses `exclude_unset=True`, ensuring only the fields explicitly "
+        "provided in the request payload are modified. Relationships are eagerly preloaded and resolved "
+        "via an external helper utility before saving changes to the database.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request due to database integrity validation failures or invalid relational payload.",
+            "content": {
+                "application/json": {"example": {"detail": "Invalid input data."}}
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user lacks elevated moderator privileges.",
+        },
+        404: {
+            "description": "Not Found if no movie record matches the specified identifier in the system.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Movie with the given ID was not found."}
+                }
+            },
+        },
+    },
+)
+async def update_movie(
+    movie_id: int,
+    movie_data: MovieUpdateSchema,
+    current_user: User = Depends(get_moderator_user),
+    db: AsyncSession = Depends(get_postgresql_db),
+):
+    """
+    Partially update a movie's metadata and relational graphs within the catalog (asynchronously).
+
+    This function orchestrates a dynamic patch process for a targeted `Movie` entity. It secures route
+    boundaries via moderator role inspection, loads the active object structure using high-performance
+    Eager Loading (`joinedload` and `selectinload`), processes missing or assigned external relational elements
+    via `resolve_movie_relations`, maps primitive attributes dynamically through `setattr`, and rolls back
+    the active transaction context if data constraint violations occur.
+
+    :param movie_id: The ID of the target movie extracted from the path URL.
+    :type movie_id: int
+    :param movie_data: The Pydantic schema containing partial data fields to be updated.
+    :type movie_data: MovieUpdateSchema
+    :param current_user: The authenticated user profile verifying elevated moderator roles.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: An updated and fully validated movie schema layout populated with refreshed relation trees.
+    :rtype: MovieDetailSchema
+
+    :raises HTTPException: Raises a 404 error if the targeted movie resource does not exist.
+    :raises HTTPException: Raises a 400 error if concurrent request modifications break system database boundaries.
+    """
+    query = (
+        select(Movie)
+        .options(
+            joinedload(Movie.certification),
+            selectinload(Movie.genres),
+            selectinload(Movie.stars),
+            selectinload(Movie.directors),
+        )
+        .where(Movie.id == movie_id)
+    )
+    result = await db.execute(query)
+    movie = result.scalars().first()
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie with the given ID was not found.",
+        )
+
+    update_dict = movie_data.model_dump(exclude_unset=True)
+
+    genres, stars, directors, certification = await resolve_movie_relations(
+        db=db,
+        genres=update_dict.get("genres"),
+        stars=update_dict.get("stars"),
+        directors=update_dict.get("directors"),
+        certification=update_dict.get("certification"),
+    )
+
+    if genres is not None:
+        movie.genres = genres
+    if stars is not None:
+        movie.stars = stars
+    if directors is not None:
+        movie.directors = directors
+    if certification is not None:
+        movie.certification = certification
+
+    movie_fields = {"genres", "stars", "directors", "certification"}
+    for field, value in update_dict.items():
+        if field not in movie_fields:
+            setattr(movie, field, value)
+
+    try:
+        await db.commit()
+        await db.refresh(movie, ["certification", "genres", "stars", "directors"])
+
+        return MovieDetailSchema.model_validate(movie)
+
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data."
+        )
+
+
+@router.delete(
+    "/movies/{movie_id}",
+    summary="Delete a movie (Moderator only)",
+    description=(
+        "<h3>This endpoint allows moderators to permanently delete a movie from the catalog. "
+        "It implements critical integrity check guardrails: first, it verifies the movie's existence; "
+        "second, it blocks deletion if the movie is currently present in any user's shopping cart; "
+        "third, it uses an optimized SQL `EXISTS` clause to prevent deletion if the movie has already "
+        "been successfully purchased (`OrderStatusEnum.PAID`) by any customer. "
+        "If all checks pass, the record is transactionally removed.</h3>"
+    ),
+    responses={
+        400: {
+            "description": "Bad Request if business logic validation fails "
+            "(movie is active in user carts or completed order items).",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "This movie cannot be deleted because "
+                        "it has already been purchased by at least one user."
+                    }
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized due to missing or invalid authentication token.",
+        },
+        403: {
+            "description": "Forbidden if the authenticated user lacks elevated moderator privileges.",
+        },
+        404: {
+            "description": "Not Found if no movie record matches the specified identifier in the system.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Movie with the given ID was not found."}
+                }
+            },
+        },
+    },
+)
+async def delete_movie(
+    movie_id: int,
+    current_user: User = Depends(get_moderator_user),
+    db: AsyncSession = Depends(get_postgresql_db),
+):
+    """
+    Permanently delete a movie record after enforcing historical purchase
+    and active cart restrictions (asynchronously).
+
+    This function handles the hard deletion of a `Movie` entity while preserving
+    system-wide financial and user state records.
+    It executes sequential defensive validation subqueries:
+    1. Checks if a dependency row exists in active `CartItem` models.
+    2. Runs an existential subquery join matching `OrderItem` to `Order` entries where status equals `PAID`.
+
+    If either business constraint condition is satisfied, a 400 exception is triggered, halting the deletion pipeline
+    and ensuring orphan rows are not left behind.
+
+    :param movie_id: The ID of the target movie extracted from the path URL.
+    :type movie_id: int
+    :param current_user: The authenticated user profile verifying elevated moderator roles.
+    :type current_user: User
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
+
+    :return: A dictionary confirming successful execution of the database hard deletion block.
+    :rtype: dict
+
+    :raises HTTPException: Raises a 404 error if the targeted movie resource does not exist.
+    :raises HTTPException: Raises a 400 error if the asset is locked by
+    an active shopping cart context or a historical invoice record.
+    """
+    query = select(Movie).where(Movie.id == movie_id)
+    result = await db.execute(query)
+    movie = result.scalars().first()
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie with the given ID was not found.",
+        )
+
+    cart_check_query = select(CartItem).where(CartItem.movie_id == movie_id)
+    cart_check_result = await db.execute(cart_check_query)
+    existing_in_cart = cart_check_result.scalars().first()
+
+    if existing_in_cart:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Warning to Moderator: This movie cannot be deleted because "
+            "it is currently in users' shopping carts.",
+        )
+
+    query_purchased = select(
+        exists(
+            select(OrderItem.id)
+            .select_from(OrderItem)
+            .join(Order, Order.id == OrderItem.order_id)
+            .where(OrderItem.movie_id == movie_id)
+            .where(Order.status == OrderStatusEnum.PAID)
+        )
+    )
+    result_purchased = await db.execute(query_purchased)
+    has_been_purchased = result_purchased.scalar()
+
+    if has_been_purchased:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This movie cannot be deleted because it has already been purchased by at least one user.",
+        )
+
+    await db.delete(movie)
+    await db.commit()
+
+    return {"detail": "Movie deleted successfully."}

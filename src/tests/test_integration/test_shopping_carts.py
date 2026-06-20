@@ -1,0 +1,435 @@
+from decimal import Decimal
+
+import pytest
+from sqlalchemy import delete, select
+
+from models.orders import OrderStatusEnum, Order, OrderItem
+from models.shopping_carts import CartItem, Cart, PurchasedMovie
+
+
+@pytest.mark.asyncio
+async def test_add_movie_to_cart_unauthorized_user(client, test_movie):
+    """
+    Test adding a movie to cart by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message with a registration link when an unauthenticated user
+    attempts to add a movie to the cart.
+    """
+    payload = {"movie_id": test_movie.id}
+
+    response = await client.post("/api/v1/shopping_carts/carts", json=payload)
+
+    assert response.status_code == 401
+    assert (
+        response.json()["detail"]
+        == "You must sign up or log in before completing a purchase. Register here: http://127.0.0.1:8000/api/v1/accounts/register/"
+    )
+
+
+@pytest.mark.asyncio
+async def test_add_movie_to_cart_if_movie_not_found(authorized_client):
+    """
+    Test adding a non-existent movie to the cart.
+
+    Ensures that the endpoint returns a 404 status code and an appropriate
+    error message when the movie with the given ID does not exist.
+    """
+    client, user = authorized_client
+
+    payload = {"movie_id": 999999999}
+
+    response = await client.post("/api/v1/shopping_carts/carts", json=payload)
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Movie with the given ID was not found."
+
+
+@pytest.mark.asyncio
+async def test_add_movie_to_cart_if_movie_is_purchased(
+    authorized_client, test_movie, db_session_commit
+):
+    """
+    Test adding a movie to cart that has already been purchased.
+
+    Ensures that the endpoint returns a 400 status code and an appropriate
+    error message when the user attempts to add a movie they have
+    already purchased.
+    """
+    client, user = authorized_client
+
+    order = Order(user_id=user.id, status=OrderStatusEnum.PAID)
+    db_session_commit.add(order)
+    await db_session_commit.flush()
+
+    order_item = OrderItem(
+        order_id=order.id, movie_id=test_movie.id, price_at_order=Decimal("299.99")
+    )
+    db_session_commit.add(order_item)
+    await db_session_commit.commit()
+
+    payload = {"movie_id": test_movie.id}
+
+    response = await client.post("/api/v1/shopping_carts/carts", json=payload)
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Repeat purchases are not allowed."
+
+    await db_session_commit.execute(
+        delete(CartItem).where(CartItem.movie_id == test_movie.id)
+    )
+
+    await db_session_commit.delete(order_item)
+    await db_session_commit.delete(order)
+    await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_add_movie_to_cart_success(
+    authorized_client, test_movie, db_session_commit
+):
+    """
+    Test successful addition of a movie to the cart.
+
+    Ensures that the endpoint returns a 201 status code and the correct
+    cart item data when an authorized user adds a movie to their cart.
+    """
+    client, user = authorized_client
+
+    payload = {"movie_id": test_movie.id}
+
+    response = await client.post("/api/v1/shopping_carts/carts", json=payload)
+
+    assert response.status_code == 201
+    response_data = response.json()
+    assert response_data["movie"]["name"] == test_movie.name
+
+    await db_session_commit.execute(
+        delete(CartItem).where(CartItem.movie_id == test_movie.id)
+    )
+    await db_session_commit.flush()
+
+    query = select(Cart).where(Cart.user_id == user.id)
+    result = await db_session_commit.execute(query)
+    cart = result.scalars().first()
+    if cart:
+        await db_session_commit.delete(cart)
+    await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_cart_unauthorized_user(client):
+    """
+    Test getting the current user's cart by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to get their cart.
+    """
+    response = await client.get("/api/v1/shopping_carts/carts")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_cart_if_not_carts(authorized_client):
+    """
+    Test getting the current user's cart when it is empty.
+
+    Ensures that the endpoint returns a 200 status code and an empty
+    cart_items list when the user has no items in their cart.
+    """
+    client, user = authorized_client
+
+    response = await client.get("/api/v1/shopping_carts/carts")
+
+    assert response.status_code == 200
+    assert response.json()["cart_items"] == []
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_cart_success(
+    authorized_client, test_movie, db_session_commit
+):
+    """
+    Test successful retrieval of the current user's cart.
+
+    Ensures that the endpoint returns a 200 status code and the correct
+    cart data when the user has items in their cart.
+    """
+    client, user = authorized_client
+
+    cart = Cart(user_id=user.id)
+    db_session_commit.add(cart)
+    await db_session_commit.flush()
+
+    cart_item = CartItem(
+        cart_id=cart.id,
+        movie_id=test_movie.id,
+    )
+    db_session_commit.add(cart_item)
+    await db_session_commit.commit()
+
+    response = await client.get("/api/v1/shopping_carts/carts")
+
+    assert response.status_code == 200
+    assert response.json()["cart_items"][0]["movie"]["name"] == test_movie.name
+
+    await db_session_commit.rollback()
+
+    query_item = select(CartItem).where(CartItem.cart_id == cart.id)
+    result_item = await db_session_commit.execute(query_item)
+    item = result_item.scalars().first()
+    if item:
+        await db_session_commit.delete(item)
+        await db_session_commit.flush()
+
+    query_cart = select(Cart).where(Cart.id == cart.id)
+    result_cart = await db_session_commit.execute(query_cart)
+    existing_cart = result_cart.scalars().first()
+    if existing_cart:
+        await db_session_commit.delete(existing_cart)
+    await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_delete_cart_item_unauthorized_user(client, test_movie):
+    """
+    Test deleting a cart item by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to delete
+    a cart item.
+    """
+
+    response = await client.delete(
+        f"/api/v1/shopping_carts/carts/items/{test_movie.id}"
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_delete_cart_item_if_movie_not_in_cart(authorized_client):
+    """
+    Test deleting a cart item when the movie is not in the cart.
+
+    Ensures that the endpoint returns a 404 status code and an appropriate
+    error message when the movie does not exist in the user's cart.
+    """
+    client, user = authorized_client
+
+    response = await client.delete("/api/v1/shopping_carts/carts/items/99999999")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "This movie is not in your cart."
+
+
+@pytest.mark.asyncio
+async def test_delete_cart_item_success(
+    authorized_client, test_movie, db_session_commit
+):
+    """
+    Test successful deletion of a cart item.
+
+    Ensures that the endpoint returns a 204 status code when an authorized
+    user successfully removes a movie from their cart.
+    """
+    client, user = authorized_client
+
+    cart = Cart(user_id=user.id)
+    db_session_commit.add(cart)
+    await db_session_commit.flush()
+
+    cart_item = CartItem(
+        cart_id=cart.id,
+        movie_id=test_movie.id,
+    )
+    db_session_commit.add(cart_item)
+    await db_session_commit.commit()
+
+    response = await client.delete(
+        f"/api/v1/shopping_carts/carts/items/{test_movie.id}"
+    )
+    assert response.status_code == 204
+
+    query_cart = select(Cart).where(Cart.id == cart.id)
+    result_cart = await db_session_commit.execute(query_cart)
+    existing_cart = result_cart.scalars().first()
+    if existing_cart:
+        await db_session_commit.delete(existing_cart)
+        await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_delete_cart_items_unauthorized_user(client):
+    """
+    Test clearing the cart by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to clear their cart.
+    """
+    response = await client.delete("/api/v1/shopping_carts/carts/clear")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_delete_cart_items_success(
+    authorized_client, test_movie, db_session_commit
+):
+    """
+    Test successful clearing of the cart.
+
+    Ensures that the endpoint returns a 204 status code when an authorized
+    user successfully clears all items from their cart.
+    """
+    client, user = authorized_client
+
+    cart = Cart(user_id=user.id)
+    db_session_commit.add(cart)
+    await db_session_commit.flush()
+
+    cart_item = CartItem(
+        cart_id=cart.id,
+        movie_id=test_movie.id,
+    )
+    db_session_commit.add(cart_item)
+    await db_session_commit.commit()
+
+    response = await client.delete("/api/v1/shopping_carts/carts/clear")
+    assert response.status_code == 204
+
+    query = select(CartItem).where(CartItem.cart_id == cart.id)
+    result = await db_session_commit.execute(query)
+    remaining_items = result.scalars().all()
+    assert remaining_items == []
+
+    await db_session_commit.delete(cart)
+    await db_session_commit.commit()
+
+
+@pytest.mark.asyncio
+async def test_get_cart_by_user_id_unauthorized_user(client):
+    """
+    Test getting a user's cart by ID by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to get a cart.
+    """
+    response = await client.get("/api/v1/shopping_carts/admin/carts/1")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_get_cart_by_user_id_not_admin(authorized_client):
+    """
+    Test getting a user's cart by ID by a non-admin user.
+
+    Ensures that the endpoint returns a 403 status code and an appropriate
+    error message when a regular authorized user attempts to access
+    the admin cart endpoint.
+    """
+    client, user = authorized_client
+
+    response = await client.get("/api/v1/shopping_carts/admin/carts/1")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Access forbidden. Admin role required."
+
+
+@pytest.mark.asyncio
+async def test_get_cart_by_user_id_if_not_cart_items(admin_client):
+    """
+    Test getting a cart by user ID when the cart is empty.
+
+    Ensures that the endpoint returns a 200 status code and an empty
+    cart_items list when the specified user has no items in their cart.
+    """
+    response = await admin_client.get("/api/v1/shopping_carts/admin/carts/99999999")
+
+    assert response.status_code == 200
+    assert response.json()["cart_items"] == []
+
+
+@pytest.mark.asyncio
+async def test_get_cart_by_user_id_success(
+    admin_client, db_session_commit, seed_user_groups
+):
+    """
+    Test successful retrieval of a user's cart by admin.
+
+    Ensures that the endpoint returns a 200 status code and the correct
+    cart structure when an admin requests a specific user's cart.
+    """
+    response = await admin_client.get("/api/v1/shopping_carts/admin/carts/1")
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert "cart_items" in response_data
+
+
+@pytest.mark.asyncio
+async def test_get_purchased_movies_unauthorized_user(client):
+    """
+    Test getting purchased movies by an unauthorized user.
+
+    Ensures that the endpoint returns a 401 status code and an appropriate
+    error message when an unauthenticated user attempts to get
+    their purchased movies.
+    """
+    response = await client.get("/api/v1/shopping_carts/carts/purchased")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
+
+
+@pytest.mark.asyncio
+async def test_get_purchased_movies_if_not_purchase(authorized_client):
+    """
+    Test getting purchased movies when the user has no purchases.
+
+    Ensures that the endpoint returns a 200 status code and an empty
+    list when the user has not purchased any movies.
+    """
+    client, user = authorized_client
+
+    response = await client.get("/api/v1/shopping_carts/carts/purchased")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+@pytest.mark.asyncio
+async def test_get_purchased_movies_success(
+    authorized_client, test_movie, db_session_commit
+):
+    """
+    Test successful retrieval of purchased movies.
+
+    Ensures that the endpoint returns a 200 status code and a list
+    of purchased movies when the user has made purchases.
+    """
+    client, user = authorized_client
+
+    purchased_movie = PurchasedMovie(
+        user_id=user.id,
+        movie_id=test_movie.id,
+    )
+    db_session_commit.add(purchased_movie)
+    await db_session_commit.commit()
+
+    response = await client.get("/api/v1/shopping_carts/carts/purchased")
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert isinstance(response_data, list)
+    assert len(response_data) > 0
+    assert response_data[0]["movie"]["name"] == test_movie.name
+
+    await db_session_commit.delete(purchased_movie)
+    await db_session_commit.commit()
