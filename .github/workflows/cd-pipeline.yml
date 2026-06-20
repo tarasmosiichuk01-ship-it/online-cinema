@@ -1,12 +1,15 @@
 name: CD Pipeline (Deploy to AWS EC2)
 
 on:
-  push:
-    branches: [ main ]
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    types: [completed]
+    branches: [main]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout code
@@ -21,7 +24,6 @@ jobs:
           script: |
             cd /home/${{ secrets.EC2_USER }}/online_cinema
             git pull origin main
-            docker-compose down
-            docker-compose up -d --build
-            
+            docker compose up -d --build
+            docker compose exec -T app alembic upgrade head
             docker image prune -f
