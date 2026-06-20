@@ -20,7 +20,7 @@ async def test_get_movie_list_prev_page_not_none(client, test_movie):
 
     with patch(
         "routes.cinema.movies.AsyncSession.execute",
-        side_effect=[mock_count_result, mock_movies_result]
+        side_effect=[mock_count_result, mock_movies_result],
     ):
         response = await client.get("/api/v1/cinema/movies?page=2&per_page=10")
 
@@ -46,7 +46,7 @@ async def test_get_movie_list_next_page_not_none(client, test_movie):
 
     with patch(
         "routes.cinema.movies.AsyncSession.execute",
-        side_effect=[mock_count_result, mock_movies_result]
+        side_effect=[mock_count_result, mock_movies_result],
     ):
         response = await client.get("/api/v1/cinema/movies?page=1&per_page=10")
 
@@ -72,7 +72,7 @@ async def test_get_movie_list_next_page_and_prev_page_not_none(client, test_movi
 
     with patch(
         "routes.cinema.movies.AsyncSession.execute",
-        side_effect=[mock_count_result, mock_movies_result]
+        side_effect=[mock_count_result, mock_movies_result],
     ):
         response = await client.get("/api/v1/cinema/movies?page=2&per_page=10")
 
@@ -100,7 +100,7 @@ async def test_get_movie_list_total_pages_is_right(client, test_movie):
 
     with patch(
         "routes.cinema.movies.AsyncSession.execute",
-        side_effect=[mock_count_result, mock_movies_result]
+        side_effect=[mock_count_result, mock_movies_result],
     ):
         response = await client.get("/api/v1/cinema/movies?page=1&per_page=10")
 
@@ -108,6 +108,3 @@ async def test_get_movie_list_total_pages_is_right(client, test_movie):
     response_data = response.json()
     assert response_data["total_pages"] is not None
     assert response_data["total_pages"] == 2
-
-
-

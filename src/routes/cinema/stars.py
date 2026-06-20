@@ -11,7 +11,7 @@ from schemas.movies import (
     StarResponseSchema,
     StarCreateSchema,
     StarListResponseSchema,
-    StarUpdateSchema
+    StarUpdateSchema,
 )
 
 router = APIRouter()
@@ -50,13 +50,13 @@ router = APIRouter()
                     "example": {"detail": "Star with the name '...' already exists"}
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def create_star(
     star_data: StarCreateSchema,
     current_user: User = Depends(get_moderator_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Register a new movie star entry in the system catalog (asynchronously).
@@ -86,7 +86,7 @@ async def create_star(
     if existing_star:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Star with that name already exists"
+            detail="Star with that name already exists",
         )
 
     new_star = Star(name=star_data.name)
@@ -100,7 +100,7 @@ async def create_star(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Star with the name '{new_star.name}' already exists"
+            detail=f"Star with the name '{new_star.name}' already exists",
         )
 
     return StarResponseSchema.model_validate(new_star)
@@ -119,36 +119,36 @@ async def create_star(
     responses={
         404: {
             "description": "Not Found if the star catalog is currently empty.",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "No stars found."}
-                }
-            },
+            "content": {"application/json": {"example": {"detail": "No stars found."}}},
         }
-    }
+    },
 )
-async def get_star_list(db: AsyncSession = Depends(get_postgresql_db)) -> StarListResponseSchema:
+async def get_star_list(
+    db: AsyncSession = Depends(get_postgresql_db),
+) -> StarListResponseSchema:
     """
-        Retrieve the entire collection of movie stars from the database (asynchronously).
+    Retrieve the entire collection of movie stars from the database (asynchronously).
 
-        This function performs a straightforward relational fetch operation using SQLAlchemy.
-        It streams all available `Star` records sorted sequentially by their primary key, validates
-        each database row against the structural item schema, and bundles them into a list response envelope.
+    This function performs a straightforward relational fetch operation using SQLAlchemy.
+    It streams all available `Star` records sorted sequentially by their primary key, validates
+    each database row against the structural item schema, and bundles them into a list response envelope.
 
-        :param db: The async SQLAlchemy database session (provided via dependency injection).
-        :type db: AsyncSession
+    :param db: The async SQLAlchemy database session (provided via dependency injection).
+    :type db: AsyncSession
 
-        :return: A validated list schema containing all registered movie star profiles.
-        :rtype: StarListResponseSchema
+    :return: A validated list schema containing all registered movie star profiles.
+    :rtype: StarListResponseSchema
 
-        :raises HTTPException: Raises a 404 error if no star entries exist in the system database.
-        """
+    :raises HTTPException: Raises a 404 error if no star entries exist in the system database.
+    """
     query = select(Star).order_by(Star.id.asc())
     result = await db.execute(query)
     stars = result.scalars().all()
 
     if not stars:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No stars found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No stars found."
+        )
 
     star_list = [StarResponseSchema.model_validate(star) for star in stars]
 
@@ -169,7 +169,7 @@ async def get_star_list(db: AsyncSession = Depends(get_postgresql_db)) -> StarLi
     responses={
         400: {
             "description": "Bad Request if the new name already conflicts with another star, "
-                           "or if database integrity rules fail.",
+            "or if database integrity rules fail.",
             "content": {
                 "application/json": {
                     "example": {"detail": "Star with the name '...' already exists."}
@@ -189,14 +189,14 @@ async def get_star_list(db: AsyncSession = Depends(get_postgresql_db)) -> StarLi
                     "example": {"detail": "Star with the given ID was not found."}
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def update_star(
     star_id: int,
     star_data: StarUpdateSchema,
     current_user: User = Depends(get_moderator_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Partially modify a specific movie star's profile within the system catalog (asynchronously).
@@ -228,19 +228,18 @@ async def update_star(
     if not star:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Star with the given ID was not found."
+            detail="Star with the given ID was not found.",
         )
 
     if star_data.name:
         name_query = select(Star).where(
-            Star.name.ilike(star_data.name),
-            Star.id != star_id
+            Star.name.ilike(star_data.name), Star.id != star_id
         )
         name_result = await db.execute(name_query)
         if name_result.scalars().first():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Star with the name '{star_data.name}' already exists."
+                detail=f"Star with the name '{star_data.name}' already exists.",
             )
 
     for field, value in star_data.model_dump(exclude_unset=True).items():
@@ -251,7 +250,9 @@ async def update_star(
         await db.refresh(star)
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data."
+        )
 
     return {"detail": "Star updated successfully."}
 
@@ -280,13 +281,13 @@ async def update_star(
                     "example": {"detail": "Star with the given ID was not found."}
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def delete_star(
     star_id: int,
     current_user: User = Depends(get_moderator_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Permanently delete a specific movie star from the system catalog (asynchronously).
@@ -314,7 +315,7 @@ async def delete_star(
     if not star:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Star with the given ID was not found."
+            detail="Star with the given ID was not found.",
         )
 
     await db.delete(star)

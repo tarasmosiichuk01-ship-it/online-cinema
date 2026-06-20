@@ -6,7 +6,11 @@ from unittest.mock import MagicMock, AsyncMock
 from dotenv import load_dotenv
 from sqlalchemy import select
 
-from config.dependencies import get_accounts_email_notificator, get_settings, get_current_user
+from config.dependencies import (
+    get_accounts_email_notificator,
+    get_settings,
+    get_current_user,
+)
 from models.accounts import UserGroupEnum, UserGroup, User
 from models.movies import Movie, Certification
 from notifications.emails import EmailSender
@@ -86,7 +90,9 @@ async def seed_user_groups(setup_database):
     """
     async with AsyncPostgresqlSession() as session:
         for group in UserGroupEnum:
-            result = await session.execute(select(UserGroup).where(UserGroup.name == group))
+            result = await session.execute(
+                select(UserGroup).where(UserGroup.name == group)
+            )
             existing_users = result.scalar_one_or_none()
             if not existing_users:
                 session.add(UserGroup(name=group))
@@ -116,9 +122,13 @@ async def client(seed_user_groups):
     Clears all dependency overrides after each test.
     """
     app.dependency_overrides[get_postgresql_db] = override_get_postgresql_db
-    app.dependency_overrides[get_accounts_email_notificator] = override_get_email_notificator
+    app.dependency_overrides[get_accounts_email_notificator] = (
+        override_get_email_notificator
+    )
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as async_client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as async_client:
         yield async_client
 
     app.dependency_overrides.clear()
@@ -144,7 +154,7 @@ async def jwt_manager() -> JWTAuthManagerInterface:
     return JWTAuthManager(
         secret_key_access=settings.SECRET_KEY_ACCESS,
         secret_key_refresh=settings.SECRET_KEY_REFRESH,
-        algorithm=settings.JWT_SIGNING_ALGORITHM
+        algorithm=settings.JWT_SIGNING_ALGORITHM,
     )
 
 
@@ -175,7 +185,7 @@ async def moderator_client(client, db_session_commit, jwt_manager):
     moderator = User.create(
         email="moderator@example.com",
         raw_password="Moderator1234!",
-        group_id=moderator_group.id
+        group_id=moderator_group.id,
     )
     moderator.is_active = True
     db_session_commit.add(moderator)
@@ -202,9 +212,7 @@ async def admin_client(client, db_session_commit, jwt_manager):
     admin_group = result.scalars().first()
 
     admin = User.create(
-        email="admin@example.com",
-        raw_password="Admin1234!",
-        group_id=admin_group.id
+        email="admin@example.com", raw_password="Admin1234!", group_id=admin_group.id
     )
     admin.is_active = True
     db_session_commit.add(admin)
@@ -234,7 +242,7 @@ async def authorized_client(client, db_session_commit, jwt_manager):
     user = User.create(
         email="authorized_user@example.com",
         raw_password="User1234!",
-        group_id=user_group.id
+        group_id=user_group.id,
     )
     user.is_active = True
     db_session_commit.add(user)
@@ -300,5 +308,5 @@ def email_sender():
         password_email_template_name="password_reset.html",
         reply_comment_template_name="reply_comment.html",
         reaction_comment_template_name="reaction_comment.html",
-        confirmation_payment_template_name="confirmation_payment.html"
+        confirmation_payment_template_name="confirmation_payment.html",
     )

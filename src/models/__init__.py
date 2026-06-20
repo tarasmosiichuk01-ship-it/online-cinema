@@ -1,17 +1,24 @@
 from models.base import Base
 from models.accounts import (
-    User, UserGroup, UserProfile, TokenBase, ActivationToken, PasswordResetToken, RefreshToken
+    User,
+    UserGroup,
+    UserProfile,
+    TokenBase,
+    ActivationToken,
+    PasswordResetToken,
+    RefreshToken,
 )
 from models.movies import (
     Movie,
     MovieComment,
-    Genre, Star,
+    Genre,
+    Star,
     Director,
     Certification,
     MovieReaction,
     MovieRating,
     MovieFavourite,
-    CommentReaction
+    CommentReaction,
 )
 from models.orders import Order, OrderItem
 from models.payments import Payment, PaymentItem

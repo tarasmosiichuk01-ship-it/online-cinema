@@ -29,7 +29,9 @@ async def test_create_get_update_delete_movie(moderator_client, db_session_commi
         "directors": [],
     }
 
-    create_response = await moderator_client.post("/api/v1/cinema/movies", json=create_payload)
+    create_response = await moderator_client.post(
+        "/api/v1/cinema/movies", json=create_payload
+    )
     create_response_data = create_response.json()
     assert create_response.status_code == 201
     assert create_response_data["name"] == create_payload["name"]
@@ -43,7 +45,9 @@ async def test_create_get_update_delete_movie(moderator_client, db_session_commi
     assert created_movie is not None, "Movie was not created in the database."
     assert created_movie.name == create_payload["name"]
 
-    get_response = await moderator_client.get(f"/api/v1/cinema/movies/{created_movie.id}")
+    get_response = await moderator_client.get(
+        f"/api/v1/cinema/movies/{created_movie.id}"
+    )
     assert get_response.status_code == 200
 
     get_response_data = get_response.json()
@@ -58,7 +62,9 @@ async def test_create_get_update_delete_movie(moderator_client, db_session_commi
         "description": "Movie Test Test Movie",
     }
 
-    update_response = await moderator_client.patch(f"/api/v1/cinema/movies/{created_movie.id}", json=update_payload)
+    update_response = await moderator_client.patch(
+        f"/api/v1/cinema/movies/{created_movie.id}", json=update_payload
+    )
 
     assert update_response.status_code == 200
     update_response_data = update_response.json()
@@ -67,7 +73,9 @@ async def test_create_get_update_delete_movie(moderator_client, db_session_commi
     assert update_response_data["year"] == update_payload["year"]
     assert update_response_data["description"] == update_payload["description"]
 
-    delete_response = await moderator_client.delete(f"/api/v1/cinema/movies/{created_movie.id}")
+    delete_response = await moderator_client.delete(
+        f"/api/v1/cinema/movies/{created_movie.id}"
+    )
 
     assert delete_response.status_code == 200
     assert delete_response.json()["detail"] == "Movie deleted successfully."
@@ -80,9 +88,7 @@ async def test_create_get_update_delete_movie(moderator_client, db_session_commi
 
 @pytest.mark.asyncio
 async def test_create_add_to_cart_and_try_delete_movie(
-    moderator_client,
-    db_session_commit,
-    seed_user_groups
+    moderator_client, db_session_commit, seed_user_groups
 ):
     """
     Test that a movie cannot be deleted when it is in a user's shopping cart.
@@ -104,7 +110,9 @@ async def test_create_add_to_cart_and_try_delete_movie(
         "directors": [],
     }
 
-    create_response = await moderator_client.post("/api/v1/cinema/movies", json=create_payload)
+    create_response = await moderator_client.post(
+        "/api/v1/cinema/movies", json=create_payload
+    )
     create_response_data = create_response.json()
     assert create_response.status_code == 201
     movie_id = create_response_data["id"]
@@ -116,7 +124,7 @@ async def test_create_add_to_cart_and_try_delete_movie(
     user = User.create(
         email="testuser1234@example.com",
         raw_password="Test1234!",
-        group_id=user_group.id
+        group_id=user_group.id,
     )
     user.is_active = True
     db_session_commit.add(user)
@@ -135,7 +143,10 @@ async def test_create_add_to_cart_and_try_delete_movie(
 
     delete_response = await moderator_client.delete(f"/api/v1/cinema/movies/{movie_id}")
     assert delete_response.status_code == 400
-    assert delete_response.json()["detail"] == "Warning to Moderator: This movie cannot be deleted because it is currently in users' shopping carts."
+    assert (
+        delete_response.json()["detail"]
+        == "Warning to Moderator: This movie cannot be deleted because it is currently in users' shopping carts."
+    )
 
     await db_session_commit.delete(cart_item)
     await db_session_commit.delete(cart)
@@ -149,7 +160,9 @@ async def test_create_add_to_cart_and_try_delete_movie(
 
 
 @pytest.mark.asyncio
-async def test_create_buy_and_try_delete_movie(moderator_client, db_session_commit, seed_user_groups):
+async def test_create_buy_and_try_delete_movie(
+    moderator_client, db_session_commit, seed_user_groups
+):
     """
     Test that a movie cannot be deleted after it has been purchased.
 
@@ -171,7 +184,9 @@ async def test_create_buy_and_try_delete_movie(moderator_client, db_session_comm
         "directors": [],
     }
 
-    create_response = await moderator_client.post("/api/v1/cinema/movies", json=create_payload)
+    create_response = await moderator_client.post(
+        "/api/v1/cinema/movies", json=create_payload
+    )
     create_response_data = create_response.json()
     assert create_response.status_code == 201
     movie_id = create_response_data["id"]
@@ -183,7 +198,7 @@ async def test_create_buy_and_try_delete_movie(moderator_client, db_session_comm
     user = User.create(
         email="testuser1234@example.com",
         raw_password="Test1234!",
-        group_id=user_group.id
+        group_id=user_group.id,
     )
     user.is_active = True
     db_session_commit.add(user)

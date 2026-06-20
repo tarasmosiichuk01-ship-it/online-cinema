@@ -8,14 +8,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 
 from config.database import get_postgresql_db
-from config.dependencies import get_current_user, get_accounts_email_notificator, admin_query_params, get_admin_user
+from config.dependencies import (
+    get_current_user,
+    get_accounts_email_notificator,
+    admin_query_params,
+    get_admin_user,
+)
 from config.settings import settings
 from models.accounts import User
 from models.movies import Movie
 from models.orders import Order, OrderStatusEnum, OrderItem
 from models.payments import Payment, PaymentStatusEnum, PaymentItem
 from notifications.interfaces import EmailSenderInterface
-from schemas.payments import StripeSessionResponseSchema, PaymentCreateSchema, PaymentResponseSchema
+from schemas.payments import (
+    StripeSessionResponseSchema,
+    PaymentCreateSchema,
+    PaymentResponseSchema,
+)
 from tasks.payments import add_movies_to_purchased_table
 
 router = APIRouter()
@@ -38,7 +47,7 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
     responses={
         400: {
             "description": "Bad Request due to order status mismatch, "
-                           "total cost discrepancy, or database constraint failures.",
+            "total cost discrepancy, or database constraint failures.",
             "content": {
                 "application/json": {
                     "example": {"detail": "You can only pay for pending orders"}
@@ -47,11 +56,7 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
         },
         404: {
             "description": "Not Found if the specified order does not exist or does not belong to the user.",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Order not found"}
-                }
-            },
+            "content": {"application/json": {"example": {"detail": "Order not found"}}},
         },
         503: {
             "description": "Service Unavailable caused by communication failure or errors on the Stripe API gateway.",
@@ -60,13 +65,13 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
                     "example": {"detail": "Payment gateway error: ..."}
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def create_checkout_session(
     payment_data: PaymentCreateSchema,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Initialize a remote Stripe checkout session and log the local transaction (asynchronously).
@@ -93,15 +98,10 @@ async def create_checkout_session(
     """
     query = (
         select(Order)
-        .where(
-            Order.id == payment_data.order_id,
-            Order.user_id == current_user.id
-        )
+        .where(Order.id == payment_data.order_id, Order.user_id == current_user.id)
         .options(
             selectinload(Order.order_items).options(
-                joinedload(OrderItem.movie).options(
-                    selectinload(Movie.genres)
-                )
+                joinedload(OrderItem.movie).options(selectinload(Movie.genres))
             )
         )
     )
@@ -110,14 +110,13 @@ async def create_checkout_session(
 
     if not order:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Order not found"
         )
 
     if order.status != OrderStatusEnum.PENDING:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You can only pay for pending orders"
+            detail="You can only pay for pending orders",
         )
 
     calculated_total = sum(item.price_at_order for item in order.order_items)
@@ -125,21 +124,23 @@ async def create_checkout_session(
     if calculated_total != order.total_amount:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Order total amount mismatch with items configuration."
+            detail="Order total amount mismatch with items configuration.",
         )
 
     line_items = []
     for order_item in order.order_items:
-        line_items.append({
-            "price_data": {
-                "currency": "usd",
-                "product_data": {
-                    "name": order_item.movie.name,
+        line_items.append(
+            {
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {
+                        "name": order_item.movie.name,
+                    },
+                    "unit_amount": int(order_item.price_at_order * 100),
                 },
-                "unit_amount": int(order_item.price_at_order * 100),
-            },
-            "quantity": 1
-        })
+                "quantity": 1,
+            }
+        )
 
     try:
         session = await stripe.checkout.Session.create_async(
@@ -148,15 +149,12 @@ async def create_checkout_session(
             mode="payment",
             success_url="http://127.0.0.1:8000/api/v1/payments/payments/success?session_id={CHECKOUT_SESSION_ID}",
             cancel_url="http://127.0.0.1:8000/api/v1/payments/payments/canceled",
-            metadata={
-                "order_id": order.id,
-                "user_id": current_user.id
-            }
+            metadata={"order_id": order.id, "user_id": current_user.id},
         )
     except stripe.error.StripeError as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Payment gateway error: {e.user_message or str(e)}"
+            detail=f"Payment gateway error: {e.user_message or str(e)}",
         )
 
     payment = Payment(
@@ -165,7 +163,7 @@ async def create_checkout_session(
         external_payment_id=session.id,
         payment_intent_id=None,
         amount=order.total_amount,
-        status=PaymentStatusEnum.PENDING
+        status=PaymentStatusEnum.PENDING,
     )
 
     try:
@@ -176,7 +174,7 @@ async def create_checkout_session(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Database error: Could not save payment transaction."
+            detail="Database error: Could not save payment transaction.",
         )
 
     return {"session_id": session.id, "checkout_url": session.url}
@@ -205,12 +203,12 @@ async def create_checkout_session(
                 }
             },
         }
-    }
+    },
 )
 async def stripe_webhook(
     request: Request,
     db: AsyncSession = Depends(get_postgresql_db),
-    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator)
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ):
     """
     Process asynchronous callback notifications from Stripe (asynchronously).
@@ -240,17 +238,16 @@ async def stripe_webhook(
         event = stripe.Webhook.construct_event(
             payload=payload,
             sig_header=sig_header,
-            secret=settings.STRIPE_WEBHOOK_SECRET
+            secret=settings.STRIPE_WEBHOOK_SECRET,
         )
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid payload: {e}"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid payload: {e}"
         )
     except stripe.error.SignatureVerificationError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Signature verification failed: {e}"
+            detail=f"Signature verification failed: {e}",
         )
 
     if event["type"] == "checkout.session.completed":
@@ -266,7 +263,7 @@ async def stripe_webhook(
                             joinedload(OrderItem.movie)
                         )
                     ),
-                    joinedload(Payment.user)
+                    joinedload(Payment.user),
                 )
             )
             result = await db.execute(query)
@@ -291,8 +288,7 @@ async def stripe_webhook(
             await db.commit()
 
             add_movies_to_purchased_table.delay(
-                user_id=payment.user_id,
-                order_id=payment.order_id
+                user_id=payment.user_id, order_id=payment.order_id
             )
 
             order_link = "http://127.0.0.1:8000/api/v1/orders/orders"
@@ -308,24 +304,21 @@ async def stripe_webhook(
             await db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Database error: Could not save payment transaction."
+                detail="Database error: Could not save payment transaction.",
             )
 
     elif event["type"] == "checkout.session.expired":
         session = event["data"]["object"]
 
         try:
-            query = (
-                select(Payment)
-                .where(Payment.external_payment_id == session["id"])
-            )
+            query = select(Payment).where(Payment.external_payment_id == session["id"])
             result = await db.execute(query)
             payment = result.scalars().first()
 
             if not payment:
                 return {
                     "status": "error",
-                    "detail": "Payment record not found for expired session"
+                    "detail": "Payment record not found for expired session",
                 }
 
             payment.status = PaymentStatusEnum.CANCELED
@@ -333,7 +326,7 @@ async def stripe_webhook(
 
             return {
                 "status": "canceled",
-                "message": f"Checkout session timed out. Session: {session['id']}"
+                "message": f"Checkout session timed out. Session: {session['id']}",
             }
 
         except IntegrityError:
@@ -351,7 +344,7 @@ async def stripe_webhook(
             if order_id:
                 query = select(Payment).where(
                     Payment.order_id == int(order_id),
-                    Payment.status == PaymentStatusEnum.PENDING
+                    Payment.status == PaymentStatusEnum.PENDING,
                 )
                 result = await db.execute(query)
                 payment = result.scalars().first()
@@ -363,7 +356,7 @@ async def stripe_webhook(
             return {
                 "status": "failed_payment_handled",
                 "reason": error_message,
-                "code": error_code
+                "code": error_code,
             }
 
         except IntegrityError:
@@ -389,9 +382,7 @@ async def stripe_webhook(
         400: {
             "description": "Bad Request due to Stripe API errors or gateway failures.",
             "content": {
-                "application/json": {
-                    "example": {"detail": "Stripe error: ..."}
-                }
+                "application/json": {"example": {"detail": "Stripe error: ..."}}
             },
         },
         401: {
@@ -399,18 +390,14 @@ async def stripe_webhook(
         },
         404: {
             "description": "Not Found if the paid order or successful payment record does not exist for the user.",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Order not found"}
-                }
-            },
-        }
-    }
+            "content": {"application/json": {"example": {"detail": "Order not found"}}},
+        },
+    },
 )
 async def refund_order(
     order_id: int,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Issue a full order refund via Stripe and reverse local transaction states (asynchronously).
@@ -433,30 +420,23 @@ async def refund_order(
     :raises HTTPException: Raises a 404 error if the eligible paid order or payment record is not found.
     :raises HTTPException: Raises a 400 error if the external Stripe gateway rejects the operation.
     """
-    order_query = (
-        select(Order)
-        .where(
-            Order.id == order_id,
-            Order.user_id == current_user.id,
-            Order.status == OrderStatusEnum.PAID
-        )
+    order_query = select(Order).where(
+        Order.id == order_id,
+        Order.user_id == current_user.id,
+        Order.status == OrderStatusEnum.PAID,
     )
     order_result = await db.execute(order_query)
     order = order_result.scalars().first()
 
     if not order:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Order not found"
         )
 
-    payment_query = (
-        select(Payment)
-        .where(
-            Payment.order_id == order_id,
-            Payment.user_id == current_user.id,
-            Payment.status == PaymentStatusEnum.SUCCESSFUL
-        )
+    payment_query = select(Payment).where(
+        Payment.order_id == order_id,
+        Payment.user_id == current_user.id,
+        Payment.status == PaymentStatusEnum.SUCCESSFUL,
     )
     payment_result = await db.execute(payment_query)
     payment = payment_result.scalars().first()
@@ -474,11 +454,14 @@ async def refund_order(
     except stripe.error.StripeError as e:
         await db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Stripe error: {str(e)}"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Stripe error: {str(e)}"
         )
 
-    return {"message": "Refund successful", "order_id": order.id, "status": order.status}
+    return {
+        "message": "Refund successful",
+        "order_id": order.id,
+        "status": order.status,
+    }
 
 
 @router.get(
@@ -498,19 +481,17 @@ async def refund_order(
         },
         404: {
             "description": "Not Found if the payment record matching "
-                           "the provided session ID cannot be found for the user.",
+            "the provided session ID cannot be found for the user.",
             "content": {
-                "application/json": {
-                    "example": {"detail": "Payment not found."}
-                }
+                "application/json": {"example": {"detail": "Payment not found."}}
             },
-        }
-    }
+        },
+    },
 )
 async def get_payments_success(
     session_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Evaluate and report the current resolution status of a payment session (asynchronously).
@@ -532,43 +513,39 @@ async def get_payments_success(
 
     :raises HTTPException: Raises a 404 error if the external payment record does not exist or is mismatched.
     """
-    query = (
-        select(Payment)
-        .where(
-            Payment.user_id == current_user.id,
-            Payment.external_payment_id == session_id,
-        )
+    query = select(Payment).where(
+        Payment.user_id == current_user.id,
+        Payment.external_payment_id == session_id,
     )
     result = await db.execute(query)
     payment = result.scalars().first()
 
     if not payment:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Payment not found."
+            status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found."
         )
 
     if payment.status == PaymentStatusEnum.SUCCESSFUL:
         return {
             "status": "success",
             "message": "Thank you for your purchase!",
-            "payment_status": payment.status
+            "payment_status": payment.status,
         }
 
     elif payment.status == PaymentStatusEnum.PENDING:
         return {
             "status": "processing",
             "message": "Payment is being processed by the gateway. Please refresh in a moment.",
-            "payment_status": payment.status
+            "payment_status": payment.status,
         }
 
     else:
         return {
             "status": "failed",
             "message": "Payment was declined or canceled. "
-                       "Please check your card balance, ensure internet limits are sufficient, "
-                       "or try a different payment method.",
-            "payment_status": payment.status
+            "Please check your card balance, ensure internet limits are sufficient, "
+            "or try a different payment method.",
+            "payment_status": payment.status,
         }
 
 
@@ -580,7 +557,7 @@ async def get_payments_success(
         "<h3>This endpoint serves as the target landing page when a user explicitly cancels "
         "the payment process on the Stripe Checkout page. It provides feedback confirming "
         "the cancellation and reassures the user that their order remains intact in a pending state.</h3>"
-    )
+    ),
 )
 async def get_payments_canceled():
     """
@@ -596,7 +573,7 @@ async def get_payments_canceled():
     """
     return {
         "status": "canceled",
-        "message": "You have canceled the payment. Your order remains pending."
+        "message": "You have canceled the payment. Your order remains pending.",
     }
 
 
@@ -616,11 +593,11 @@ async def get_payments_canceled():
         401: {
             "description": "Unauthorized due to missing or invalid authentication token.",
         }
-    }
+    },
 )
 async def get_payments(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Retrieve the authenticated user's payment transaction history (asynchronously).
@@ -644,9 +621,7 @@ async def get_payments(
         .options(
             selectinload(Payment.payment_items).options(
                 joinedload(PaymentItem.order_item).options(
-                    joinedload(OrderItem.movie).options(
-                        selectinload(Movie.genres)
-                    )
+                    joinedload(OrderItem.movie).options(selectinload(Movie.genres))
                 )
             )
         )
@@ -677,13 +652,13 @@ async def get_payments(
         },
         403: {
             "description": "Forbidden if the authenticated user lacks administrative privileges.",
-        }
-    }
+        },
+    },
 )
 async def get_payments_for_admin(
     params: dict = Depends(admin_query_params),
     current_user: User = Depends(get_admin_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Retrieve and filter user payment transactions globally across the application (asynchronously).
@@ -702,15 +677,10 @@ async def get_payments_for_admin(
     :return: A list of payments matching the filter criteria with full nested structural payloads.
     :rtype: list[PaymentResponseSchema]
     """
-    base_query = (
-        select(Payment)
-        .options(
-            selectinload(Payment.payment_items).options(
-                joinedload(PaymentItem.order_item).options(
-                    joinedload(OrderItem.movie).options(
-                        selectinload(Movie.genres)
-                    )
-                )
+    base_query = select(Payment).options(
+        selectinload(Payment.payment_items).options(
+            joinedload(PaymentItem.order_item).options(
+                joinedload(OrderItem.movie).options(selectinload(Movie.genres))
             )
         )
     )
@@ -719,10 +689,14 @@ async def get_payments_for_admin(
         base_query = base_query.where(Payment.user_id == params["user_id"])
 
     if params["start_date"] is not None:
-        base_query = base_query.where(cast(Payment.created_at, Date) >= params["start_date"])
+        base_query = base_query.where(
+            cast(Payment.created_at, Date) >= params["start_date"]
+        )
 
     if params["end_date"] is not None:
-        base_query = base_query.where(cast(Payment.created_at, Date) <= params["end_date"])
+        base_query = base_query.where(
+            cast(Payment.created_at, Date) <= params["end_date"]
+        )
 
     if params["payment_status"] is not None:
         base_query = base_query.where(Payment.status == params["payment_status"])

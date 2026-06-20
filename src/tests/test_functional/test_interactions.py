@@ -5,7 +5,9 @@ from models.movies import Movie, MovieComment, Certification, MovieReaction, Mov
 
 
 @pytest.mark.asyncio
-async def test_create_movie_comment_and_reply_comment(authorized_client, db_session_commit):
+async def test_create_movie_comment_and_reply_comment(
+    authorized_client, db_session_commit
+):
     """
     Test creating a comment and replying to it.
 
@@ -34,16 +36,17 @@ async def test_create_movie_comment_and_reply_comment(authorized_client, db_sess
 
     parent_comment_payload = {"text": "Test comment success"}
     parent_comment_response = await client.post(
-        f"/api/v1/cinema/movies/{movie.id}/comments",
-        json=parent_comment_payload
+        f"/api/v1/cinema/movies/{movie.id}/comments", json=parent_comment_payload
     )
     assert parent_comment_response.status_code == 201
     parent_comment_id = parent_comment_response.json()["id"]
 
-    reply_comment_payload = {"text": "Test reply comment", "parent_id": parent_comment_id}
+    reply_comment_payload = {
+        "text": "Test reply comment",
+        "parent_id": parent_comment_id,
+    }
     reply_comment_response = await client.post(
-        f"/api/v1/cinema/movies/{movie.id}/comments",
-        json=reply_comment_payload
+        f"/api/v1/cinema/movies/{movie.id}/comments", json=reply_comment_payload
     )
     assert reply_comment_response.status_code == 201
 
@@ -61,7 +64,9 @@ async def test_create_movie_comment_and_reply_comment(authorized_client, db_sess
 
 
 @pytest.mark.asyncio
-async def test_toggle_same_movie_reaction_removes_it(authorized_client, db_session_commit):
+async def test_toggle_same_movie_reaction_removes_it(
+    authorized_client, db_session_commit
+):
     """
     Test that toggling the same movie reaction removes it.
 
@@ -90,17 +95,20 @@ async def test_toggle_same_movie_reaction_removes_it(authorized_client, db_sessi
 
     payload = {"reaction_type": "like"}
 
-    first_response = await client.post(f"/api/v1/cinema/movies/{movie.id}/reactions", json=payload)
+    first_response = await client.post(
+        f"/api/v1/cinema/movies/{movie.id}/reactions", json=payload
+    )
     assert first_response.status_code == 200
     assert first_response.json()["reaction_type"] == "like"
 
-    second_response = await client.post(f"/api/v1/cinema/movies/{movie.id}/reactions", json=payload)
+    second_response = await client.post(
+        f"/api/v1/cinema/movies/{movie.id}/reactions", json=payload
+    )
     assert second_response.status_code == 200
     assert second_response.json() is None
 
     query = select(MovieReaction).where(
-        MovieReaction.movie_id == movie.id,
-        MovieReaction.user_id == user.id
+        MovieReaction.movie_id == movie.id, MovieReaction.user_id == user.id
     )
     result = await db_session_commit.execute(query)
     reaction = result.scalars().first()
@@ -112,7 +120,9 @@ async def test_toggle_same_movie_reaction_removes_it(authorized_client, db_sessi
 
 
 @pytest.mark.asyncio
-async def test_create_movie_toggle_movie_reaction_and_toggle_to_opposite_reaction(authorized_client, db_session_commit):
+async def test_create_movie_toggle_movie_reaction_and_toggle_to_opposite_reaction(
+    authorized_client, db_session_commit
+):
     """
     Test toggling a movie reaction to an opposite reaction.
 
@@ -142,7 +152,9 @@ async def test_create_movie_toggle_movie_reaction_and_toggle_to_opposite_reactio
 
     first_payload = {"reaction_type": "like"}
 
-    first_response = await client.post(f"/api/v1/cinema/movies/{movie_id}/reactions", json=first_payload)
+    first_response = await client.post(
+        f"/api/v1/cinema/movies/{movie_id}/reactions", json=first_payload
+    )
     assert first_response.status_code == 200
 
     first_response_data = first_response.json()
@@ -151,7 +163,9 @@ async def test_create_movie_toggle_movie_reaction_and_toggle_to_opposite_reactio
 
     second_payload = {"reaction_type": "dislike"}
 
-    second_response = await client.post(f"/api/v1/cinema/movies/{movie_id}/reactions", json=second_payload)
+    second_response = await client.post(
+        f"/api/v1/cinema/movies/{movie_id}/reactions", json=second_payload
+    )
     assert second_response.status_code == 200
 
     second_response_data = second_response.json()
@@ -159,8 +173,7 @@ async def test_create_movie_toggle_movie_reaction_and_toggle_to_opposite_reactio
     assert second_response_data["movie_id"] == movie_id
 
     query = select(MovieReaction).where(
-        MovieReaction.movie_id == movie_id,
-        MovieReaction.user_id == user.id
+        MovieReaction.movie_id == movie_id, MovieReaction.user_id == user.id
     )
     result = await db_session_commit.execute(query)
     reaction = result.scalars().first()
@@ -174,7 +187,9 @@ async def test_create_movie_toggle_movie_reaction_and_toggle_to_opposite_reactio
 
 
 @pytest.mark.asyncio
-async def test_create_movie_add_to_favorite_get_and_delete_favorite(authorized_client, db_session_commit):
+async def test_create_movie_add_to_favorite_get_and_delete_favorite(
+    authorized_client, db_session_commit
+):
     """
     Test full favorites lifecycle: add movie to favorites, get favorites list, delete from favorites.
 
@@ -204,7 +219,9 @@ async def test_create_movie_add_to_favorite_get_and_delete_favorite(authorized_c
 
     add_to_favorite_payload = {"movie_id": movie_id}
 
-    add_to_favorite_response = await client.post("/api/v1/cinema/movies/my/favorites", json=add_to_favorite_payload)
+    add_to_favorite_response = await client.post(
+        "/api/v1/cinema/movies/my/favorites", json=add_to_favorite_payload
+    )
     assert add_to_favorite_response.status_code == 200
     assert add_to_favorite_response.json()["movie"]["id"] == movie_id
 
@@ -222,7 +239,9 @@ async def test_create_movie_add_to_favorite_get_and_delete_favorite(authorized_c
     assert get_response_data["total_items"] > 0
     assert get_response_data["prev_page"] is None
 
-    deleted_response = await client.delete(f"/api/v1/cinema/movies/my/favorites/{movie_id}")
+    deleted_response = await client.delete(
+        f"/api/v1/cinema/movies/my/favorites/{movie_id}"
+    )
 
     assert deleted_response.status_code == 200
     assert deleted_response.json()["detail"] == "Favourite Movie deleted successfully."
@@ -233,7 +252,9 @@ async def test_create_movie_add_to_favorite_get_and_delete_favorite(authorized_c
 
 
 @pytest.mark.asyncio
-async def test_create_movie_rate_movie_check_rating(authorized_client, db_session_commit):
+async def test_create_movie_rate_movie_check_rating(
+    authorized_client, db_session_commit
+):
     """
     Test rating a movie twice and verifying the rating is updated.
 
@@ -263,7 +284,9 @@ async def test_create_movie_rate_movie_check_rating(authorized_client, db_sessio
 
     first_payload = {"rating": 5}
 
-    first_response = await client.post(f"/api/v1/cinema/movies/{movie_id}/rate", json=first_payload)
+    first_response = await client.post(
+        f"/api/v1/cinema/movies/{movie_id}/rate", json=first_payload
+    )
     assert first_response.status_code == 200
 
     first_response_data = first_response.json()
@@ -271,12 +294,13 @@ async def test_create_movie_rate_movie_check_rating(authorized_client, db_sessio
 
     second_payload = {"rating": 10}
 
-    second_response = await client.post(f"/api/v1/cinema/movies/{movie_id}/rate", json=second_payload)
+    second_response = await client.post(
+        f"/api/v1/cinema/movies/{movie_id}/rate", json=second_payload
+    )
     assert second_response.status_code == 200
 
     query = select(MovieRating).where(
-        MovieRating.movie_id == movie_id,
-        MovieRating.user_id == user.id
+        MovieRating.movie_id == movie_id, MovieRating.user_id == user.id
     )
     result = await db_session_commit.execute(query)
     rating = result.scalars().first()

@@ -20,7 +20,9 @@ async def seed_user_groups():
     """
     async with AsyncPostgresqlSession() as session:
         for group in UserGroupEnum:
-            result = await session.execute(select(UserGroup).where(UserGroup.name == group))
+            result = await session.execute(
+                select(UserGroup).where(UserGroup.name == group)
+            )
             existing_users = result.scalar_one_or_none()
             if not existing_users:
                 session.add(UserGroup(name=group))

@@ -11,13 +11,13 @@ class Cart(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"), unique=True, nullable=False
+    )
     user: Mapped["User"] = relationship("User", back_populates="cart")
 
     cart_items: Mapped[list["CartItem"]] = relationship(
-        "CartItem",
-        back_populates="cart",
-        cascade="all, delete-orphan"
+        "CartItem", back_populates="cart", cascade="all, delete-orphan"
     )
 
 
@@ -36,7 +36,7 @@ class CartItem(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         default=lambda: datetime.now(timezone.utc),
-        nullable=False
+        nullable=False,
     )
 
     __table_args__ = (
@@ -59,7 +59,7 @@ class PurchasedMovie(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         default=lambda: datetime.now(timezone.utc),
-        nullable=False
+        nullable=False,
     )
 
     __table_args__ = (

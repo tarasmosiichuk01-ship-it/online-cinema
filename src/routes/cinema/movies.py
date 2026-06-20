@@ -17,7 +17,7 @@ from schemas.movies import (
     MovieCreateSchema,
     MovieListResponseSchema,
     MovieListItemSchema,
-    MovieUpdateSchema
+    MovieUpdateSchema,
 )
 from utils.utils import resolve_movie_relations
 
@@ -39,11 +39,9 @@ router = APIRouter()
     responses={
         400: {
             "description": "Bad Request if data integrity checks fail or "
-                           "mapping rules are violated during commitment.",
+            "mapping rules are violated during commitment.",
             "content": {
-                "application/json": {
-                    "example": {"detail": "Invalid input data."}
-                }
+                "application/json": {"example": {"detail": "Invalid input data."}}
             },
         },
         401: {
@@ -56,16 +54,18 @@ router = APIRouter()
             "description": "Conflict error if a movie with the identical name, year, and duration already exists.",
             "content": {
                 "application/json": {
-                    "example": {"detail": "A movie with the name '...' and release year '...' already exists."}
+                    "example": {
+                        "detail": "A movie with the name '...' and release year '...' already exists."
+                    }
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def create_movie(
     movie_data: MovieCreateSchema,
     current_user: User = Depends(get_moderator_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Register a new movie entity with resolved nested relationships inside the catalog (asynchronously).
@@ -91,7 +91,7 @@ async def create_movie(
     existing_query = select(Movie).where(
         (Movie.name == movie_data.name),
         (Movie.year == movie_data.year),
-        (Movie.time == movie_data.time)
+        (Movie.time == movie_data.time),
     )
     existing_result = await db.execute(existing_query)
     existing_movie = existing_result.scalars().first()
@@ -102,7 +102,7 @@ async def create_movie(
             detail=(
                 f"A movie with the name '{movie_data.name}' and release year "
                 f"'{movie_data.year}' already exists."
-            )
+            ),
         )
 
     genres, stars, directors, certification = await resolve_movie_relations(
@@ -127,7 +127,7 @@ async def create_movie(
             certification=certification,
             genres=genres,
             stars=stars,
-            directors=directors
+            directors=directors,
         )
 
         db.add(new_movie)
@@ -138,7 +138,9 @@ async def create_movie(
 
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data."
+        )
 
 
 @router.get(
@@ -157,18 +159,16 @@ async def create_movie(
         404: {
             "description": "Not Found if no movies match the requested criteria or if the page limit is exceeded.",
             "content": {
-                "application/json": {
-                    "example": {"detail": "No movies found."}
-                }
+                "application/json": {"example": {"detail": "No movies found."}}
             },
         }
-    }
+    },
 )
 async def get_movie_list(
     page: int = Query(1, ge=1, description="Page number (1-based index)"),
     per_page: int = Query(10, ge=1, le=20, description="Number of items per page"),
     params: dict = Depends(get_query_params),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ) -> MovieListResponseSchema:
     """
     Retrieve a filtered, sorted, and paginated collection of available movies (asynchronously).
@@ -196,7 +196,9 @@ async def get_movie_list(
     :raises HTTPException: Raises a 404 error if no movie assets match the combined parameter filters.
     """
     base_query = select(Movie).where(Movie.is_available.is_(True))
-    count_query = select(func.count()).select_from(Movie).where(Movie.is_available.is_(True))
+    count_query = (
+        select(func.count()).select_from(Movie).where(Movie.is_available.is_(True))
+    )
 
     if params["release_year"]:
         base_query = base_query.where(Movie.year == params["release_year"])
@@ -214,11 +216,15 @@ async def get_movie_list(
     if params["search"]:
         search_term = f"%{params['search']}%"
 
-        movie_text_condition = (Movie.name.ilike(search_term)) | (Movie.description.ilike(search_term))
+        movie_text_condition = (Movie.name.ilike(search_term)) | (
+            Movie.description.ilike(search_term)
+        )
         star_condition = Movie.stars.any(Star.name.ilike(search_term))
         director_condition = Movie.directors.any(Director.name.ilike(search_term))
 
-        full_search_condition = movie_text_condition | star_condition | director_condition
+        full_search_condition = (
+            movie_text_condition | star_condition | director_condition
+        )
 
         base_query = base_query.where(full_search_condition)
         count_query = count_query.where(full_search_condition)
@@ -240,14 +246,25 @@ async def get_movie_list(
     total_items = total_items_result.scalar() or 0
 
     total_pages = 1 if total_items == 0 else math.ceil(total_items / per_page)
-    prev_page = (f"http://127.0.0.1:8000/api/v1/cinema/movies?page={page - 1}"
-                 f"&per_page={per_page}") if page > 1 else None
-    next_page = (f"http://127.0.0.1:8000/api/v1/cinema/movies?page={page + 1}"
-                 f"&per_page={per_page}") if page < total_pages else None
+    prev_page = (
+        (
+            f"http://127.0.0.1:8000/api/v1/cinema/movies?page={page - 1}"
+            f"&per_page={per_page}"
+        )
+        if page > 1
+        else None
+    )
+    next_page = (
+        (
+            f"http://127.0.0.1:8000/api/v1/cinema/movies?page={page + 1}"
+            f"&per_page={per_page}"
+        )
+        if page < total_pages
+        else None
+    )
 
     queryset = (
-        base_query
-        .options(joinedload(Movie.certification), selectinload(Movie.genres))
+        base_query.options(joinedload(Movie.certification), selectinload(Movie.genres))
         .offset((page - 1) * per_page)
         .limit(per_page)
     )
@@ -255,7 +272,9 @@ async def get_movie_list(
     movies = result.scalars().all()
 
     if not movies:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No movies found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No movies found."
+        )
 
     movie_list = [MovieListItemSchema.model_validate(movie) for movie in movies]
 
@@ -289,7 +308,7 @@ async def get_movie_list(
                 }
             },
         }
-    }
+    },
 )
 async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_postgresql_db)):
     """
@@ -326,7 +345,7 @@ async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_postgres
     if not movie:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given ID was not found."
+            detail="Movie with the given ID was not found.",
         )
 
     return MovieDetailSchema.model_validate(movie)
@@ -348,9 +367,7 @@ async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_postgres
         400: {
             "description": "Bad Request due to database integrity validation failures or invalid relational payload.",
             "content": {
-                "application/json": {
-                    "example": {"detail": "Invalid input data."}
-                }
+                "application/json": {"example": {"detail": "Invalid input data."}}
             },
         },
         401: {
@@ -366,14 +383,14 @@ async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_postgres
                     "example": {"detail": "Movie with the given ID was not found."}
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def update_movie(
     movie_id: int,
     movie_data: MovieUpdateSchema,
     current_user: User = Depends(get_moderator_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Partially update a movie's metadata and relational graphs within the catalog (asynchronously).
@@ -415,7 +432,7 @@ async def update_movie(
     if not movie:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given ID was not found."
+            detail="Movie with the given ID was not found.",
         )
 
     update_dict = movie_data.model_dump(exclude_unset=True)
@@ -425,7 +442,7 @@ async def update_movie(
         genres=update_dict.get("genres"),
         stars=update_dict.get("stars"),
         directors=update_dict.get("directors"),
-        certification=update_dict.get("certification")
+        certification=update_dict.get("certification"),
     )
 
     if genres is not None:
@@ -450,7 +467,9 @@ async def update_movie(
 
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data."
+        )
 
 
 @router.delete(
@@ -467,12 +486,12 @@ async def update_movie(
     responses={
         400: {
             "description": "Bad Request if business logic validation fails "
-                           "(movie is active in user carts or completed order items).",
+            "(movie is active in user carts or completed order items).",
             "content": {
                 "application/json": {
                     "example": {
                         "detail": "This movie cannot be deleted because "
-                                  "it has already been purchased by at least one user."
+                        "it has already been purchased by at least one user."
                     }
                 }
             },
@@ -490,13 +509,13 @@ async def update_movie(
                     "example": {"detail": "Movie with the given ID was not found."}
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def delete_movie(
     movie_id: int,
     current_user: User = Depends(get_moderator_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Permanently delete a movie record after enforcing historical purchase
@@ -532,7 +551,7 @@ async def delete_movie(
     if not movie:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given ID was not found."
+            detail="Movie with the given ID was not found.",
         )
 
     cart_check_query = select(CartItem).where(CartItem.movie_id == movie_id)
@@ -543,18 +562,16 @@ async def delete_movie(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Warning to Moderator: This movie cannot be deleted because "
-                   "it is currently in users' shopping carts."
+            "it is currently in users' shopping carts.",
         )
 
-    query_purchased = (
-        select(
-            exists(
-                select(OrderItem.id)
-                .select_from(OrderItem)
-                .join(Order, Order.id == OrderItem.order_id)
-                .where(OrderItem.movie_id == movie_id)
-                .where(Order.status == OrderStatusEnum.PAID)
-            )
+    query_purchased = select(
+        exists(
+            select(OrderItem.id)
+            .select_from(OrderItem)
+            .join(Order, Order.id == OrderItem.order_id)
+            .where(OrderItem.movie_id == movie_id)
+            .where(Order.status == OrderStatusEnum.PAID)
         )
     )
     result_purchased = await db.execute(query_purchased)
@@ -563,7 +580,7 @@ async def delete_movie(
     if has_been_purchased:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This movie cannot be deleted because it has already been purchased by at least one user."
+            detail="This movie cannot be deleted because it has already been purchased by at least one user.",
         )
 
     await db.delete(movie)

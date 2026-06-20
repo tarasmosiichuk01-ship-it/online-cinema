@@ -8,7 +8,9 @@ from models.shopping_carts import Cart, CartItem
 
 
 @pytest.mark.asyncio
-async def test_create_order_integrity_error(authorized_client, test_movie, db_session_commit):
+async def test_create_order_integrity_error(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test creating an order when a database integrity error occurs.
 
@@ -25,7 +27,9 @@ async def test_create_order_integrity_error(authorized_client, test_movie, db_se
     db_session_commit.add(cart_item)
     await db_session_commit.commit()
 
-    simulated_error = IntegrityError(statement="INSERT INTO movies ...", params={}, orig=Exception())
+    simulated_error = IntegrityError(
+        statement="INSERT INTO movies ...", params={}, orig=Exception()
+    )
 
     with patch("routes.orders.AsyncSession.commit", side_effect=simulated_error):
         response = await client.post("/api/v1/orders/orders")

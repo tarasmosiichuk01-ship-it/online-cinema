@@ -19,8 +19,7 @@ async def test_logout_user_unknown_token(client):
     mock_result.scalars.return_value.first.return_value = None
     with patch("routes.accounts.AsyncSession.execute", return_value=mock_result):
         response = await client.post(
-            "/api/v1/accounts/logout/",
-            json={"refresh_token": "nonexistent_token"}
+            "/api/v1/accounts/logout/", json={"refresh_token": "nonexistent_token"}
         )
 
     assert response.status_code == 400
@@ -40,14 +39,18 @@ async def test_logout_sqlalchemy_error(client):
 
     with patch("routes.accounts.AsyncSession.execute", return_value=mock_result):
         with patch("routes.accounts.AsyncSession.delete", new_callable=AsyncMock):
-            with patch("routes.accounts.AsyncSession.commit", side_effect=SQLAlchemyError):
+            with patch(
+                "routes.accounts.AsyncSession.commit", side_effect=SQLAlchemyError
+            ):
                 response = await client.post(
                     "/api/v1/accounts/logout/",
-                    json={"refresh_token": "Test_token123!@#"}
+                    json={"refresh_token": "Test_token123!@#"},
                 )
 
     assert response.status_code == 500
-    assert response.json()["detail"] == "An error occurred while processing the request."
+    assert (
+        response.json()["detail"] == "An error occurred while processing the request."
+    )
 
 
 @pytest.mark.asyncio
@@ -65,7 +68,7 @@ async def test_logout_success(client):
             with patch("routes.accounts.AsyncSession.commit", new_callable=AsyncMock):
                 response = await client.post(
                     "/api/v1/accounts/logout/",
-                    json={"refresh_token": "Test_token123!@#"}
+                    json={"refresh_token": "Test_token123!@#"},
                 )
     assert response.status_code == 200
     assert response.json()["message"] == "Successfully logged out."
@@ -86,10 +89,7 @@ async def test_change_password_with_unconfirmed_password(authenticated_client):
         "confirm_password": "ConfirmTest1234!",
     }
 
-    response = await client.post(
-        "/api/v1/accounts/change-password/",
-        json=payload
-    )
+    response = await client.post("/api/v1/accounts/change-password/", json=payload)
 
     assert response.status_code == 400
     assert response.json()["detail"] == "New passwords do not match"
@@ -112,10 +112,7 @@ async def test_change_password_verify_password(authenticated_client):
         "confirm_password": "NewTest1234!",
     }
 
-    response = await client.post(
-        "/api/v1/accounts/change-password/",
-        json=payload
-    )
+    response = await client.post("/api/v1/accounts/change-password/", json=payload)
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Incorrect current password"
@@ -138,13 +135,12 @@ async def test_change_password_same_as_old(authenticated_client):
         "confirm_password": "Test1234!",
     }
 
-    response = await client.post(
-        "/api/v1/accounts/change-password/",
-        json=payload
-    )
+    response = await client.post("/api/v1/accounts/change-password/", json=payload)
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "New password must be different from old password"
+    assert (
+        response.json()["detail"] == "New password must be different from old password"
+    )
 
 
 @pytest.mark.asyncio
@@ -167,8 +163,7 @@ async def test_change_password_sqlalchemy_error(authenticated_client):
     with patch("routes.accounts.AsyncSession.delete", new_callable=AsyncMock):
         with patch("routes.accounts.AsyncSession.commit", side_effect=SQLAlchemyError):
             response = await client.post(
-                "/api/v1/accounts/change-password/",
-                json=payload
+                "/api/v1/accounts/change-password/", json=payload
             )
 
     assert response.status_code == 500
@@ -195,13 +190,11 @@ async def test_change_password_success(authenticated_client):
     with patch("routes.accounts.AsyncSession.delete", new_callable=AsyncMock):
         with patch("routes.accounts.AsyncSession.commit", new_callable=AsyncMock):
             response = await client.post(
-                "/api/v1/accounts/change-password/",
-                json=payload
+                "/api/v1/accounts/change-password/", json=payload
             )
 
     assert response.status_code == 200
     assert response.json()["message"] == "Successfully changed password."
-
 
 
 @pytest.mark.asyncio
@@ -218,11 +211,14 @@ async def test_reset_activation_token_user_not_found(client):
     with patch("routes.accounts.AsyncSession.execute", return_value=mock_result):
         response = await client.post(
             "/api/v1/accounts/reset-activation/",
-            json={"email": "user_not_found_testuser@example.com"}
+            json={"email": "user_not_found_testuser@example.com"},
         )
 
     assert response.status_code == 200
-    assert response.json()["message"] == "If you are registered, you will receive an email with instructions."
+    assert (
+        response.json()["message"]
+        == "If you are registered, you will receive an email with instructions."
+    )
 
 
 @pytest.mark.asyncio
@@ -242,11 +238,14 @@ async def test_reset_activation_token_user_not_active(client):
     with patch("routes.accounts.AsyncSession.execute", return_value=mock_result):
         response = await client.post(
             "/api/v1/accounts/reset-activation/",
-            json={"email": "user_not_active@example.com"}
+            json={"email": "user_not_active@example.com"},
         )
 
     assert response.status_code == 200
-    assert response.json()["message"] == "If you are registered, you will receive an email with instructions."
+    assert (
+        response.json()["message"]
+        == "If you are registered, you will receive an email with instructions."
+    )
 
 
 @pytest.mark.asyncio
@@ -267,7 +266,7 @@ async def test_reset_activation_token_sqlalchemy_error(client):
         with patch("routes.accounts.AsyncSession.commit", side_effect=SQLAlchemyError):
             response = await client.post(
                 "/api/v1/accounts/reset-activation/",
-                json={"email": "sqlalchemy_error_testuser@example.com"}
+                json={"email": "sqlalchemy_error_testuser@example.com"},
             )
 
     assert response.status_code == 500
@@ -291,11 +290,16 @@ async def test_reset_activation_token_success(client):
     with patch("routes.accounts.AsyncSession.execute", return_value=mock_result):
         with patch("routes.accounts.AsyncSession.delete", new_callable=AsyncMock):
             with patch("routes.accounts.AsyncSession.commit", new_callable=AsyncMock):
-                with patch("routes.accounts.AsyncSession.refresh", new_callable=AsyncMock):
+                with patch(
+                    "routes.accounts.AsyncSession.refresh", new_callable=AsyncMock
+                ):
                     response = await client.post(
                         "/api/v1/accounts/reset-activation/",
-                        json={"email": "reset_activation_testuser@example.com"}
+                        json={"email": "reset_activation_testuser@example.com"},
                     )
 
     assert response.status_code == 200
-    assert response.json()["message"] == "If you are registered and not yet activated, you will receive an email."
+    assert (
+        response.json()["message"]
+        == "If you are registered and not yet activated, you will receive an email."
+    )

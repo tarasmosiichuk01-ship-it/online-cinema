@@ -16,11 +16,16 @@ async def test_get_payments_canceled_returns_correct_message(client):
 
     assert response.status_code == 200
     assert response.json()["status"] == "canceled"
-    assert response.json()["message"] == "You have canceled the payment. Your order remains pending."
+    assert (
+        response.json()["message"]
+        == "You have canceled the payment. Your order remains pending."
+    )
 
 
 @pytest.mark.asyncio
-async def test_get_payments_success_with_all_statuses(authorized_client, test_movie, db_session_commit):
+async def test_get_payments_success_with_all_statuses(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test get_payments_success endpoint with different payment statuses.
 
@@ -64,7 +69,10 @@ async def test_get_payments_success_with_all_statuses(authorized_client, test_mo
     )
     assert response.status_code == 200
     assert response.json()["status"] == "processing"
-    assert response.json()["message"] == "Payment is being processed by the gateway. Please refresh in a moment."
+    assert (
+        response.json()["message"]
+        == "Payment is being processed by the gateway. Please refresh in a moment."
+    )
 
     payment.status = PaymentStatusEnum.REFUNDED
     payment.external_payment_id = "session_refunded"

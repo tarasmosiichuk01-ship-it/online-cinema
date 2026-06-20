@@ -8,7 +8,9 @@ from models.shopping_carts import CartItem, Cart
 
 
 @pytest.mark.asyncio
-async def test_add_movie_to_cart_integrity_error(authorized_client, test_movie, db_session_commit):
+async def test_add_movie_to_cart_integrity_error(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test adding a movie to cart when a database integrity error occurs.
 
@@ -19,9 +21,13 @@ async def test_add_movie_to_cart_integrity_error(authorized_client, test_movie, 
 
     payload = {"movie_id": test_movie.id}
 
-    simulated_error = IntegrityError(statement="INSERT INTO movies ...", params={}, orig=Exception())
+    simulated_error = IntegrityError(
+        statement="INSERT INTO movies ...", params={}, orig=Exception()
+    )
 
-    with patch("routes.cinema.interactions.AsyncSession.commit", side_effect=simulated_error):
+    with patch(
+        "routes.cinema.interactions.AsyncSession.commit", side_effect=simulated_error
+    ):
         response = await client.post("/api/v1/shopping_carts/carts", json=payload)
 
     assert response.status_code == 400

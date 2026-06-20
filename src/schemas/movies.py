@@ -123,7 +123,9 @@ class MovieBaseSchema(BaseModel):
     def validate_year(cls, value):
         current_year = datetime.now().year
         if value > current_year + 1:
-            raise ValueError(f"The year in 'year' cannot be greater than {current_year + 1}.")
+            raise ValueError(
+                f"The year in 'year' cannot be greater than {current_year + 1}."
+            )
         return value
 
 

@@ -6,18 +6,39 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from config.dependencies import get_accounts_email_notificator, get_jwt_auth_manager, get_settings, get_current_user
+from config.dependencies import (
+    get_accounts_email_notificator,
+    get_jwt_auth_manager,
+    get_settings,
+    get_current_user,
+)
 from config.settings import BaseAppSettings
 from config.database import get_postgresql_db
 from exceptions.security import BaseSecurityError
 from notifications.interfaces import EmailSenderInterface
-from schemas.accounts import UserRegistrationRequestSchema, UserRegistrationResponseSchema, MessageResponseSchema, \
-    ResetActivationSchema, UserLoginResponseSchema, UserLoginRequestSchema, UserLogoutRequestSchema, \
-    TokenRefreshResponseSchema, TokenRefreshRequestSchema, ChangePasswordRequestSchema, ForgotPasswordRequestSchema, \
-    ResetPasswordRequestSchema
-from models.accounts import User, UserGroup, UserGroupEnum, ActivationToken, RefreshToken, PasswordResetToken
+from schemas.accounts import (
+    UserRegistrationRequestSchema,
+    UserRegistrationResponseSchema,
+    MessageResponseSchema,
+    ResetActivationSchema,
+    UserLoginResponseSchema,
+    UserLoginRequestSchema,
+    UserLogoutRequestSchema,
+    TokenRefreshResponseSchema,
+    TokenRefreshRequestSchema,
+    ChangePasswordRequestSchema,
+    ForgotPasswordRequestSchema,
+    ResetPasswordRequestSchema,
+)
+from models.accounts import (
+    User,
+    UserGroup,
+    UserGroupEnum,
+    ActivationToken,
+    RefreshToken,
+    PasswordResetToken,
+)
 from security.interfaces import JWTAuthManagerInterface
-
 
 router = APIRouter()
 
@@ -38,9 +59,11 @@ router = APIRouter()
             "description": "Email already exists.",
             "content": {
                 "application/json": {
-                    "example": {"detail": "A user with this email user@example.com already exists."}
+                    "example": {
+                        "detail": "A user with this email user@example.com already exists."
+                    }
                 }
-            }
+            },
         },
         500: {
             "description": "Internal server error due to missing configurations or database failures.",
@@ -48,14 +71,14 @@ router = APIRouter()
                 "application/json": {
                     "example": {"detail": "Default user group not found."}
                 }
-            }
-        }
-    }
+            },
+        },
+    },
 )
 async def register_user(
     user_data: UserRegistrationRequestSchema,
     db: AsyncSession = Depends(get_postgresql_db),
-    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator)
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ):
     """
     Register a new system user and trigger an activation email (asynchronously).
@@ -85,7 +108,7 @@ async def register_user(
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"A user with this email {user_data.email} already exists."
+            detail=f"A user with this email {user_data.email} already exists.",
         )
 
     query = select(UserGroup).where(UserGroup.name == UserGroupEnum.USER)
@@ -95,7 +118,7 @@ async def register_user(
     if not user_group:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Default user group not found."
+            detail="Default user group not found.",
         )
 
     try:
@@ -117,15 +140,12 @@ async def register_user(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred during user creation."
+            detail="An error occurred during user creation.",
         )
 
     activation_link = f"http://127.0.0.1:8000/api/v1/activate/{activation_token.token}/"
 
-    await email_sender.send_activation_email(
-        new_user.email,
-        activation_link
-    )
+    await email_sender.send_activation_email(new_user.email, activation_link)
 
     return UserRegistrationResponseSchema.model_validate(new_user)
 
@@ -150,12 +170,12 @@ async def register_user(
                 }
             },
         }
-    }
+    },
 )
 async def activate_token(
     token: str,
     db: AsyncSession = Depends(get_postgresql_db),
-    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator)
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ):
     """
     Activate a user account via a verification token (asynchronously).
@@ -188,8 +208,7 @@ async def activate_token(
 
     if not token_record:
         raise HTTPException(
-            status_code=400,
-            detail="Invalid or expired activation token."
+            status_code=400, detail="Invalid or expired activation token."
         )
 
     expires_at = token_record.expires_at.replace(tzinfo=timezone.utc)
@@ -197,8 +216,7 @@ async def activate_token(
         await db.delete(token_record)
         await db.commit()
         raise HTTPException(
-            status_code=400,
-            detail="Invalid or expired activation token."
+            status_code=400, detail="Invalid or expired activation token."
         )
 
     user = token_record.user
@@ -209,7 +227,7 @@ async def activate_token(
 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User account is already active."
+            detail="User account is already active.",
         )
 
     user.is_active = True
@@ -219,8 +237,7 @@ async def activate_token(
     login_link = "http://127.0.0.1/accounts/login/"
 
     await email_sender.send_activation_complete_email(
-        email=user.email,
-        login_link=login_link
+        email=user.email, login_link=login_link
     )
 
     return MessageResponseSchema(message="User account activated successfully.")
@@ -247,12 +264,12 @@ async def activate_token(
                 }
             },
         }
-    }
+    },
 )
 async def reset_activation_token(
     user_data: ResetActivationSchema,
     db: AsyncSession = Depends(get_postgresql_db),
-    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator)
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ):
     """
     Reset and resend a user activation token (asynchronously).
@@ -284,7 +301,9 @@ async def reset_activation_token(
         )
 
     try:
-        await db.execute(delete(ActivationToken).where(ActivationToken.user_id == user.id))
+        await db.execute(
+            delete(ActivationToken).where(ActivationToken.user_id == user.id)
+        )
 
         new_activation_token = ActivationToken(user_id=user.id)
         db.add(new_activation_token)
@@ -294,15 +313,14 @@ async def reset_activation_token(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred. Please try again later."
+            detail="An error occurred. Please try again later.",
         )
 
-    activation_link = f"http://127.0.0.1:8000/api/v1/activate/{new_activation_token.token}/"
-
-    await email_sender.send_activation_email(
-        user.email,
-        activation_link
+    activation_link = (
+        f"http://127.0.0.1:8000/api/v1/activate/{new_activation_token.token}/"
     )
+
+    await email_sender.send_activation_email(user.email, activation_link)
 
     return MessageResponseSchema(
         message="If you are registered and not yet activated, you will receive an email."
@@ -341,17 +359,19 @@ async def reset_activation_token(
             "description": "Internal server error due to database transaction failure.",
             "content": {
                 "application/json": {
-                    "example": {"detail": "An error occurred while processing the request."}
+                    "example": {
+                        "detail": "An error occurred while processing the request."
+                    }
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def login_user(
     login_data: UserLoginRequestSchema,
     db: AsyncSession = Depends(get_postgresql_db),
     settings: BaseAppSettings = Depends(get_settings),
-    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
 ):
     """
     Authenticate a user and issue JWT credentials (asynchronously).
@@ -399,7 +419,7 @@ async def login_user(
         refresh_token = RefreshToken.create(
             user_id=user.id,
             days_valid=settings.LOGIN_TIME_DAYS,
-            token=jwt_refresh_token
+            token=jwt_refresh_token,
         )
         db.add(refresh_token)
         await db.flush()
@@ -433,20 +453,20 @@ async def login_user(
         400: {
             "description": "Bad Request due to an invalid or missing refresh token.",
             "content": {
-                "application/json": {
-                    "example": {"detail": "Invalid refresh token."}
-                }
+                "application/json": {"example": {"detail": "Invalid refresh token."}}
             },
         },
         500: {
             "description": "Internal server error due to a database failure during token deletion.",
             "content": {
                 "application/json": {
-                    "example": {"detail": "An error occurred while processing the request."}
+                    "example": {
+                        "detail": "An error occurred while processing the request."
+                    }
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def logout_user(
     logout_data: UserLogoutRequestSchema,
@@ -517,20 +537,14 @@ async def logout_user(
         401: {
             "description": "Unauthorized because the refresh token does not exist in the database.",
             "content": {
-                "application/json": {
-                    "example": {"detail": "Refresh token not found."}
-                }
+                "application/json": {"example": {"detail": "Refresh token not found."}}
             },
         },
         404: {
             "description": "Not Found if the user linked to the token no longer exists.",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "User not found."}
-                }
-            },
-        }
-    }
+            "content": {"application/json": {"example": {"detail": "User not found."}}},
+        },
+    },
 )
 async def update_access_token(
     token_data: TokenRefreshRequestSchema,
@@ -562,10 +576,7 @@ async def update_access_token(
         decoded_token = jwt_manager.decode_refresh_token(token_data.refresh_token)
         user_id = decoded_token.get("user_id")
     except BaseSecurityError as error:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(error)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
 
     query = select(RefreshToken).filter_by(token=token_data.refresh_token)
     result = await db.execute(query)
@@ -605,7 +616,7 @@ async def update_access_token(
     responses={
         400: {
             "description": "Bad Request due to mismatched passwords, incorrect old password, "
-                           "or identical old and new passwords.",
+            "or identical old and new passwords.",
             "content": {
                 "application/json": {
                     "example": {"detail": "New passwords do not match"}
@@ -617,20 +628,19 @@ async def update_access_token(
         },
         500: {
             "description": "Internal server error due to database transaction "
-                           "failure during update or session revocation.",
+            "failure during update or session revocation.",
             "content": {
                 "application/json": {
                     "example": {"detail": "An error occurred while changing password."}
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def change_password(
     user_data: ChangePasswordRequestSchema,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_postgresql_db),
-
 ):
     """
     Change the current user's password and invalidate all active sessions (asynchronously).
@@ -655,20 +665,18 @@ async def change_password(
     """
     if user_data.new_password != user_data.confirm_password:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="New passwords do not match"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="New passwords do not match"
         )
 
     if not current_user.verify_password(user_data.old_password):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect current password"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect current password"
         )
 
     if user_data.old_password == user_data.new_password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="New password must be different from old password"
+            detail="New password must be different from old password",
         )
 
     try:
@@ -683,7 +691,7 @@ async def change_password(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while changing password."
+            detail="An error occurred while changing password.",
         )
 
     return MessageResponseSchema(message="Successfully changed password.")
@@ -710,7 +718,7 @@ async def change_password(
                 }
             },
         }
-    }
+    },
 )
 async def forgot_password(
     user_data: ForgotPasswordRequestSchema,
@@ -747,7 +755,9 @@ async def forgot_password(
         )
 
     try:
-        await db.execute(delete(PasswordResetToken).where(PasswordResetToken.user_id == user.id))
+        await db.execute(
+            delete(PasswordResetToken).where(PasswordResetToken.user_id == user.id)
+        )
 
         new_reset_token = PasswordResetToken(user_id=user.id)
         db.add(new_reset_token)
@@ -758,12 +768,14 @@ async def forgot_password(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred. Please try again later."
+            detail="An error occurred. Please try again later.",
         )
 
     reset_link = f"http://127.0.0.1:8000/api/v1/reset-password/{new_reset_token.token}/"
 
-    await email_sender.send_password_reset_email(email=user_data.email, reset_link=reset_link)
+    await email_sender.send_password_reset_email(
+        email=user_data.email, reset_link=reset_link
+    )
 
     return MessageResponseSchema(
         message="If you wish to reset your password, you will receive an email."
@@ -795,11 +807,13 @@ async def forgot_password(
             "description": "Internal server error due to database transaction failure during password update.",
             "content": {
                 "application/json": {
-                    "example": {"detail": "An error occurred while resetting the password."}
+                    "example": {
+                        "detail": "An error occurred while resetting the password."
+                    }
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def reset_password(
     token: str,
@@ -837,7 +851,7 @@ async def reset_password(
     if not token_record:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired password reset token."
+            detail="Invalid or expired password reset token.",
         )
 
     expires_at = token_record.expires_at.replace(tzinfo=timezone.utc)
@@ -846,13 +860,12 @@ async def reset_password(
         await db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired password reset token."
+            detail="Invalid or expired password reset token.",
         )
 
     if user_data.new_password != user_data.confirm_password:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Passwords do not match"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match"
         )
 
     user = token_record.user
@@ -866,7 +879,7 @@ async def reset_password(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while resetting the password."
+            detail="An error occurred while resetting the password.",
         )
 
     return MessageResponseSchema(message="Password reset successfully.")

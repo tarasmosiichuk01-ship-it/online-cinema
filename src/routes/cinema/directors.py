@@ -11,7 +11,7 @@ from schemas.movies import (
     DirectorResponseSchema,
     DirectorCreateSchema,
     DirectorListResponseSchema,
-    DirectorUpdateSchema
+    DirectorUpdateSchema,
 )
 
 router = APIRouter()
@@ -31,7 +31,7 @@ router = APIRouter()
     responses={
         400: {
             "description": "Bad Request if a director with the given name is "
-                           "already registered via application pre-checks.",
+            "already registered via application pre-checks.",
             "content": {
                 "application/json": {
                     "example": {"detail": "Director with that name already exists"}
@@ -46,19 +46,19 @@ router = APIRouter()
         },
         409: {
             "description": "Conflict error raised by a native database unique "
-                           "constraint failure during transactional commitment.",
+            "constraint failure during transactional commitment.",
             "content": {
                 "application/json": {
                     "example": {"detail": "Director with the name '...' already exists"}
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def create_director(
     director_data: DirectorCreateSchema,
     current_user: User = Depends(get_moderator_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Register a new director record inside the catalog system (asynchronously).
@@ -87,7 +87,7 @@ async def create_director(
     if existing_director:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Director with that name already exists"
+            detail="Director with that name already exists",
         )
 
     new_director = Director(name=director_data.name)
@@ -101,7 +101,7 @@ async def create_director(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Director with the name '{new_director.name}' already exists"
+            detail=f"Director with the name '{new_director.name}' already exists",
         )
 
     return DirectorResponseSchema.model_validate(new_director)
@@ -120,12 +120,10 @@ async def create_director(
         404: {
             "description": "Not Found if no director records exist in the database.",
             "content": {
-                "application/json": {
-                    "example": {"detail": "No directors found."}
-                }
+                "application/json": {"example": {"detail": "No directors found."}}
             },
         }
-    }
+    },
 )
 async def get_director_list(db: AsyncSession = Depends(get_postgresql_db)):
     """
@@ -148,9 +146,13 @@ async def get_director_list(db: AsyncSession = Depends(get_postgresql_db)):
     directors = result.scalars().all()
 
     if not directors:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No directors found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No directors found."
+        )
 
-    director_list = [DirectorResponseSchema.model_validate(director) for director in directors]
+    director_list = [
+        DirectorResponseSchema.model_validate(director) for director in directors
+    ]
 
     return DirectorListResponseSchema(directors=director_list)
 
@@ -171,7 +173,9 @@ async def get_director_list(db: AsyncSession = Depends(get_postgresql_db)):
             "description": "Bad Request due to a conflicting director name or invalid constraint data.",
             "content": {
                 "application/json": {
-                    "example": {"detail": "Director with the name '...' already exists."}
+                    "example": {
+                        "detail": "Director with the name '...' already exists."
+                    }
                 }
             },
         },
@@ -188,14 +192,14 @@ async def get_director_list(db: AsyncSession = Depends(get_postgresql_db)):
                     "example": {"detail": "Director with the given ID was not found."}
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def update_director(
     director_id: int,
     director_data: DirectorUpdateSchema,
     current_user: User = Depends(get_moderator_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Partially update a director's metadata record within the catalog (asynchronously).
@@ -228,19 +232,18 @@ async def update_director(
     if not director:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Director with the given ID was not found."
+            detail="Director with the given ID was not found.",
         )
 
     if director_data.name:
         name_query = select(Director).where(
-            Director.name.ilike(director_data.name),
-            Director.id != director_id
+            Director.name.ilike(director_data.name), Director.id != director_id
         )
         name_result = await db.execute(name_query)
         if name_result.scalars().first():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Director with the name '{director_data.name}' already exists."
+                detail=f"Director with the name '{director_data.name}' already exists.",
             )
 
     for field, value in director_data.model_dump(exclude_unset=True).items():
@@ -251,7 +254,9 @@ async def update_director(
         await db.refresh(director)
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data."
+        )
 
     return {"detail": "Director updated successfully."}
 
@@ -280,13 +285,13 @@ async def update_director(
                     "example": {"detail": "Director with the given ID was not found."}
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def delete_director(
     director_id: int,
     current_user: User = Depends(get_moderator_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Permanently delete a director record from the catalog (asynchronously).
@@ -314,7 +319,7 @@ async def delete_director(
     if not director:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Director with the given ID was not found."
+            detail="Director with the given ID was not found.",
         )
 
     await db.delete(director)

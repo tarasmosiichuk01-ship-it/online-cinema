@@ -1,8 +1,16 @@
 import pytest
 from sqlalchemy import select
 
-from models.movies import Movie, Certification, MovieComment, MovieReaction, CommentReaction, ReactionTypeEnum, \
-    MovieRating, MovieFavourite
+from models.movies import (
+    Movie,
+    Certification,
+    MovieComment,
+    MovieReaction,
+    CommentReaction,
+    ReactionTypeEnum,
+    MovieRating,
+    MovieFavourite,
+)
 
 
 @pytest.mark.asyncio
@@ -32,13 +40,17 @@ async def test_create_movie_comments_unauthorized_user(client, test_movie):
     """
     payload = {"text": "Test comment"}
 
-    response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/comments", json=payload)
+    response = await client.post(
+        f"/api/v1/cinema/movies/{test_movie.id}/comments", json=payload
+    )
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
 
 
 @pytest.mark.asyncio
-async def test_create_movie_comments_if_parent_comment_not_found(authorized_client, test_movie):
+async def test_create_movie_comments_if_parent_comment_not_found(
+    authorized_client, test_movie
+):
     """
     Test creating a comment with a non-existent parent comment.
 
@@ -49,16 +61,16 @@ async def test_create_movie_comments_if_parent_comment_not_found(authorized_clie
 
     payload = {"text": "Test comment", "parent_id": 99999}
 
-    response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/comments", json=payload)
+    response = await client.post(
+        f"/api/v1/cinema/movies/{test_movie.id}/comments", json=payload
+    )
     assert response.status_code == 404
     assert response.json()["detail"] == "Parent comment not found."
 
 
 @pytest.mark.asyncio
 async def test_create_movie_comments_when_parents_comment_belongs_to_another_movie(
-    authorized_client,
-    test_movie,
-    db_session_commit
+    authorized_client, test_movie, db_session_commit
 ):
     """
     Test creating a comment with a parent comment that belongs to another movie.
@@ -80,7 +92,7 @@ async def test_create_movie_comments_when_parents_comment_belongs_to_another_mov
         votes=587,
         description="This movie for comments.",
         price=4.36,
-        certification_id=certification.id
+        certification_id=certification.id,
     )
     db_session_commit.add(movie)
     await db_session_commit.commit()
@@ -89,21 +101,25 @@ async def test_create_movie_comments_when_parents_comment_belongs_to_another_mov
     test_movie_payload = {"text": "Test comment"}
 
     test_movie_response = await client.post(
-        f"/api/v1/cinema/movies/{test_movie.id}/comments",
-        json=test_movie_payload
+        f"/api/v1/cinema/movies/{test_movie.id}/comments", json=test_movie_payload
     )
     assert test_movie_response.status_code == 201
     test_movie_comment_id = test_movie_response.json()["id"]
 
-    movie_payload = {"text": "Test comment fo test movie", "parent_id": test_movie_comment_id}
+    movie_payload = {
+        "text": "Test comment fo test movie",
+        "parent_id": test_movie_comment_id,
+    }
 
     movie_response = await client.post(
-        f"/api/v1/cinema/movies/{movie.id}/comments",
-        json=movie_payload
+        f"/api/v1/cinema/movies/{movie.id}/comments", json=movie_payload
     )
 
     assert movie_response.status_code == 400
-    assert movie_response.json()["detail"] == "Parent comment does not belong to this movie."
+    assert (
+        movie_response.json()["detail"]
+        == "Parent comment does not belong to this movie."
+    )
 
     query_comment = select(MovieComment).where(MovieComment.movie_id == test_movie.id)
     result_comment = await db_session_commit.execute(query_comment)
@@ -118,7 +134,9 @@ async def test_create_movie_comments_when_parents_comment_belongs_to_another_mov
 
 
 @pytest.mark.asyncio
-async def test_create_movie_comments_success(authorized_client, test_movie, db_session_commit):
+async def test_create_movie_comments_success(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test successful comment creation for a movie.
 
@@ -129,7 +147,9 @@ async def test_create_movie_comments_success(authorized_client, test_movie, db_s
 
     payload = {"text": "Test comment success"}
 
-    response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/comments", json=payload)
+    response = await client.post(
+        f"/api/v1/cinema/movies/{test_movie.id}/comments", json=payload
+    )
     assert response.status_code == 201
 
     response_data = response.json()
@@ -163,7 +183,9 @@ async def test_get_movie_comments_if_movie_not_found(authorized_client):
 
 
 @pytest.mark.asyncio
-async def test_get_movie_comments_success(authorized_client, test_movie, db_session_commit):
+async def test_get_movie_comments_success(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test successful retrieval of comments for a movie.
 
@@ -174,8 +196,7 @@ async def test_get_movie_comments_success(authorized_client, test_movie, db_sess
 
     payload = {"text": "Test comment for get"}
     create_response = await client.post(
-        f"/api/v1/cinema/movies/{test_movie.id}/comments",
-        json=payload
+        f"/api/v1/cinema/movies/{test_movie.id}/comments", json=payload
     )
     assert create_response.status_code == 201
     comment_id = create_response.json()["id"]
@@ -209,7 +230,9 @@ async def test_toggle_comment_reaction_if_comment_not_found(authorized_client):
 
     payload = {"reaction_type": "like"}
 
-    response = await client.post("/api/v1/cinema/comments/999999/reactions", json=payload)
+    response = await client.post(
+        "/api/v1/cinema/comments/999999/reactions", json=payload
+    )
     assert response.status_code == 404
     assert response.json()["detail"] == "Comment with the given ID was not found."
 
@@ -224,13 +247,17 @@ async def test_toggle_comment_reaction_unauthorized_user(client):
     """
     payload = {"reaction_type": "like"}
 
-    response = await client.post("/api/v1/cinema/comments/999999/reactions", json=payload)
+    response = await client.post(
+        "/api/v1/cinema/comments/999999/reactions", json=payload
+    )
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
 
 
 @pytest.mark.asyncio
-async def test_toggle_comment_reaction_with_repeated_reaction(authorized_client, test_movie, db_session_commit):
+async def test_toggle_comment_reaction_with_repeated_reaction(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test toggling a comment reaction when the same reaction already exists.
 
@@ -240,24 +267,22 @@ async def test_toggle_comment_reaction_with_repeated_reaction(authorized_client,
     client, user = authorized_client
 
     comment = MovieComment(
-        user_id=user.id,
-        movie_id=test_movie.id,
-        text="Test comment for toggle reaction"
+        user_id=user.id, movie_id=test_movie.id, text="Test comment for toggle reaction"
     )
     db_session_commit.add(comment)
     await db_session_commit.flush()
 
     existing_reaction = CommentReaction(
-        user_id=user.id,
-        comment_id=comment.id,
-        reaction_type=ReactionTypeEnum.LIKE
+        user_id=user.id, comment_id=comment.id, reaction_type=ReactionTypeEnum.LIKE
     )
     db_session_commit.add(existing_reaction)
     await db_session_commit.commit()
 
     payload = {"reaction_type": "like"}
 
-    response = await client.post(f"/api/v1/cinema/comments/{comment.id}/reactions", json=payload)
+    response = await client.post(
+        f"/api/v1/cinema/comments/{comment.id}/reactions", json=payload
+    )
     assert response.status_code == 200
     assert response.json() is None
 
@@ -266,7 +291,9 @@ async def test_toggle_comment_reaction_with_repeated_reaction(authorized_client,
 
 
 @pytest.mark.asyncio
-async def test_toggle_comment_reaction_with_another_reaction(authorized_client, test_movie, db_session_commit):
+async def test_toggle_comment_reaction_with_another_reaction(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test toggling a comment reaction when a different reaction already exists.
 
@@ -276,24 +303,22 @@ async def test_toggle_comment_reaction_with_another_reaction(authorized_client, 
     client, user = authorized_client
 
     comment = MovieComment(
-        user_id=user.id,
-        movie_id=test_movie.id,
-        text="Test comment for toggle reaction"
+        user_id=user.id, movie_id=test_movie.id, text="Test comment for toggle reaction"
     )
     db_session_commit.add(comment)
     await db_session_commit.flush()
 
     existing_reaction = CommentReaction(
-        user_id=user.id,
-        comment_id=comment.id,
-        reaction_type=ReactionTypeEnum.DISLIKE
+        user_id=user.id, comment_id=comment.id, reaction_type=ReactionTypeEnum.DISLIKE
     )
     db_session_commit.add(existing_reaction)
     await db_session_commit.commit()
 
     payload = {"reaction_type": "like"}
 
-    response = await client.post(f"/api/v1/cinema/comments/{comment.id}/reactions", json=payload)
+    response = await client.post(
+        f"/api/v1/cinema/comments/{comment.id}/reactions", json=payload
+    )
     assert response.status_code == 200
 
     response_data = response.json()
@@ -301,8 +326,7 @@ async def test_toggle_comment_reaction_with_another_reaction(authorized_client, 
     assert response_data["comment_id"] == comment.id
 
     query_reaction = select(CommentReaction).where(
-        CommentReaction.comment_id == comment.id,
-        CommentReaction.user_id == user.id
+        CommentReaction.comment_id == comment.id, CommentReaction.user_id == user.id
     )
     result_reaction = await db_session_commit.execute(query_reaction)
     reaction = result_reaction.scalars().first()
@@ -315,7 +339,9 @@ async def test_toggle_comment_reaction_with_another_reaction(authorized_client, 
 
 
 @pytest.mark.asyncio
-async def test_toggle_comment_reaction_success(authorized_client, test_movie, db_session_commit):
+async def test_toggle_comment_reaction_success(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test successful creation of a new comment reaction.
 
@@ -326,9 +352,7 @@ async def test_toggle_comment_reaction_success(authorized_client, test_movie, db
     client, user = authorized_client
 
     comment = MovieComment(
-        user_id=user.id,
-        movie_id=test_movie.id,
-        text="Test comment for toggle reaction"
+        user_id=user.id, movie_id=test_movie.id, text="Test comment for toggle reaction"
     )
     db_session_commit.add(comment)
     await db_session_commit.commit()
@@ -336,7 +360,9 @@ async def test_toggle_comment_reaction_success(authorized_client, test_movie, db
 
     payload = {"reaction_type": "like"}
 
-    response = await client.post(f"/api/v1/cinema/comments/{comment.id}/reactions", json=payload)
+    response = await client.post(
+        f"/api/v1/cinema/comments/{comment.id}/reactions", json=payload
+    )
     assert response.status_code == 200
 
     response_data = response.json()
@@ -344,8 +370,7 @@ async def test_toggle_comment_reaction_success(authorized_client, test_movie, db
     assert response_data["comment_id"] == comment.id
 
     query_reaction = select(CommentReaction).where(
-        CommentReaction.comment_id == comment.id,
-        CommentReaction.user_id == user.id
+        CommentReaction.comment_id == comment.id, CommentReaction.user_id == user.id
     )
     result_reaction = await db_session_commit.execute(query_reaction)
     reaction = result_reaction.scalars().first()
@@ -367,7 +392,9 @@ async def test_toggle_movie_reaction_unauthorized_user(client, test_movie):
     """
     payload = {"reaction_type": "like"}
 
-    response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/reactions", json=payload)
+    response = await client.post(
+        f"/api/v1/cinema/movies/{test_movie.id}/reactions", json=payload
+    )
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
@@ -385,15 +412,18 @@ async def test_toggle_movie_reaction_if_movie_not_found(authorized_client):
 
     payload = {"reaction_type": "like"}
 
-    response = await client.post("/api/v1/cinema/movies/999999999/reactions", json=payload)
+    response = await client.post(
+        "/api/v1/cinema/movies/999999999/reactions", json=payload
+    )
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Movie with the given ID was not found."
 
 
-
 @pytest.mark.asyncio
-async def test_toggle_movie_reaction_with_repeated_reaction(authorized_client, test_movie, db_session_commit):
+async def test_toggle_movie_reaction_with_repeated_reaction(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test toggling a movie reaction when the same reaction already exists.
 
@@ -403,16 +433,16 @@ async def test_toggle_movie_reaction_with_repeated_reaction(authorized_client, t
     client, user = authorized_client
 
     existing_reaction = MovieReaction(
-        user_id=user.id,
-        movie_id=test_movie.id,
-        reaction_type=ReactionTypeEnum.LIKE
+        user_id=user.id, movie_id=test_movie.id, reaction_type=ReactionTypeEnum.LIKE
     )
     db_session_commit.add(existing_reaction)
     await db_session_commit.commit()
 
     payload = {"reaction_type": "like"}
 
-    response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/reactions", json=payload)
+    response = await client.post(
+        f"/api/v1/cinema/movies/{test_movie.id}/reactions", json=payload
+    )
     assert response.status_code == 200
     assert response.json() is None
 
@@ -425,7 +455,9 @@ async def test_toggle_movie_reaction_with_repeated_reaction(authorized_client, t
 
 
 @pytest.mark.asyncio
-async def test_toggle_movie_reaction_with_another_reaction(authorized_client, test_movie, db_session_commit):
+async def test_toggle_movie_reaction_with_another_reaction(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test toggling a movie reaction when a different reaction already exists.
 
@@ -435,16 +467,16 @@ async def test_toggle_movie_reaction_with_another_reaction(authorized_client, te
     client, user = authorized_client
 
     existing_reaction = MovieReaction(
-        user_id=user.id,
-        movie_id=test_movie.id,
-        reaction_type=ReactionTypeEnum.DISLIKE
+        user_id=user.id, movie_id=test_movie.id, reaction_type=ReactionTypeEnum.DISLIKE
     )
     db_session_commit.add(existing_reaction)
     await db_session_commit.commit()
 
     payload = {"reaction_type": "like"}
 
-    response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/reactions", json=payload)
+    response = await client.post(
+        f"/api/v1/cinema/movies/{test_movie.id}/reactions", json=payload
+    )
     assert response.status_code == 200
 
     response_data = response.json()
@@ -460,7 +492,9 @@ async def test_toggle_movie_reaction_with_another_reaction(authorized_client, te
 
 
 @pytest.mark.asyncio
-async def test_toggle_movie_reaction_success(authorized_client, test_movie, db_session_commit):
+async def test_toggle_movie_reaction_success(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test successful creation of a new movie reaction.
 
@@ -472,7 +506,9 @@ async def test_toggle_movie_reaction_success(authorized_client, test_movie, db_s
 
     payload = {"reaction_type": "like"}
 
-    response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/reactions", json=payload)
+    response = await client.post(
+        f"/api/v1/cinema/movies/{test_movie.id}/reactions", json=payload
+    )
     assert response.status_code == 200
 
     response_data = response.json()
@@ -480,8 +516,7 @@ async def test_toggle_movie_reaction_success(authorized_client, test_movie, db_s
     assert response_data["movie_id"] == test_movie.id
 
     query = select(MovieReaction).where(
-        MovieReaction.movie_id == test_movie.id,
-        MovieReaction.user_id == user.id
+        MovieReaction.movie_id == test_movie.id, MovieReaction.user_id == user.id
     )
     result = await db_session_commit.execute(query)
     reaction = result.scalars().first()
@@ -500,7 +535,9 @@ async def test_rate_movie_unauthorized_user(client, test_movie):
     """
     payload = {"rating": 10}
 
-    response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/rate", json=payload)
+    response = await client.post(
+        f"/api/v1/cinema/movies/{test_movie.id}/rate", json=payload
+    )
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
 
@@ -523,7 +560,9 @@ async def test_rate_movie_if_movie_not_found(authorized_client):
 
 
 @pytest.mark.asyncio
-async def test_rate_movie_with_existing_rating(authorized_client, test_movie, db_session_commit):
+async def test_rate_movie_with_existing_rating(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test rating a movie when a rating already exists.
 
@@ -532,25 +571,22 @@ async def test_rate_movie_with_existing_rating(authorized_client, test_movie, db
     """
     client, user = authorized_client
 
-    existing_rating = MovieRating(
-        user_id=user.id,
-        movie_id=test_movie.id,
-        rating=5
-    )
+    existing_rating = MovieRating(user_id=user.id, movie_id=test_movie.id, rating=5)
     db_session_commit.add(existing_rating)
     await db_session_commit.commit()
 
     payload = {"rating": 10}
 
-    response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/rate", json=payload)
+    response = await client.post(
+        f"/api/v1/cinema/movies/{test_movie.id}/rate", json=payload
+    )
     assert response.status_code == 200
 
     response_data = response.json()
     assert response_data["rating"] == 10
 
     query = select(MovieRating).where(
-        MovieRating.movie_id == test_movie.id,
-        MovieRating.user_id == user.id
+        MovieRating.movie_id == test_movie.id, MovieRating.user_id == user.id
     )
     result = await db_session_commit.execute(query)
     rating = result.scalars().first()
@@ -571,15 +607,16 @@ async def test_rate_movie_success(authorized_client, test_movie, db_session_comm
 
     payload = {"rating": 10}
 
-    response = await client.post(f"/api/v1/cinema/movies/{test_movie.id}/rate", json=payload)
+    response = await client.post(
+        f"/api/v1/cinema/movies/{test_movie.id}/rate", json=payload
+    )
     assert response.status_code == 200
 
     response_data = response.json()
     assert response_data["rating"] == 10
 
     query = select(MovieRating).where(
-        MovieRating.movie_id == test_movie.id,
-        MovieRating.user_id == user.id
+        MovieRating.movie_id == test_movie.id, MovieRating.user_id == user.id
     )
     result = await db_session_commit.execute(query)
     rating = result.scalars().first()
@@ -622,7 +659,9 @@ async def test_add_movie_favorites_if_movie_not_found(authorized_client):
 
 
 @pytest.mark.asyncio
-async def test_add_movie_favorites_if_movie_in_favourites_is(authorized_client, test_movie, db_session_commit):
+async def test_add_movie_favorites_if_movie_in_favourites_is(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test adding a movie to favorites when it is already in favorites.
 
@@ -645,8 +684,7 @@ async def test_add_movie_favorites_if_movie_in_favourites_is(authorized_client, 
     assert response.json()["movie"]["name"] == test_movie.name
 
     query = select(MovieFavourite).where(
-        MovieFavourite.movie_id == test_movie.id,
-        MovieFavourite.user_id == user.id
+        MovieFavourite.movie_id == test_movie.id, MovieFavourite.user_id == user.id
     )
     result = await db_session_commit.execute(query)
     favourite = result.scalars().first()
@@ -656,7 +694,9 @@ async def test_add_movie_favorites_if_movie_in_favourites_is(authorized_client, 
 
 
 @pytest.mark.asyncio
-async def test_add_movie_favorites_success(authorized_client, test_movie, db_session_commit):
+async def test_add_movie_favorites_success(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test successful addition of a movie to favorites.
 
@@ -672,8 +712,7 @@ async def test_add_movie_favorites_success(authorized_client, test_movie, db_ses
     assert response.json()["movie"]["name"] == test_movie.name
 
     query = select(MovieFavourite).where(
-        MovieFavourite.movie_id == test_movie.id,
-        MovieFavourite.user_id == user.id
+        MovieFavourite.movie_id == test_movie.id, MovieFavourite.user_id == user.id
     )
     result = await db_session_commit.execute(query)
     favourite = result.scalars().first()
@@ -714,7 +753,9 @@ async def test_get_movie_favorites_if_movies_not_found(authorized_client):
 
 
 @pytest.mark.asyncio
-async def test_get_movie_favorites_with_filtration_sorting_pagination(authorized_client, test_movie, db_session_commit):
+async def test_get_movie_favorites_with_filtration_sorting_pagination(
+    authorized_client, test_movie, db_session_commit
+):
 
     client, user = authorized_client
 
@@ -738,8 +779,7 @@ async def test_get_movie_favorites_with_filtration_sorting_pagination(authorized
     assert len(response_data["movies_favourite"]) > 0
 
     query = select(MovieFavourite).where(
-        MovieFavourite.movie_id == test_movie.id,
-        MovieFavourite.user_id == user.id
+        MovieFavourite.movie_id == test_movie.id, MovieFavourite.user_id == user.id
     )
     result = await db_session_commit.execute(query)
     fav = result.scalars().first()
@@ -749,7 +789,9 @@ async def test_get_movie_favorites_with_filtration_sorting_pagination(authorized
 
 
 @pytest.mark.asyncio
-async def test_get_movie_favorites_success(authorized_client, test_movie, db_session_commit):
+async def test_get_movie_favorites_success(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test successful retrieval of favorite movies.
 
@@ -780,8 +822,7 @@ async def test_get_movie_favorites_success(authorized_client, test_movie, db_ses
     assert response_data["prev_page"] is None
 
     query = select(MovieFavourite).where(
-        MovieFavourite.movie_id == test_movie.id,
-        MovieFavourite.user_id == user.id
+        MovieFavourite.movie_id == test_movie.id, MovieFavourite.user_id == user.id
     )
     result = await db_session_commit.execute(query)
     fav = result.scalars().first()
@@ -799,7 +840,9 @@ async def test_delete_movie_favorites_unauthorized_user(client, test_movie):
     error message when an unauthenticated user attempts to delete a movie
     from favorites.
     """
-    response = await client.delete(f"/api/v1/cinema/movies/my/favorites/{test_movie.id}")
+    response = await client.delete(
+        f"/api/v1/cinema/movies/my/favorites/{test_movie.id}"
+    )
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
@@ -822,7 +865,9 @@ async def test_delete_movie_favorites_if_not_movie_favorite(authorized_client):
 
 
 @pytest.mark.asyncio
-async def test_delete_movie_favorites_success(authorized_client, test_movie, db_session_commit):
+async def test_delete_movie_favorites_success(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test successful deletion of a movie from favorites.
 
@@ -838,16 +883,16 @@ async def test_delete_movie_favorites_success(authorized_client, test_movie, db_
     db_session_commit.add(favourite)
     await db_session_commit.commit()
 
-    response = await client.delete(f"/api/v1/cinema/movies/my/favorites/{test_movie.id}")
+    response = await client.delete(
+        f"/api/v1/cinema/movies/my/favorites/{test_movie.id}"
+    )
 
     assert response.status_code == 200
     assert response.json()["detail"] == "Favourite Movie deleted successfully."
 
     query = select(MovieFavourite).where(
-        MovieFavourite.movie_id == test_movie.id,
-        MovieFavourite.user_id == user.id
+        MovieFavourite.movie_id == test_movie.id, MovieFavourite.user_id == user.id
     )
     result = await db_session_commit.execute(query)
     deleted_favourite = result.scalars().first()
     assert deleted_favourite is None, "Favourite should be deleted from the database."
-

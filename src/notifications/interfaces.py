@@ -59,7 +59,9 @@ class EmailSenderInterface(ABC):
         pass
 
     @abstractmethod
-    async def send_confirmation_payment_email(self, email: str, order_link: str) -> None:
+    async def send_confirmation_payment_email(
+        self, email: str, order_link: str
+    ) -> None:
         """
         Send a payment confirmation email asynchronously.
 

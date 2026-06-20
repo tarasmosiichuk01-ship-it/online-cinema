@@ -39,7 +39,9 @@ async def test_create_order_if_carts_is_empty(authorized_client):
 
 
 @pytest.mark.asyncio
-async def test_create_order_with_unavailable_movie(authorized_client, test_movie, db_session_commit):
+async def test_create_order_with_unavailable_movie(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test creating an order when all movies in the cart are unavailable.
 
@@ -62,9 +64,14 @@ async def test_create_order_with_unavailable_movie(authorized_client, test_movie
     response = await client.post("/api/v1/orders/orders")
 
     assert response.status_code == 400
-    assert response.json()["detail"]["message"] == "All movies in your cart are currently unavailable."
+    assert (
+        response.json()["detail"]["message"]
+        == "All movies in your cart are currently unavailable."
+    )
     assert len(response.json()["detail"]["warnings"]) > 0
-    assert any(test_movie.name in warning for warning in response.json()["detail"]["warnings"])
+    assert any(
+        test_movie.name in warning for warning in response.json()["detail"]["warnings"]
+    )
 
     test_movie.is_available = True
     await db_session_commit.execute(delete(CartItem).where(CartItem.cart_id == cart.id))
@@ -73,7 +80,9 @@ async def test_create_order_with_unavailable_movie(authorized_client, test_movie
 
 
 @pytest.mark.asyncio
-async def test_create_order_if_movie_is_bought(authorized_client, test_movie, db_session_commit):
+async def test_create_order_if_movie_is_bought(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test creating an order when all movies in the cart have already been purchased.
 
@@ -95,9 +104,7 @@ async def test_create_order_if_movie_is_bought(authorized_client, test_movie, db
     await db_session_commit.flush()
 
     order_item = OrderItem(
-        order_id=order.id,
-        movie_id=test_movie.id,
-        price_at_order=test_movie.price
+        order_id=order.id, movie_id=test_movie.id, price_at_order=test_movie.price
     )
     db_session_commit.add(order_item)
     await db_session_commit.commit()
@@ -105,9 +112,14 @@ async def test_create_order_if_movie_is_bought(authorized_client, test_movie, db
     response = await client.post("/api/v1/orders/orders")
 
     assert response.status_code == 400
-    assert response.json()["detail"]["message"] == "All movies in your cart are currently unavailable."
+    assert (
+        response.json()["detail"]["message"]
+        == "All movies in your cart are currently unavailable."
+    )
     assert len(response.json()["detail"]["warnings"]) > 0
-    assert any(test_movie.name in warning for warning in response.json()["detail"]["warnings"])
+    assert any(
+        test_movie.name in warning for warning in response.json()["detail"]["warnings"]
+    )
 
     await db_session_commit.delete(order_item)
     await db_session_commit.flush()
@@ -118,7 +130,9 @@ async def test_create_order_if_movie_is_bought(authorized_client, test_movie, db
 
 
 @pytest.mark.asyncio
-async def test_create_order_if_is_already_pending_order(authorized_client, test_movie, db_session_commit):
+async def test_create_order_if_is_already_pending_order(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test creating an order when there is already a pending order with the same movies.
 
@@ -141,9 +155,7 @@ async def test_create_order_if_is_already_pending_order(authorized_client, test_
     await db_session_commit.flush()
 
     order_item = OrderItem(
-        order_id=order.id,
-        movie_id=test_movie.id,
-        price_at_order=test_movie.price
+        order_id=order.id, movie_id=test_movie.id, price_at_order=test_movie.price
     )
     db_session_commit.add(order_item)
     await db_session_commit.commit()
@@ -151,7 +163,10 @@ async def test_create_order_if_is_already_pending_order(authorized_client, test_
     response = await client.post("/api/v1/orders/orders")
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "You already have a pending order containing some of these movies. Please complete or cancel it first."
+    assert (
+        response.json()["detail"]
+        == "You already have a pending order containing some of these movies. Please complete or cancel it first."
+    )
 
     await db_session_commit.delete(order_item)
     await db_session_commit.flush()
@@ -318,7 +333,9 @@ async def test_cancel_order_if_order_not_found(authorized_client):
 
 
 @pytest.mark.asyncio
-async def test_cancel_order_if_order_is_not_pending(authorized_client, test_movie, db_session_commit):
+async def test_cancel_order_if_order_is_not_pending(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test canceling an order that is not in PENDING status.
 
@@ -442,15 +459,15 @@ async def test_get_order_users_by_filters_by_order_status(admin_client):
     Ensures that the endpoint returns a 200 status code and filters
     orders correctly when order_status parameter is provided.
     """
-    response = await admin_client.get(
-        "/api/v1/orders/admin/orders?order_status=paid"
-    )
+    response = await admin_client.get("/api/v1/orders/admin/orders?order_status=paid")
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
 
 @pytest.mark.asyncio
-async def test_get_order_users_by_filters_success(admin_client, db_session_commit, seed_user_groups):
+async def test_get_order_users_by_filters_success(
+    admin_client, db_session_commit, seed_user_groups
+):
     """
     Test successful retrieval of orders by admin with filters.
 
@@ -464,7 +481,7 @@ async def test_get_order_users_by_filters_success(admin_client, db_session_commi
     user = User.create(
         email="order_filter_test_user@example.com",
         raw_password="Test1234!",
-        group_id=user_group.id
+        group_id=user_group.id,
     )
     user.is_active = True
     db_session_commit.add(user)

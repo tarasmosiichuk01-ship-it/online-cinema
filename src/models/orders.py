@@ -27,24 +27,19 @@ class Order(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         default=lambda: datetime.now(timezone.utc),
-        nullable=False
+        nullable=False,
     )
 
     status: Mapped[OrderStatusEnum] = mapped_column(
-        Enum(OrderStatusEnum),
-        nullable=False,
-        default=OrderStatusEnum.PENDING
+        Enum(OrderStatusEnum), nullable=False, default=OrderStatusEnum.PENDING
     )
 
     total_amount: Mapped[Optional[decimal.Decimal]] = mapped_column(
-        DECIMAL(10, 2),
-        nullable=True
+        DECIMAL(10, 2), nullable=True
     )
 
     order_items: Mapped[list["OrderItem"]] = relationship(
-        "OrderItem",
-        back_populates="order",
-        cascade="all, delete-orphan"
+        "OrderItem", back_populates="order", cascade="all, delete-orphan"
     )
 
     payments: Mapped["Payment"] = relationship("Payment", back_populates="order")
@@ -62,11 +57,9 @@ class OrderItem(Base):
     movie: Mapped["Movie"] = relationship("Movie", back_populates="order_items")
 
     price_at_order: Mapped[decimal.Decimal] = mapped_column(
-        DECIMAL(10, 2),
-        nullable=False
+        DECIMAL(10, 2), nullable=False
     )
 
     payment_items: Mapped[list["PaymentItem"]] = relationship(
-        "PaymentItem",
-        back_populates="order_item"
+        "PaymentItem", back_populates="order_item"
     )

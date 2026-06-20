@@ -29,9 +29,7 @@ class BaseAppSettings(BaseSettings):
 
     JWT_SIGNING_ALGORITHM: str = os.getenv("JWT_SIGNING_ALGORITHM", "HS256")
 
-    model_config = SettingsConfigDict(
-        extra="ignore"
-    )
+    model_config = SettingsConfigDict(extra="ignore")
 
 
 class Settings(BaseAppSettings):
@@ -51,15 +49,16 @@ class Settings(BaseAppSettings):
     MINIO_STORAGE: str = os.getenv("MINIO_STORAGE", "cinema-storage")
 
     CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-    CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+    CELERY_RESULT_BACKEND: str = os.getenv(
+        "CELERY_RESULT_BACKEND", "redis://localhost:6379/0"
+    )
 
     STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "test_stripe_key")
-    STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET", "test_webhook_secret")
-
-    model_config = SettingsConfigDict(
-        env_file=str(BASE_DIR / ".env"),
-        extra="ignore"
+    STRIPE_WEBHOOK_SECRET: str = os.getenv(
+        "STRIPE_WEBHOOK_SECRET", "test_webhook_secret"
     )
+
+    model_config = SettingsConfigDict(env_file=str(BASE_DIR / ".env"), extra="ignore")
 
     @property
     def postgres_database_url(self) -> str:
@@ -94,14 +93,17 @@ class TestingSettings(BaseAppSettings):
     MINIO_STORAGE: str = os.getenv("MINIO_STORAGE", "cinema-storage")
 
     CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-    CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+    CELERY_RESULT_BACKEND: str = os.getenv(
+        "CELERY_RESULT_BACKEND", "redis://localhost:6379/0"
+    )
 
     STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "test_stripe_key")
-    STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET", "test_webhook_secret")
+    STRIPE_WEBHOOK_SECRET: str = os.getenv(
+        "STRIPE_WEBHOOK_SECRET", "test_webhook_secret"
+    )
 
     model_config = SettingsConfigDict(
-        env_file=str(BASE_DIR / ".env.test"),
-        extra="ignore"
+        env_file=str(BASE_DIR / ".env.test"), extra="ignore"
     )
 
     @property

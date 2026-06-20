@@ -21,7 +21,10 @@ async def test_add_movie_to_cart_unauthorized_user(client, test_movie):
     response = await client.post("/api/v1/shopping_carts/carts", json=payload)
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "You must sign up or log in before completing a purchase. Register here: http://127.0.0.1:8000/api/v1/accounts/register/"
+    assert (
+        response.json()["detail"]
+        == "You must sign up or log in before completing a purchase. Register here: http://127.0.0.1:8000/api/v1/accounts/register/"
+    )
 
 
 @pytest.mark.asyncio
@@ -43,7 +46,9 @@ async def test_add_movie_to_cart_if_movie_not_found(authorized_client):
 
 
 @pytest.mark.asyncio
-async def test_add_movie_to_cart_if_movie_is_purchased(authorized_client, test_movie, db_session_commit):
+async def test_add_movie_to_cart_if_movie_is_purchased(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test adding a movie to cart that has already been purchased.
 
@@ -53,17 +58,12 @@ async def test_add_movie_to_cart_if_movie_is_purchased(authorized_client, test_m
     """
     client, user = authorized_client
 
-    order = Order(
-        user_id=user.id,
-        status=OrderStatusEnum.PAID
-    )
+    order = Order(user_id=user.id, status=OrderStatusEnum.PAID)
     db_session_commit.add(order)
     await db_session_commit.flush()
 
     order_item = OrderItem(
-        order_id=order.id,
-        movie_id=test_movie.id,
-        price_at_order=Decimal("299.99")
+        order_id=order.id, movie_id=test_movie.id, price_at_order=Decimal("299.99")
     )
     db_session_commit.add(order_item)
     await db_session_commit.commit()
@@ -75,7 +75,9 @@ async def test_add_movie_to_cart_if_movie_is_purchased(authorized_client, test_m
     assert response.status_code == 400
     assert response.json()["detail"] == "Repeat purchases are not allowed."
 
-    await db_session_commit.execute(delete(CartItem).where(CartItem.movie_id == test_movie.id))
+    await db_session_commit.execute(
+        delete(CartItem).where(CartItem.movie_id == test_movie.id)
+    )
 
     await db_session_commit.delete(order_item)
     await db_session_commit.delete(order)
@@ -83,7 +85,9 @@ async def test_add_movie_to_cart_if_movie_is_purchased(authorized_client, test_m
 
 
 @pytest.mark.asyncio
-async def test_add_movie_to_cart_success(authorized_client, test_movie, db_session_commit):
+async def test_add_movie_to_cart_success(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test successful addition of a movie to the cart.
 
@@ -144,7 +148,9 @@ async def test_get_current_user_cart_if_not_carts(authorized_client):
 
 
 @pytest.mark.asyncio
-async def test_get_current_user_cart_success(authorized_client, test_movie, db_session_commit):
+async def test_get_current_user_cart_success(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test successful retrieval of the current user's cart.
 
@@ -196,7 +202,9 @@ async def test_delete_cart_item_unauthorized_user(client, test_movie):
     a cart item.
     """
 
-    response = await client.delete(f"/api/v1/shopping_carts/carts/items/{test_movie.id}")
+    response = await client.delete(
+        f"/api/v1/shopping_carts/carts/items/{test_movie.id}"
+    )
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
@@ -219,7 +227,9 @@ async def test_delete_cart_item_if_movie_not_in_cart(authorized_client):
 
 
 @pytest.mark.asyncio
-async def test_delete_cart_item_success(authorized_client, test_movie, db_session_commit):
+async def test_delete_cart_item_success(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test successful deletion of a cart item.
 
@@ -239,7 +249,9 @@ async def test_delete_cart_item_success(authorized_client, test_movie, db_sessio
     db_session_commit.add(cart_item)
     await db_session_commit.commit()
 
-    response = await client.delete(f"/api/v1/shopping_carts/carts/items/{test_movie.id}")
+    response = await client.delete(
+        f"/api/v1/shopping_carts/carts/items/{test_movie.id}"
+    )
     assert response.status_code == 204
 
     query_cart = select(Cart).where(Cart.id == cart.id)
@@ -265,7 +277,9 @@ async def test_delete_cart_items_unauthorized_user(client):
 
 
 @pytest.mark.asyncio
-async def test_delete_cart_items_success(authorized_client, test_movie, db_session_commit):
+async def test_delete_cart_items_success(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test successful clearing of the cart.
 
@@ -343,7 +357,9 @@ async def test_get_cart_by_user_id_if_not_cart_items(admin_client):
 
 
 @pytest.mark.asyncio
-async def test_get_cart_by_user_id_success(admin_client, db_session_commit, seed_user_groups):
+async def test_get_cart_by_user_id_success(
+    admin_client, db_session_commit, seed_user_groups
+):
     """
     Test successful retrieval of a user's cart by admin.
 
@@ -389,7 +405,9 @@ async def test_get_purchased_movies_if_not_purchase(authorized_client):
 
 
 @pytest.mark.asyncio
-async def test_get_purchased_movies_success(authorized_client, test_movie, db_session_commit):
+async def test_get_purchased_movies_success(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test successful retrieval of purchased movies.
 

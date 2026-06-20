@@ -9,7 +9,9 @@ from models.payments import Payment, PaymentStatusEnum
 
 
 @pytest.mark.asyncio
-async def test_create_checkout_session_stripe_error(authorized_client, test_movie, db_session_commit):
+async def test_create_checkout_session_stripe_error(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test creating a checkout session when Stripe returns an error.
 
@@ -36,11 +38,11 @@ async def test_create_checkout_session_stripe_error(authorized_client, test_movi
 
     with patch(
         "stripe.checkout.Session.create_async",
-        side_effect=stripe.error.StripeError("Stripe error")
+        side_effect=stripe.error.StripeError("Stripe error"),
     ):
         response = await client.post(
             "/api/v1/payments/payments/create-checkout-session",
-            json={"order_id": order.id}
+            json={"order_id": order.id},
         )
 
     assert response.status_code == 503
@@ -52,7 +54,9 @@ async def test_create_checkout_session_stripe_error(authorized_client, test_movi
 
 
 @pytest.mark.asyncio
-async def test_create_checkout_session_integrity_error(authorized_client, test_movie, db_session_commit):
+async def test_create_checkout_session_integrity_error(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test creating a checkout session when a database integrity error occurs.
 
@@ -81,17 +85,22 @@ async def test_create_checkout_session_integrity_error(authorized_client, test_m
     mock_session.id = "test_session_id"
     mock_session.url = "https://stripe.com/test"
 
-    simulated_error = IntegrityError(statement="INSERT INTO payments ...", params={}, orig=Exception())
+    simulated_error = IntegrityError(
+        statement="INSERT INTO payments ...", params={}, orig=Exception()
+    )
 
     with patch("stripe.checkout.Session.create_async", return_value=mock_session):
         with patch("routes.payments.AsyncSession.commit", side_effect=simulated_error):
             response = await client.post(
                 "/api/v1/payments/payments/create-checkout-session",
-                json={"order_id": order.id}
+                json={"order_id": order.id},
             )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "Database error: Could not save payment transaction."
+    assert (
+        response.json()["detail"]
+        == "Database error: Could not save payment transaction."
+    )
 
     await db_session_commit.rollback()
     await db_session_commit.delete(order_item)
@@ -101,7 +110,9 @@ async def test_create_checkout_session_integrity_error(authorized_client, test_m
 
 
 @pytest.mark.asyncio
-async def test_refund_order_stripe_error(authorized_client, test_movie, db_session_commit):
+async def test_refund_order_stripe_error(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test refunding an order when Stripe returns an error.
 
@@ -130,8 +141,7 @@ async def test_refund_order_stripe_error(authorized_client, test_movie, db_sessi
     await db_session_commit.commit()
 
     with patch(
-        "stripe.Refund.create",
-        side_effect=stripe.error.StripeError("Stripe error")
+        "stripe.Refund.create", side_effect=stripe.error.StripeError("Stripe error")
     ):
 
         response = await client.post(f"/api/v1/payments/orders/{order.id}/refund")

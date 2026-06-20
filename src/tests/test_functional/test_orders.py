@@ -6,7 +6,9 @@ from models.shopping_carts import Cart, CartItem
 
 
 @pytest.mark.asyncio
-async def test_add_movie_to_cart_create_order_check_order(authorized_client, test_movie, db_session_commit):
+async def test_add_movie_to_cart_create_order_check_order(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test adding a movie to cart, creating an order, and verifying cart is cleared.
 
@@ -17,7 +19,9 @@ async def test_add_movie_to_cart_create_order_check_order(authorized_client, tes
 
     add_movie_payload = {"movie_id": test_movie.id}
 
-    add_movie_response = await client.post("/api/v1/shopping_carts/carts", json=add_movie_payload)
+    add_movie_response = await client.post(
+        "/api/v1/shopping_carts/carts", json=add_movie_payload
+    )
 
     assert add_movie_response.status_code == 201
     assert add_movie_response.json()["movie"]["name"] == test_movie.name
@@ -53,7 +57,9 @@ async def test_add_movie_to_cart_create_order_check_order(authorized_client, tes
 
 
 @pytest.mark.asyncio
-async def test_create_order_cancel_order_check_order(authorized_client, test_movie, db_session_commit):
+async def test_create_order_cancel_order_check_order(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test creating an order and then canceling it.
 
@@ -102,7 +108,9 @@ async def test_create_order_cancel_order_check_order(authorized_client, test_mov
 
 
 @pytest.mark.asyncio
-async def test_add_purchased_movie_to_cart_create_order_check_warnings(authorized_client, test_movie, db_session_commit):
+async def test_add_purchased_movie_to_cart_create_order_check_warnings(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test creating an order when the only movie in the cart has already been purchased.
 
@@ -128,7 +136,9 @@ async def test_add_purchased_movie_to_cart_create_order_check_warnings(authorize
     await db_session_commit.commit()
 
     add_movie_payload = {"movie_id": test_movie.id}
-    add_movie_response = await client.post("/api/v1/shopping_carts/carts", json=add_movie_payload)
+    add_movie_response = await client.post(
+        "/api/v1/shopping_carts/carts", json=add_movie_payload
+    )
     assert add_movie_response.status_code == 400
     assert add_movie_response.json()["detail"] == "Repeat purchases are not allowed."
 

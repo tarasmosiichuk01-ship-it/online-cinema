@@ -14,7 +14,7 @@ from schemas.movies import (
     GenreListResponseSchema,
     GenreWithMoviesCountSchema,
     GenreMoviesListResponseSchema,
-    GenreUpdateSchema
+    GenreUpdateSchema,
 )
 
 router = APIRouter()
@@ -53,13 +53,13 @@ router = APIRouter()
                     "example": {"detail": "Genre with the name '...' already exists"}
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def create_genre(
     genre_data: GenreCreateSchema,
     current_user: User = Depends(get_moderator_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Register a new movie genre inside the catalog system (asynchronously).
@@ -88,7 +88,7 @@ async def create_genre(
     if existing_genre:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Genre with that name already exists"
+            detail="Genre with that name already exists",
         )
 
     new_genre = Genre(name=genre_data.name)
@@ -102,7 +102,7 @@ async def create_genre(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Genre with the name '{genre_data.name}' already exists"
+            detail=f"Genre with the name '{genre_data.name}' already exists",
         )
 
     return GenreDetailSchema.model_validate(new_genre)
@@ -124,14 +124,14 @@ async def create_genre(
         404: {
             "description": "Not Found if no genre records exist in the database.",
             "content": {
-                "application/json": {
-                    "example": {"detail": "No genres found."}
-                }
+                "application/json": {"example": {"detail": "No genres found."}}
             },
         }
-    }
+    },
 )
-async def get_genre_list(db: AsyncSession = Depends(get_postgresql_db)) -> GenreListResponseSchema:
+async def get_genre_list(
+    db: AsyncSession = Depends(get_postgresql_db),
+) -> GenreListResponseSchema:
     """
     Retrieve all catalog genres compiled with their aggregated movie counts (asynchronously).
 
@@ -158,7 +158,9 @@ async def get_genre_list(db: AsyncSession = Depends(get_postgresql_db)) -> Genre
     genre_rows = result.all()
 
     if not genre_rows:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No genres found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No genres found."
+        )
 
     genre_list = [
         GenreWithMoviesCountSchema(
@@ -195,13 +197,13 @@ async def get_genre_list(db: AsyncSession = Depends(get_postgresql_db)) -> Genre
                     "example": {"detail": "No movies found for this genre."}
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def get_movies_by_genre(
     genre_id: int,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ) -> GenreMoviesListResponseSchema:
     """
     Retrieve all movies mapped to a specified genre from the catalog (asynchronously).
@@ -225,9 +227,7 @@ async def get_movies_by_genre(
     :raises HTTPException: Raises a 404 error if the genre is valid but contains no assigned movies.
     """
     query = (
-        select(Genre)
-        .where(Genre.id == genre_id)
-        .options(selectinload(Genre.movies))
+        select(Genre).where(Genre.id == genre_id).options(selectinload(Genre.movies))
     )
     result = await db.execute(query)
     genre = result.scalars().first()
@@ -235,20 +235,20 @@ async def get_movies_by_genre(
     if not genre:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Genre with the given ID was not found."
+            detail="Genre with the given ID was not found.",
         )
 
     if not genre.movies:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No movies found for this genre."
+            detail="No movies found for this genre.",
         )
 
-    movie_list = [GenreDetailSchema(id=movie.id, name=movie.name) for movie in genre.movies]
+    movie_list = [
+        GenreDetailSchema(id=movie.id, name=movie.name) for movie in genre.movies
+    ]
     return GenreMoviesListResponseSchema(
-        id=genre.id,
-        name=genre.name,
-        movies=movie_list
+        id=genre.id, name=genre.name, movies=movie_list
     )
 
 
@@ -285,14 +285,14 @@ async def get_movies_by_genre(
                     "example": {"detail": "Genre with the given ID was not found."}
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def update_genre(
     genre_id: int,
     genre_data: GenreUpdateSchema,
     current_user: User = Depends(get_moderator_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Partially update a genre's metadata within the catalog (asynchronously).
@@ -325,19 +325,18 @@ async def update_genre(
     if not genre:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Genre with the given ID was not found."
+            detail="Genre with the given ID was not found.",
         )
 
     if genre_data.name:
         name_query = select(Genre).where(
-            Genre.name.ilike(genre_data.name),
-            Genre.id != genre_id
+            Genre.name.ilike(genre_data.name), Genre.id != genre_id
         )
         name_result = await db.execute(name_query)
         if name_result.scalars().first():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Genre with the name '{genre_data.name}' already exists."
+                detail=f"Genre with the name '{genre_data.name}' already exists.",
             )
 
     for field, value in genre_data.model_dump(exclude_unset=True).items():
@@ -348,7 +347,9 @@ async def update_genre(
         await db.refresh(genre)
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data."
+        )
 
     return {"detail": "Genre updated successfully."}
 
@@ -377,13 +378,13 @@ async def update_genre(
                     "example": {"detail": "Genre with the given ID was not found."}
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def delete_genre(
     genre_id: int,
     current_user: User = Depends(get_moderator_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Permanently delete a genre record from the catalog (asynchronously).
@@ -411,7 +412,7 @@ async def delete_genre(
     if not genre:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Genre with the given ID was not found."
+            detail="Genre with the given ID was not found.",
         )
 
     await db.delete(genre)

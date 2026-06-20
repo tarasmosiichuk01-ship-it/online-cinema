@@ -33,21 +33,19 @@ router = APIRouter()
     responses={
         400: {
             "description": "Bad Request due to empty cart, all filtered items being unavailable, "
-                           "or an existing pending order with the same movies.",
+            "or an existing pending order with the same movies.",
             "content": {
-                "application/json": {
-                    "example": {"detail": "Your cart is empty"}
-                }
+                "application/json": {"example": {"detail": "Your cart is empty"}}
             },
         },
         401: {
             "description": "Unauthorized due to missing or invalid authentication token.",
-        }
-    }
+        },
+    },
 )
 async def create_order(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Checkout the current user's cart and generate a pending order (asynchronously).
@@ -74,9 +72,7 @@ async def create_order(
         .where(Cart.user_id == current_user.id)
         .options(
             selectinload(Cart.cart_items).options(
-                joinedload(CartItem.movie).options(
-                    joinedload(Movie.genres)
-                )
+                joinedload(CartItem.movie).options(joinedload(Movie.genres))
             )
         )
     )
@@ -85,8 +81,7 @@ async def create_order(
 
     if not cart or not cart.cart_items:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Your cart is empty"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Your cart is empty"
         )
 
     cart_movie_ids = [item.movie_id for item in cart.cart_items]
@@ -97,7 +92,7 @@ async def create_order(
         .where(
             Order.user_id == current_user.id,
             Order.status == OrderStatusEnum.PAID,
-            OrderItem.movie_id.in_(cart_movie_ids)
+            OrderItem.movie_id.in_(cart_movie_ids),
         )
     )
     purchased_result = await db.execute(purchased_query)
@@ -108,19 +103,23 @@ async def create_order(
 
     for cart_item in cart.cart_items:
         if cart_item.movie_id in purchased_movie_ids:
-            warnings.append(f"Movie '{cart_item.movie.name}' was already purchased and was excluded.")
+            warnings.append(
+                f"Movie '{cart_item.movie.name}' was already purchased and was excluded."
+            )
         elif cart_item.movie.is_available:
             available_items.append(cart_item)
         else:
-            warnings.append(f"Movie '{cart_item.movie.name}' is currently unavailable and was excluded.")
+            warnings.append(
+                f"Movie '{cart_item.movie.name}' is currently unavailable and was excluded."
+            )
 
     if not available_items:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
                 "message": "All movies in your cart are currently unavailable.",
-                "warnings": warnings
-            }
+                "warnings": warnings,
+            },
         )
 
     pending_check_ids = [item.movie_id for item in available_items]
@@ -131,7 +130,7 @@ async def create_order(
         .where(
             Order.user_id == current_user.id,
             Order.status == OrderStatusEnum.PENDING,
-            OrderItem.movie_id.in_(pending_check_ids)
+            OrderItem.movie_id.in_(pending_check_ids),
         )
         .exists()
     )
@@ -142,16 +141,15 @@ async def create_order(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="You already have a pending order containing some of these movies. "
-                   "Please complete or cancel it first."
+            "Please complete or cancel it first.",
         )
 
     new_order = Order(
         user_id=current_user.id,
         status=OrderStatusEnum.PENDING,
         total_amount=sum(
-            (cart_item.movie.price for cart_item in available_items),
-            decimal.Decimal(0)
-        )
+            (cart_item.movie.price for cart_item in available_items), decimal.Decimal(0)
+        ),
     )
 
     try:
@@ -169,7 +167,7 @@ async def create_order(
         await db.execute(
             delete(CartItem).where(
                 CartItem.cart_id == cart.id,
-                CartItem.movie_id.in_([item.movie.id for item in available_items])
+                CartItem.movie_id.in_([item.movie.id for item in available_items]),
             )
         )
         await db.commit()
@@ -178,7 +176,7 @@ async def create_order(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An error occurred while creating the order."
+            detail="An error occurred while creating the order.",
         )
 
     final_order_query = (
@@ -186,9 +184,7 @@ async def create_order(
         .where(Order.id == new_order.id)
         .options(
             selectinload(Order.order_items).options(
-                joinedload(OrderItem.movie).options(
-                    joinedload(Movie.genres)
-                )
+                joinedload(OrderItem.movie).options(joinedload(Movie.genres))
             )
         )
     )
@@ -212,11 +208,11 @@ async def create_order(
         401: {
             "description": "Unauthorized due to missing or invalid authentication token.",
         }
-    }
+    },
 )
 async def get_orders(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Retrieve the authenticated user's order history (asynchronously).
@@ -239,9 +235,7 @@ async def get_orders(
         .where(Order.user_id == current_user.id)
         .options(
             selectinload(Order.order_items).options(
-                joinedload(OrderItem.movie).options(
-                    joinedload(Movie.genres)
-                )
+                joinedload(OrderItem.movie).options(joinedload(Movie.genres))
             )
         )
         .order_by(Order.created_at.desc())
@@ -275,18 +269,14 @@ async def get_orders(
         },
         404: {
             "description": "Not Found if the order does not exist or does not belong to the user.",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Order not found"}
-                }
-            },
-        }
-    }
+            "content": {"application/json": {"example": {"detail": "Order not found"}}},
+        },
+    },
 )
 async def cancel_order(
     order_id: int,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Cancel an active pending order (asynchronously).
@@ -309,26 +299,22 @@ async def cancel_order(
     :raises HTTPException: Raises a 404 error if the order is missing or unauthorized.
     :raises HTTPException: Raises a 400 error if the order is already processed, paid, or canceled.
     """
-    query = (
-        select(Order)
-        .where(
-            Order.id == order_id,
-            Order.user_id == current_user.id,
-        )
+    query = select(Order).where(
+        Order.id == order_id,
+        Order.user_id == current_user.id,
     )
     result = await db.execute(query)
     order = result.scalars().first()
 
     if not order:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Order not found"
         )
 
     if order.status != OrderStatusEnum.PENDING:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You can only cancel pending orders"
+            detail="You can only cancel pending orders",
         )
 
     order.status = OrderStatusEnum.CANCELED
@@ -368,13 +354,13 @@ async def cancel_order(
         },
         403: {
             "description": "Forbidden if the authenticated user does not have administrative privileges.",
-        }
-    }
+        },
+    },
 )
 async def get_order_users_by_filters(
     params: dict = Depends(admin_query_params),
     current_user: User = Depends(get_admin_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Retrieve and filter user orders globally across the application (asynchronously).
@@ -394,14 +380,9 @@ async def get_order_users_by_filters(
     :return: A list of orders matching the specified filter criteria with full nested payloads.
     :rtype: list[OrderResponseSchema]
     """
-    base_query = (
-        select(Order)
-        .options(
-            selectinload(Order.order_items).options(
-                joinedload(OrderItem.movie).options(
-                    joinedload(Movie.genres)
-                )
-            )
+    base_query = select(Order).options(
+        selectinload(Order.order_items).options(
+            joinedload(OrderItem.movie).options(joinedload(Movie.genres))
         )
     )
 
@@ -409,10 +390,14 @@ async def get_order_users_by_filters(
         base_query = base_query.where(Order.user_id == params["user_id"])
 
     if params["start_date"] is not None:
-        base_query = base_query.where(cast(Order.created_at, Date) >= params["start_date"])
+        base_query = base_query.where(
+            cast(Order.created_at, Date) >= params["start_date"]
+        )
 
     if params["end_date"] is not None:
-        base_query = base_query.where(cast(Order.created_at, Date) <= params["end_date"])
+        base_query = base_query.where(
+            cast(Order.created_at, Date) <= params["end_date"]
+        )
 
     if params["order_status"] is not None:
         base_query = base_query.where(Order.status == params["order_status"])

@@ -15,11 +15,11 @@ async def test_create_checkout_session_unauthorized_user(client):
     error message when an unauthenticated user attempts to create
     a checkout session.
     """
-    payload = {
-        "order_id": 1
-    }
+    payload = {"order_id": 1}
 
-    response = await client.post("/api/v1/payments/payments/create-checkout-session", json=payload)
+    response = await client.post(
+        "/api/v1/payments/payments/create-checkout-session", json=payload
+    )
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
@@ -35,18 +35,20 @@ async def test_create_checkout_session_if_order_not_found(authorized_client):
     """
     client, user = authorized_client
 
-    payload = {
-        "order_id": 9999999
-    }
+    payload = {"order_id": 9999999}
 
-    response = await client.post("/api/v1/payments/payments/create-checkout-session", json=payload)
+    response = await client.post(
+        "/api/v1/payments/payments/create-checkout-session", json=payload
+    )
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Order not found"
 
 
 @pytest.mark.asyncio
-async def test_create_checkout_session_if_order_status_not_pending(authorized_client, test_movie, db_session_commit):
+async def test_create_checkout_session_if_order_status_not_pending(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test creating a checkout session when the order is not in PENDING status.
 
@@ -64,11 +66,11 @@ async def test_create_checkout_session_if_order_status_not_pending(authorized_cl
     db_session_commit.add(order)
     await db_session_commit.commit()
 
-    payload = {
-        "order_id": order.id
-    }
+    payload = {"order_id": order.id}
 
-    response = await client.post("/api/v1/payments/payments/create-checkout-session", json=payload)
+    response = await client.post(
+        "/api/v1/payments/payments/create-checkout-session", json=payload
+    )
 
     assert response.status_code == 400
     assert response.json()["detail"] == "You can only pay for pending orders"
@@ -78,7 +80,9 @@ async def test_create_checkout_session_if_order_status_not_pending(authorized_cl
 
 
 @pytest.mark.asyncio
-async def test_create_checkout_session_total_amount_mismatch(authorized_client, test_movie, db_session_commit):
+async def test_create_checkout_session_total_amount_mismatch(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test creating a checkout session when total amount does not match order items.
 
@@ -104,14 +108,17 @@ async def test_create_checkout_session_total_amount_mismatch(authorized_client, 
     db_session_commit.add(order_item)
     await db_session_commit.commit()
 
-    payload = {
-        "order_id": order.id
-    }
+    payload = {"order_id": order.id}
 
-    response = await client.post("/api/v1/payments/payments/create-checkout-session", json=payload)
+    response = await client.post(
+        "/api/v1/payments/payments/create-checkout-session", json=payload
+    )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "Order total amount mismatch with items configuration."
+    assert (
+        response.json()["detail"]
+        == "Order total amount mismatch with items configuration."
+    )
 
     await db_session_commit.delete(order_item)
     await db_session_commit.flush()
@@ -186,7 +193,9 @@ async def test_get_payments_success_if_payment_not_found(authorized_client):
 
 
 @pytest.mark.asyncio
-async def test_get_payments_success_with_pending_status(authorized_client, test_movie, db_session_commit):
+async def test_get_payments_success_with_pending_status(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test getting payment success page when payment is in PENDING status.
 
@@ -221,7 +230,10 @@ async def test_get_payments_success_with_pending_status(authorized_client, test_
     assert response.status_code == 200
 
     assert response.json()["status"] == "processing"
-    assert response.json()["message"] == "Payment is being processed by the gateway. Please refresh in a moment."
+    assert (
+        response.json()["message"]
+        == "Payment is being processed by the gateway. Please refresh in a moment."
+    )
     assert response.json()["payment_status"] == "PENDING"
 
     await db_session_commit.delete(payment)
@@ -231,7 +243,9 @@ async def test_get_payments_success_with_pending_status(authorized_client, test_
 
 
 @pytest.mark.asyncio
-async def test_get_payments_success_with_successful_status(authorized_client, test_movie, db_session_commit):
+async def test_get_payments_success_with_successful_status(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test getting payment success page when payment is in SUCCESSFUL status.
 
@@ -276,7 +290,9 @@ async def test_get_payments_success_with_successful_status(authorized_client, te
 
 
 @pytest.mark.asyncio
-async def test_get_payments_success_with_another_status(authorized_client, test_movie, db_session_commit):
+async def test_get_payments_success_with_another_status(
+    authorized_client, test_movie, db_session_commit
+):
     """
     Test getting payment success page when payment is in a failed/refunded status.
 
@@ -311,7 +327,10 @@ async def test_get_payments_success_with_another_status(authorized_client, test_
     assert response.status_code == 200
 
     assert response.json()["status"] == "failed"
-    assert response.json()["message"] == "Payment was declined or canceled. Please check your card balance, ensure internet limits are sufficient, or try a different payment method."
+    assert (
+        response.json()["message"]
+        == "Payment was declined or canceled. Please check your card balance, ensure internet limits are sufficient, or try a different payment method."
+    )
     assert response.json()["payment_status"] == "REFUNDED"
 
     await db_session_commit.delete(payment)
@@ -333,7 +352,10 @@ async def test_get_payments_canceled_with_success_status(client):
     assert response.status_code == 200
 
     assert response.json()["status"] == "canceled"
-    assert response.json()["message"] == "You have canceled the payment. Your order remains pending."
+    assert (
+        response.json()["message"]
+        == "You have canceled the payment. Your order remains pending."
+    )
 
 
 @pytest.mark.asyncio
@@ -445,7 +467,9 @@ async def test_get_payments_for_admin_not_admin(authorized_client):
 
 
 @pytest.mark.asyncio
-async def test_get_payments_for_admin_success(admin_client, test_movie, db_session_commit):
+async def test_get_payments_for_admin_success(
+    admin_client, test_movie, db_session_commit
+):
     """
     Test successful retrieval of payments for admin.
 
@@ -459,7 +483,7 @@ async def test_get_payments_for_admin_success(admin_client, test_movie, db_sessi
     user = User.create(
         email="payment_test_user@example.com",
         raw_password="Test1234!",
-        group_id=user_group.id
+        group_id=user_group.id,
     )
     user.is_active = True
     db_session_commit.add(user)
@@ -502,7 +526,9 @@ async def test_get_payments_for_admin_success(admin_client, test_movie, db_sessi
 
 
 @pytest.mark.asyncio
-async def test_get_payments_for_admin_with_filters(admin_client, test_movie, db_session_commit, seed_user_groups):
+async def test_get_payments_for_admin_with_filters(
+    admin_client, test_movie, db_session_commit, seed_user_groups
+):
     """
     Test getting payments for admin with various filter parameters.
 
@@ -516,7 +542,7 @@ async def test_get_payments_for_admin_with_filters(admin_client, test_movie, db_
     user = User.create(
         email="payment_filter_test_user@example.com",
         raw_password="Test1234!",
-        group_id=user_group.id
+        group_id=user_group.id,
     )
     user.is_active = True
     db_session_commit.add(user)
@@ -541,7 +567,9 @@ async def test_get_payments_for_admin_with_filters(admin_client, test_movie, db_
     db_session_commit.add(payment)
     await db_session_commit.commit()
 
-    response = await admin_client.get(f"/api/v1/payments/admin/payments?user_id={user.id}")
+    response = await admin_client.get(
+        f"/api/v1/payments/admin/payments?user_id={user.id}"
+    )
     assert response.status_code == 200
     assert isinstance(response.json(), list)
     assert len(response.json()) > 0
@@ -565,4 +593,3 @@ async def test_get_payments_for_admin_with_filters(admin_client, test_movie, db_
     await db_session_commit.delete(order)
     await db_session_commit.delete(user)
     await db_session_commit.commit()
-

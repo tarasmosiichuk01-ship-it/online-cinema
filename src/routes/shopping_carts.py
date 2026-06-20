@@ -5,7 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from config.database import get_postgresql_db
-from config.dependencies import get_current_user, get_admin_user, get_optional_current_user
+from config.dependencies import (
+    get_current_user,
+    get_admin_user,
+    get_optional_current_user,
+)
 from models.accounts import User, UserGroupEnum
 from models.movies import Movie
 from models.orders import OrderItem, Order, OrderStatusEnum
@@ -14,7 +18,7 @@ from schemas.shopping_carts import (
     CartItemCreateSchema,
     CartItemResponseSchema,
     CartResponse,
-    PurchasedMovieResponseSchema
+    PurchasedMovieResponseSchema,
 )
 
 router = APIRouter()
@@ -35,7 +39,7 @@ router = APIRouter()
     responses={
         400: {
             "description": "Bad Request due to repeat purchase block, duplicate cart item inclusion, "
-                           "or race-condition database integrity errors.",
+            "or race-condition database integrity errors.",
             "content": {
                 "application/json": {
                     "example": {"detail": "This movie is already in your cart."}
@@ -44,10 +48,12 @@ router = APIRouter()
         },
         401: {
             "description": "Unauthorized because the request is anonymous. "
-                           "A redirection link to register is supplied.",
+            "A redirection link to register is supplied.",
             "content": {
                 "application/json": {
-                    "example": {"detail": "You must sign up or log in before completing a purchase. ..."}
+                    "example": {
+                        "detail": "You must sign up or log in before completing a purchase. ..."
+                    }
                 }
             },
         },
@@ -58,13 +64,13 @@ router = APIRouter()
                     "example": {"detail": "Movie with the given ID was not found."}
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def add_movie_to_cart(
     cart_item_data: CartItemCreateSchema,
     current_user: User | None = Depends(get_optional_current_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Append an entry to the user's active shopping cart (asynchronously).
@@ -93,13 +99,17 @@ async def add_movie_to_cart(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="You must sign up or log in before completing a purchase. "
-                   "Register here: http://127.0.0.1:8000/api/v1/accounts/register/"
+            "Register here: http://127.0.0.1:8000/api/v1/accounts/register/",
         )
 
-    purchased_query = select(OrderItem).join(Order).where(
-        Order.user_id == current_user.id,
-        Order.status == OrderStatusEnum.PAID,
-        OrderItem.movie_id == cart_item_data.movie_id
+    purchased_query = (
+        select(OrderItem)
+        .join(Order)
+        .where(
+            Order.user_id == current_user.id,
+            Order.status == OrderStatusEnum.PAID,
+            OrderItem.movie_id == cart_item_data.movie_id,
+        )
     )
     purchased_result = await db.execute(purchased_query)
     existing_purchase = purchased_result.scalars().first()
@@ -107,7 +117,7 @@ async def add_movie_to_cart(
     if existing_purchase:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Repeat purchases are not allowed."
+            detail="Repeat purchases are not allowed.",
         )
 
     movie_query = select(Movie).where(Movie.id == cart_item_data.movie_id)
@@ -117,7 +127,7 @@ async def add_movie_to_cart(
     if not existing_movie:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given ID was not found."
+            detail="Movie with the given ID was not found.",
         )
 
     cart_query = select(Cart).where(Cart.user_id == current_user.id)
@@ -130,8 +140,7 @@ async def add_movie_to_cart(
         await db.flush()
 
     cart_item_query = select(CartItem).where(
-        CartItem.cart_id == cart.id,
-        CartItem.movie_id == cart_item_data.movie_id
+        CartItem.cart_id == cart.id, CartItem.movie_id == cart_item_data.movie_id
     )
     cart_item_result = await db.execute(cart_item_query)
     existing_cart_item = cart_item_result.scalars().first()
@@ -139,7 +148,7 @@ async def add_movie_to_cart(
     if existing_cart_item:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This movie is already in your cart."
+            detail="This movie is already in your cart.",
         )
 
     new_cart_item = CartItem(
@@ -154,9 +163,7 @@ async def add_movie_to_cart(
         completed_item_query = (
             select(CartItem)
             .where(CartItem.id == new_cart_item.id)
-            .options(
-                joinedload(CartItem.movie).joinedload(Movie.genres)
-            )
+            .options(joinedload(CartItem.movie).joinedload(Movie.genres))
         )
         completed_item_result = await db.execute(completed_item_query)
         completed_cart_item = completed_item_result.scalars().first()
@@ -169,7 +176,7 @@ async def add_movie_to_cart(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This movie is already in your cart."
+            detail="This movie is already in your cart.",
         )
 
 
@@ -188,11 +195,11 @@ async def add_movie_to_cart(
         401: {
             "description": "Unauthorized due to missing or invalid authentication token.",
         }
-    }
+    },
 )
 async def get_current_user_cart(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Retrieve the authenticated user's active shopping cart (asynchronously).
@@ -249,13 +256,13 @@ async def get_current_user_cart(
                     "example": {"detail": "This movie is not in your cart."}
                 }
             },
-        }
-    }
+        },
+    },
 )
 async def delete_cart_item(
     movie_id: int,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Remove an item from the user's active shopping cart (asynchronously).
@@ -280,10 +287,7 @@ async def delete_cart_item(
     query = (
         select(CartItem)
         .join(Cart)
-        .where(
-            CartItem.movie_id == movie_id,
-            Cart.user_id == current_user.id
-        )
+        .where(CartItem.movie_id == movie_id, Cart.user_id == current_user.id)
     )
     result = await db.execute(query)
     cart_item = result.scalars().first()
@@ -291,7 +295,7 @@ async def delete_cart_item(
     if not cart_item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="This movie is not in your cart."
+            detail="This movie is not in your cart.",
         )
 
     await db.delete(cart_item)
@@ -312,11 +316,11 @@ async def delete_cart_item(
         401: {
             "description": "Unauthorized due to missing or invalid authentication token.",
         }
-    }
+    },
 )
 async def delete_cart_items(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Clear all items within the user's active shopping cart (asynchronously).
@@ -334,13 +338,9 @@ async def delete_cart_items(
     :return: None (HTTP 204 No Content response is generated automatically).
     :rtype: None
     """
-    delete_query = (
-        delete(CartItem)
-        .where(
-            CartItem.cart_id == (
-                select(Cart.id).where(Cart.user_id == current_user.id).scalar_subquery()
-            )
-        )
+    delete_query = delete(CartItem).where(
+        CartItem.cart_id
+        == (select(Cart.id).where(Cart.user_id == current_user.id).scalar_subquery())
     )
     await db.execute(delete_query)
     await db.commit()
@@ -364,13 +364,13 @@ async def delete_cart_items(
         },
         403: {
             "description": "Forbidden if the authenticated user lacks administrative privileges.",
-        }
-    }
+        },
+    },
 )
 async def get_cart_by_user_id(
     user_id: int,
     current_user: User = Depends(get_admin_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Retrieve any target user's shopping cart details globally (asynchronously).
@@ -424,11 +424,11 @@ async def get_cart_by_user_id(
         401: {
             "description": "Unauthorized due to missing or invalid authentication token.",
         }
-    }
+    },
 )
 async def get_purchased_movies(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_postgresql_db)
+    db: AsyncSession = Depends(get_postgresql_db),
 ):
     """
     Retrieve the library of movies purchased by the authenticated user (asynchronously).
@@ -448,10 +448,7 @@ async def get_purchased_movies(
     query = (
         select(PurchasedMovie)
         .where(PurchasedMovie.user_id == current_user.id)
-        .options(
-            selectinload(PurchasedMovie.movie)
-            .selectinload(Movie.genres)
-        )
+        .options(selectinload(PurchasedMovie.movie).selectinload(Movie.genres))
     )
     result = await db.execute(query)
     purchased_movies = result.scalars().all()

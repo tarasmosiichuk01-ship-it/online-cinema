@@ -12,7 +12,9 @@ from models.shopping_carts import Cart, CartItem
 
 
 @pytest.mark.asyncio
-async def test_create_movie_if_existing_movie_is(test_movie, moderator_client, db_session_commit):
+async def test_create_movie_if_existing_movie_is(
+    test_movie, moderator_client, db_session_commit
+):
     """
     Test creating a movie that already exists.
 
@@ -69,7 +71,9 @@ async def test_create_movie_unauthorized_user(test_movie, client, db_session_com
 
 
 @pytest.mark.asyncio
-async def test_create_movie_not_moderator(test_movie, authorized_client, db_session_commit):
+async def test_create_movie_not_moderator(
+    test_movie, authorized_client, db_session_commit
+):
     """
     Test creating a movie by a user without moderator/admin privileges.
 
@@ -99,11 +103,16 @@ async def test_create_movie_not_moderator(test_movie, authorized_client, db_sess
 
     response = await client.post("/api/v1/cinema/movies", json=payload)
     assert response.status_code == 403
-    assert response.json()["detail"] == "Access forbidden. Moderator or Admin role required."
+    assert (
+        response.json()["detail"]
+        == "Access forbidden. Moderator or Admin role required."
+    )
 
 
 @pytest.mark.asyncio
-async def test_create_movie_integrity_error(test_movie, moderator_client, db_session_commit):
+async def test_create_movie_integrity_error(
+    test_movie, moderator_client, db_session_commit
+):
     """
     Test creating a movie when a database integrity error occurs.
 
@@ -124,7 +133,9 @@ async def test_create_movie_integrity_error(test_movie, moderator_client, db_ses
         "directors": [],
     }
 
-    simulated_error = IntegrityError(statement="INSERT INTO movies ...", params={}, orig=Exception())
+    simulated_error = IntegrityError(
+        statement="INSERT INTO movies ...", params={}, orig=Exception()
+    )
 
     with patch("routes.cinema.movies.AsyncSession.commit", side_effect=simulated_error):
         response = await moderator_client.post("/api/v1/cinema/movies", json=payload)
@@ -196,7 +207,9 @@ async def test_get_movie_list_with_pagination_and_sorting(test_movie, client):
     Ensures that the endpoint returns a 200 status code and correct
     pagination fields when valid pagination and sorting parameters are provided.
     """
-    response = await client.get("/api/v1/cinema/movies?page=1&per_page=10&sort_by=id&order=desc")
+    response = await client.get(
+        "/api/v1/cinema/movies?page=1&per_page=10&sort_by=id&order=desc"
+    )
     assert response.status_code == 200
 
     response_data = response.json()
@@ -231,7 +244,9 @@ async def test_get_movie_list_filter_by_min_rating_imdb(client, test_movie):
     Ensures that the endpoint returns a 200 status code and at least one movie
     when filtering by the minimum IMDB rating of the test movie.
     """
-    response = await client.get(f"/api/v1/cinema/movies?min_rating_imdb={test_movie.imdb}")
+    response = await client.get(
+        f"/api/v1/cinema/movies?min_rating_imdb={test_movie.imdb}"
+    )
     assert response.status_code == 200
 
     response_data = response.json()
@@ -265,7 +280,11 @@ async def test_get_movie_list_filter_by_genre(client, test_movie, db_session_com
     db_session_commit.add(genre)
     await db_session_commit.flush()
 
-    query = select(Movie).options(selectinload(Movie.genres)).where(Movie.id == test_movie.id)
+    query = (
+        select(Movie)
+        .options(selectinload(Movie.genres))
+        .where(Movie.id == test_movie.id)
+    )
     result = await db_session_commit.execute(query)
     movie = result.scalars().first()
 
@@ -319,7 +338,9 @@ async def test_get_movie_by_id_if_not_movie(client):
 
 
 @pytest.mark.asyncio
-async def test_get_movie_by_id_if_movie_not_available(client, test_movie, db_session_commit):
+async def test_get_movie_by_id_if_movie_not_available(
+    client, test_movie, db_session_commit
+):
     """
     Test getting a movie by ID when the movie is not available.
 
@@ -370,7 +391,9 @@ async def test_update_movie_if_not_movie(moderator_client):
         "description": "Movie Test Test Movie",
     }
 
-    response = await moderator_client.patch(f"/api/v1/cinema/movies/9999999", json=payload)
+    response = await moderator_client.patch(
+        f"/api/v1/cinema/movies/9999999", json=payload
+    )
     assert response.status_code == 404
     assert response.json()["detail"] == "Movie with the given ID was not found."
 
@@ -391,10 +414,15 @@ async def test_update_movie_not_moderator(authorized_client, test_movie):
         "description": "Movie Test Test Movie",
     }
 
-    response = await client.patch(f"/api/v1/cinema/movies/{test_movie.id}", json=payload)
+    response = await client.patch(
+        f"/api/v1/cinema/movies/{test_movie.id}", json=payload
+    )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "Access forbidden. Moderator or Admin role required."
+    assert (
+        response.json()["detail"]
+        == "Access forbidden. Moderator or Admin role required."
+    )
 
 
 @pytest.mark.asyncio
@@ -411,10 +439,14 @@ async def test_update_movie_integrity_error(moderator_client, test_movie):
         "description": "Movie Test Test Movie",
     }
 
-    simulated_error = IntegrityError(statement="INSERT INTO movies ...", params={}, orig=Exception())
+    simulated_error = IntegrityError(
+        statement="INSERT INTO movies ...", params={}, orig=Exception()
+    )
 
     with patch("routes.cinema.movies.AsyncSession.commit", side_effect=simulated_error):
-        response = await moderator_client.patch(f"/api/v1/cinema/movies/{test_movie.id}", json=payload)
+        response = await moderator_client.patch(
+            f"/api/v1/cinema/movies/{test_movie.id}", json=payload
+        )
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid input data."
@@ -434,7 +466,9 @@ async def test_update_movie_success(moderator_client, test_movie):
         "description": "Movie Test Test Movie",
     }
 
-    response = await moderator_client.patch(f"/api/v1/cinema/movies/{test_movie.id}", json=payload)
+    response = await moderator_client.patch(
+        f"/api/v1/cinema/movies/{test_movie.id}", json=payload
+    )
 
     assert response.status_code == 200
     response_data = response.json()
@@ -471,11 +505,16 @@ async def test_delete_movie_not_moderator(authorized_client, test_movie):
     response = await client.delete(f"/api/v1/cinema/movies/{test_movie.id}")
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "Access forbidden. Moderator or Admin role required."
+    assert (
+        response.json()["detail"]
+        == "Access forbidden. Moderator or Admin role required."
+    )
 
 
 @pytest.mark.asyncio
-async def test_delete_movie_if_movie_in_cart(moderator_client, test_movie, db_session_commit, seed_user_groups):
+async def test_delete_movie_if_movie_in_cart(
+    moderator_client, test_movie, db_session_commit, seed_user_groups
+):
     """
     Test deleting a movie that is currently in a user's shopping cart.
 
@@ -488,9 +527,7 @@ async def test_delete_movie_if_movie_in_cart(moderator_client, test_movie, db_se
     user_group = result.scalars().first()
 
     user = User.create(
-        email="cart_user@example.com",
-        raw_password="Test1234!",
-        group_id=user_group.id
+        email="cart_user@example.com", raw_password="Test1234!", group_id=user_group.id
     )
     user.is_active = True
     db_session_commit.add(user)
@@ -506,7 +543,10 @@ async def test_delete_movie_if_movie_in_cart(moderator_client, test_movie, db_se
 
     response = await moderator_client.delete(f"/api/v1/cinema/movies/{test_movie.id}")
     assert response.status_code == 400
-    assert response.json()["detail"] == "Warning to Moderator: This movie cannot be deleted because it is currently in users' shopping carts."
+    assert (
+        response.json()["detail"]
+        == "Warning to Moderator: This movie cannot be deleted because it is currently in users' shopping carts."
+    )
 
     await db_session_commit.delete(cart_item)
     await db_session_commit.delete(cart)
@@ -515,7 +555,9 @@ async def test_delete_movie_if_movie_in_cart(moderator_client, test_movie, db_se
 
 
 @pytest.mark.asyncio
-async def test_delete_movie_if_movie_is_purchased(moderator_client, test_movie, db_session_commit, seed_user_groups):
+async def test_delete_movie_if_movie_is_purchased(
+    moderator_client, test_movie, db_session_commit, seed_user_groups
+):
     """
     Test deleting a movie that has already been purchased by a user.
 
@@ -530,31 +572,30 @@ async def test_delete_movie_if_movie_is_purchased(moderator_client, test_movie, 
     user = User.create(
         email="purchased_user@example.com",
         raw_password="Test1234!",
-        group_id=user_group.id
+        group_id=user_group.id,
     )
     user.is_active = True
     db_session_commit.add(user)
     await db_session_commit.flush()
 
     order = Order(
-        user_id=user.id,
-        status=OrderStatusEnum.PAID,
-        total_amount=test_movie.price
+        user_id=user.id, status=OrderStatusEnum.PAID, total_amount=test_movie.price
     )
     db_session_commit.add(order)
     await db_session_commit.flush()
 
     order_item = OrderItem(
-        order_id=order.id,
-        movie_id=test_movie.id,
-        price_at_order=test_movie.price
+        order_id=order.id, movie_id=test_movie.id, price_at_order=test_movie.price
     )
     db_session_commit.add(order_item)
     await db_session_commit.commit()
 
     response = await moderator_client.delete(f"/api/v1/cinema/movies/{test_movie.id}")
     assert response.status_code == 400
-    assert response.json()["detail"] == "This movie cannot be deleted because it has already been purchased by at least one user."
+    assert (
+        response.json()["detail"]
+        == "This movie cannot be deleted because it has already been purchased by at least one user."
+    )
 
     await db_session_commit.delete(order_item)
     await db_session_commit.delete(order)

@@ -18,7 +18,6 @@ from notifications.interfaces import EmailSenderInterface
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
 
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
@@ -88,10 +87,12 @@ async def get_moderator_user(current_user: User = Depends(get_current_user)) -> 
     Raises HTTP 403 if the current user does not have the required role.
     Used to protect moderator-only endpoints.
     """
-    if not current_user.has_group(UserGroupEnum.MODERATOR) and not current_user.has_group(UserGroupEnum.ADMIN):
+    if not current_user.has_group(
+        UserGroupEnum.MODERATOR
+    ) and not current_user.has_group(UserGroupEnum.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access forbidden. Moderator or Admin role required."
+            detail="Access forbidden. Moderator or Admin role required.",
         )
 
     return current_user
@@ -107,15 +108,14 @@ async def get_admin_user(current_user: User = Depends(get_current_user)) -> User
     if not current_user.has_group(UserGroupEnum.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access forbidden. Admin role required."
+            detail="Access forbidden. Admin role required.",
         )
 
     return current_user
 
 
 async def get_optional_current_user(
-    request: Request,
-    db: AsyncSession = Depends(get_postgresql_db)
+    request: Request, db: AsyncSession = Depends(get_postgresql_db)
 ) -> User | None:
     """
     Attempts to retrieve the currently authenticated user from the request.
@@ -177,7 +177,9 @@ def get_accounts_email_notificator() -> EmailSenderInterface:
     )
 
 
-def get_jwt_auth_manager(settings: Settings = Depends(get_settings)) -> JWTAuthManagerInterface:
+def get_jwt_auth_manager(
+    settings: Settings = Depends(get_settings),
+) -> JWTAuthManagerInterface:
     """
     Creates and returns a JWTAuthManager instance configured with
     application settings.
@@ -188,17 +190,21 @@ def get_jwt_auth_manager(settings: Settings = Depends(get_settings)) -> JWTAuthM
     return JWTAuthManager(
         secret_key_access=settings.SECRET_KEY_ACCESS,
         secret_key_refresh=settings.SECRET_KEY_REFRESH,
-        algorithm=settings.JWT_SIGNING_ALGORITHM
+        algorithm=settings.JWT_SIGNING_ALGORITHM,
     )
 
 
 def get_query_params(
-    search: Optional[str] = Query(None, description="Search by name, description, star or director"),
+    search: Optional[str] = Query(
+        None, description="Search by name, description, star or director"
+    ),
     release_year: Optional[int] = Query(None, description="Filter by year"),
     min_rating_imdb: Optional[float] = Query(None, description="Filter by IMDb rating"),
     genre: Optional[str] = Query(None, description="Filter by genre"),
     sort_by: str = Query("id", description="Sort field: id, year, price, votes"),
-    order: str = Query("desc", description="Direction: asc (growing) or desc (falling)"),
+    order: str = Query(
+        "desc", description="Direction: asc (growing) or desc (falling)"
+    ),
 ):
     """
     Collects and returns common query parameters for movie list filtering,
@@ -219,10 +225,16 @@ def get_query_params(
 
 def admin_query_params(
     user_id: Optional[int] = Query(None, description="Filter by user id"),
-    start_date: Optional[datetime.date] = Query(None, description="Filter by start date"),
+    start_date: Optional[datetime.date] = Query(
+        None, description="Filter by start date"
+    ),
     end_date: Optional[datetime.date] = Query(None, description="Filter by end date"),
-    order_status: Optional[OrderStatusEnum] = Query(None, description="Filter by order status"),
-    payment_status: Optional[PaymentStatusEnum] = Query(None, description="Filter by payment status")
+    order_status: Optional[OrderStatusEnum] = Query(
+        None, description="Filter by order status"
+    ),
+    payment_status: Optional[PaymentStatusEnum] = Query(
+        None, description="Filter by payment status"
+    ),
 ):
     """
     Collects and returns query parameters for admin filtering of orders

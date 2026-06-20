@@ -13,7 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     Date,
     Text,
-    UniqueConstraint
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
@@ -37,7 +37,9 @@ class UserGroup(Base):
     __tablename__ = "user_groups"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[UserGroupEnum] = mapped_column(Enum(UserGroupEnum), nullable=False, unique=True)
+    name: Mapped[UserGroupEnum] = mapped_column(
+        Enum(UserGroupEnum), nullable=False, unique=True
+    )
 
     users: Mapped[List["User"]] = relationship("User", back_populates="group")
 
@@ -50,40 +52,39 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
-    _hashed_password: Mapped[str] = mapped_column("hashed_password", String(255), nullable=False)
+    _hashed_password: Mapped[str] = mapped_column(
+        "hashed_password", String(255), nullable=False
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
     )
 
-    group_id: Mapped[int] = mapped_column(ForeignKey("user_groups.id", ondelete="RESTRICT"), nullable=False)
+    group_id: Mapped[int] = mapped_column(
+        ForeignKey("user_groups.id", ondelete="RESTRICT"), nullable=False
+    )
     group: Mapped["UserGroup"] = relationship("UserGroup", back_populates="users")
 
     profile: Mapped[Optional["UserProfile"]] = relationship(
-        "UserProfile",
-        back_populates="user",
-        cascade="all, delete-orphan"
+        "UserProfile", back_populates="user", cascade="all, delete-orphan"
     )
 
     activation_token: Mapped[Optional["ActivationToken"]] = relationship(
-        "ActivationToken",
-        back_populates="user",
-        cascade="all, delete-orphan"
+        "ActivationToken", back_populates="user", cascade="all, delete-orphan"
     )
 
     password_reset_token: Mapped[Optional["PasswordResetToken"]] = relationship(
-        "PasswordResetToken",
-        back_populates="user",
-        cascade="all, delete-orphan"
+        "PasswordResetToken", back_populates="user", cascade="all, delete-orphan"
     )
 
     refresh_tokens: Mapped[List["RefreshToken"]] = relationship(
-        "RefreshToken",
-        back_populates="user",
-        cascade="all, delete-orphan"
+        "RefreshToken", back_populates="user", cascade="all, delete-orphan"
     )
 
     movie_comments: Mapped[list["MovieComment"]] = relationship(
@@ -91,8 +92,7 @@ class User(Base):
     )
 
     comment_reactions: Mapped[list["CommentReaction"]] = relationship(
-        "CommentReaction",
-        back_populates="user"
+        "CommentReaction", back_populates="user"
     )
 
     movie_reactions: Mapped[list["MovieReaction"]] = relationship(
@@ -110,14 +110,14 @@ class User(Base):
     cart: Mapped["Cart"] = relationship("Cart", back_populates="user", uselist=False)
 
     orders: Mapped[list["Order"]] = relationship(
-        "Order",
-        back_populates="user",
-        cascade="all, delete-orphan"
+        "Order", back_populates="user", cascade="all, delete-orphan"
     )
 
     payments: Mapped[list["Payment"]] = relationship("Payment", back_populates="user")
 
-    purchased_movies: Mapped[list["PurchasedMovie"]] = relationship("PurchasedMovie", back_populates="user")
+    purchased_movies: Mapped[list["PurchasedMovie"]] = relationship(
+        "PurchasedMovie", back_populates="user"
+    )
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, is_active={self.is_active})>"
@@ -126,7 +126,9 @@ class User(Base):
         return self.group.name == group_name
 
     @classmethod
-    def create(cls, email: str, raw_password: str, group_id: int | Mapped[int]) -> "User":
+    def create(
+        cls, email: str, raw_password: str, group_id: int | Mapped[int]
+    ) -> "User":
         """
         Factory method to create a new UserModel instance.
 
@@ -139,7 +141,9 @@ class User(Base):
 
     @property
     def password(self) -> None:
-        raise AttributeError("Password is write-only. Use the setter to set the password.")
+        raise AttributeError(
+            "Password is write-only. Use the setter to set the password."
+        )
 
     @password.setter
     def password(self, raw_password: str) -> None:
@@ -165,9 +169,7 @@ class UserProfile(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        unique=True
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True
     )
     first_name: Mapped[Optional[str]] = mapped_column(String(100))
     last_name: Mapped[Optional[str]] = mapped_column(String(100))
@@ -193,15 +195,17 @@ class TokenBase(Base):
         String(64),
         unique=True,
         nullable=False,
-        default=lambda: secrets.token_urlsafe(32)
+        default=lambda: secrets.token_urlsafe(32),
     )
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc) + timedelta(days=1)
+        default=lambda: datetime.now(timezone.utc) + timedelta(days=1),
     )
 
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
 
 
 class ActivationToken(TokenBase):
@@ -231,13 +235,15 @@ class RefreshToken(TokenBase):
         String(512),
         unique=True,
         nullable=False,
-        default=lambda: secrets.token_urlsafe(32)
+        default=lambda: secrets.token_urlsafe(32),
     )
 
     user: Mapped[User] = relationship("User", back_populates="refresh_tokens")
 
     @classmethod
-    def create(cls, user_id: int | Mapped[int], days_valid: int, token: str) -> "RefreshToken":
+    def create(
+        cls, user_id: int | Mapped[int], days_valid: int, token: str
+    ) -> "RefreshToken":
         """
         Factory method to create a new RefreshTokenModel instance.
 
