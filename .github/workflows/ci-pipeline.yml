@@ -33,7 +33,7 @@ jobs:
         run: poetry run flake8 src/
 
       - name: Run mypy
-        run: poetry run mypy src/ --ignore-missing-imports
+        run: poetry run mypy src/
 
   tests:
     runs-on: ubuntu-latest
