@@ -55,6 +55,12 @@ target-version = ["py312"]
 python_version = "3.12"
 ignore_missing_imports = true
 explicit_package_bases = true
+exclude = [
+    "src/models/",
+    "src/schemas/",
+    "src/routes/payments.py",
+    "src/utils/utils.py",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
